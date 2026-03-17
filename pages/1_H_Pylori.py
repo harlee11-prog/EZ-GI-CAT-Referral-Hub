@@ -1,5 +1,5 @@
 import streamlit as st, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, "/content")
 
 from h_pylori_engine import (
     Patient, HPyloriPathwayEngine, generate_clinical_report,
@@ -95,3 +95,4 @@ with right:
         st.code(report, language=None)
     else:
         st.info("Fill in details on the left and click ▶ Run Pathway")
+
