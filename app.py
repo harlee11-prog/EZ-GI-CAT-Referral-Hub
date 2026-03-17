@@ -1,4 +1,3 @@
-%%writefile app.py
 import streamlit as st
 
 st.set_page_config(page_title="EZ GI CAT Clinical Decision Hub", page_icon="🏥", layout="wide")
