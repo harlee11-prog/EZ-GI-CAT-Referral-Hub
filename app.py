@@ -1,6 +1,15 @@
+%%writefile app.py
 import streamlit as st
 
 st.set_page_config(page_title="EZ GI CAT Clinical Decision Hub", page_icon="🏥", layout="wide")
+
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+""", unsafe_allow_html=True)
 
 st.title("🏥EZ GI CAT Clinical Decision Support Hub")
 st.caption("Alberta Health Services · Primary Care Networks")
