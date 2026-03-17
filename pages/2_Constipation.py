@@ -1,5 +1,5 @@
 import streamlit as st, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, "/content")
 
 from chronic_constipation_engine import (
     ChronicConstipationPatient, ChronicConstipationPathwayEngine,
