@@ -16,21 +16,21 @@ st.markdown("""
     footer {visibility: hidden !important;}
 
     .card-urgent {
-        background-color: #2d0000;
+        background-color: #3d0000;
         border-left: 5px solid #ff4b4b;
         border-radius: 8px;
         padding: 16px 20px;
         margin-bottom: 12px;
     }
     .card-routine {
-        background-color: #002d0f;
+        background-color: #003d15;
         border-left: 5px solid #21c55d;
         border-radius: 8px;
         padding: 16px 20px;
         margin-bottom: 12px;
     }
     .card-info {
-        background-color: #00162d;
+        background-color: #002a4d;
         border-left: 5px solid #4b9eff;
         border-radius: 8px;
         padding: 16px 20px;
