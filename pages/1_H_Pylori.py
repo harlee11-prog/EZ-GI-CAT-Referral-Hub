@@ -1,5 +1,7 @@
-import streamlit as st, sys
-sys.path.insert(0, "/content")
+%%writefile pages/1_H_Pylori.py
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import streamlit as st
 
 from h_pylori_engine import (
     Patient, HPyloriPathwayEngine, generate_clinical_report,
@@ -7,6 +9,83 @@ from h_pylori_engine import (
 )
 
 st.set_page_config(page_title="H. Pylori", page_icon="🦠", layout="wide")
+
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden !important;}
+    header {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
+
+    .card-urgent {
+        background-color: #2d0000;
+        border-left: 5px solid #ff4b4b;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+    }
+    .card-routine {
+        background-color: #002d0f;
+        border-left: 5px solid #21c55d;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+    }
+    .card-info {
+        background-color: #00162d;
+        border-left: 5px solid #4b9eff;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+    }
+    .card-title {
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        color: white;
+    }
+    .card-detail {
+        font-size: 13px;
+        color: #cccccc;
+        margin: 2px 0;
+    }
+    .badge-urgent {
+        background-color: #ff4b4b;
+        color: white;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        margin-right: 8px;
+    }
+    .badge-routine {
+        background-color: #21c55d;
+        color: white;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        margin-right: 8px;
+    }
+    .badge-info {
+        background-color: #4b9eff;
+        color: white;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        margin-right: 8px;
+    }
+    .section-header {
+        font-size: 13px;
+        font-weight: 600;
+        color: #888888;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin: 20px 0 10px 0;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("🦠 H. Pylori Pathway")
 st.markdown("---")
 
@@ -61,6 +140,7 @@ with left:
 
 with right:
     st.subheader("Clinical Recommendations")
+
     if run:
         patient = Patient(
             age=age, sex=sex,
@@ -86,13 +166,54 @@ with right:
             alarm_blood_in_vomit=al_blood_vomit or None,
             alarm_iron_deficiency_anemia=al_ida or None,
         )
+
         engine  = HPyloriPathwayEngine()
         actions = engine.evaluate(patient)
-        report  = generate_clinical_report(patient, actions, engine)
 
-        if patient.has_alarm_features:
-            st.error("🚨 Alarm features detected — urgent referral recommended")
-        st.code(report, language=None)
+        # ── Patient Context Card ──
+        st.markdown('<div class="section-header">Patient Context</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="card-info">
+            <div class="card-detail">👤 <b>Age / Sex:</b> {age} / {sex.capitalize()}</div>
+            <div class="card-detail">🧬 <b>H. Pylori Test:</b> {hp_positive}</div>
+            <div class="card-detail">💊 <b>Treatment Line:</b> {tx_line}</div>
+            <div class="card-detail">⚠️ <b>Alarm Features:</b> {"Yes" if patient.has_alarm_features else "None"}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Actions ──
+        st.markdown('<div class="section-header">Recommended Actions</div>', unsafe_allow_html=True)
+
+        for action in actions:
+            urgency = action.urgency.upper() if action.urgency else "INFO"
+
+            if urgency == "URGENT":
+                card_class = "card-urgent"
+                badge = '<span class="badge-urgent">🔴 URGENT</span>'
+            elif urgency == "ROUTINE":
+                card_class = "card-routine"
+                badge = '<span class="badge-routine">🟢 ROUTINE</span>'
+            else:
+                card_class = "card-info"
+                badge = '<span class="badge-info">🔵 INFO</span>'
+
+            details_html = "".join(
+                f'<div class="card-detail">• {d}</div>'
+                for d in action.details
+            )
+
+            st.markdown(f"""
+            <div class="{card_class}">
+                <div class="card-title">{badge}{action.category}: {action.description}</div>
+                {details_html}
+            </div>
+            """, unsafe_allow_html=True)
+
+        # ── Audit Log ──
+        with st.expander("📋 Decision Audit Log"):
+            for step in engine.tracker.steps:
+                st.markdown(f"**[{step.timestamp[11:19]}] {step.rule}**")
+                st.caption(f"→ {step.decision}")
+
     else:
         st.info("Fill in details on the left and click ▶ Run Pathway")
-
