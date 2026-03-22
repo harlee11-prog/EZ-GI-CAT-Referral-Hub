@@ -4,7 +4,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from h_pylori_engine import (
-    Patient, HPyloriPathwayEngine, generate_clinical_report,
+    Patient, HPyloriPathwayEngine,
     TreatmentLine, LastRegimen
 )
 
@@ -18,69 +18,38 @@ st.markdown("""
     .card-urgent {
         background-color: #7a1a1a !important;
         border-left: 5px solid #ff4b4b;
-        border-radius: 8px;
-        padding: 16px 20px;
-        margin-bottom: 12px;
+        border-radius: 8px; padding: 16px 20px; margin-bottom: 12px;
     }
     .card-routine {
         background-color: #1a5c30 !important;
         border-left: 5px solid #21c55d;
-        border-radius: 8px;
-        padding: 16px 20px;
-        margin-bottom: 12px;
+        border-radius: 8px; padding: 16px 20px; margin-bottom: 12px;
     }
     .card-info {
         background-color: #1a3a5c !important;
         border-left: 5px solid #4b9eff;
-        border-radius: 8px;
-        padding: 16px 20px;
-        margin-bottom: 12px;
+        border-radius: 8px; padding: 16px 20px; margin-bottom: 12px;
     }
-    .card-title {
-        font-size: 15px;
-        font-weight: 700;
-        margin-bottom: 6px;
-        color: white;
-    }
-    .card-detail {
-        font-size: 13px;
-        color: #cccccc;
-        margin: 2px 0;
-    }
+    .card-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: white; }
+    .card-detail { font-size: 13px; color: #cccccc; margin: 2px 0; }
     .badge-urgent {
-        background-color: #ff4b4b;
-        color: white;
-        padding: 2px 10px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 700;
-        margin-right: 8px;
+        background-color: #ff4b4b; color: white;
+        padding: 2px 10px; border-radius: 12px; font-size: 11px;
+        font-weight: 700; margin-right: 8px;
     }
     .badge-routine {
-        background-color: #21c55d;
-        color: white;
-        padding: 2px 10px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 700;
-        margin-right: 8px;
+        background-color: #21c55d; color: white;
+        padding: 2px 10px; border-radius: 12px; font-size: 11px;
+        font-weight: 700; margin-right: 8px;
     }
     .badge-info {
-        background-color: #4b9eff;
-        color: white;
-        padding: 2px 10px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 700;
-        margin-right: 8px;
+        background-color: #4b9eff; color: white;
+        padding: 2px 10px; border-radius: 12px; font-size: 11px;
+        font-weight: 700; margin-right: 8px;
     }
     .section-header {
-        font-size: 13px;
-        font-weight: 600;
-        color: #888888;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin: 20px 0 10px 0;
+        font-size: 13px; font-weight: 600; color: #888888;
+        text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 10px 0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -92,8 +61,8 @@ left, right = st.columns([1, 1.4])
 
 with left:
     st.subheader("Patient Information")
-    age  = st.number_input("Age", 1, 120, 52)
-    sex  = st.selectbox("Sex", ["male", "female"])
+    age      = st.number_input("Age", 1, 120, 52)
+    sex      = st.selectbox("Sex", ["male", "female"])
     pregnant = st.checkbox("Pregnant or nursing")
 
     st.markdown("**Testing Indication**")
@@ -133,7 +102,7 @@ with left:
         "Fourth Line":     TreatmentLine.FOURTH_LINE,
     }
     last_reg = st.selectbox("Last regimen", ["None","PAMC","PBMT"])
-    reg_map = {"None": LastRegimen.NONE, "PAMC": LastRegimen.PAMC, "PBMT": LastRegimen.PBMT}
+    reg_map  = {"None": LastRegimen.NONE, "PAMC": LastRegimen.PAMC, "PBMT": LastRegimen.PBMT}
 
     run = st.button("▶ Run Pathway", type="primary", use_container_width=True)
 
@@ -167,7 +136,7 @@ with right:
         engine  = HPyloriPathwayEngine()
         actions = engine.evaluate(patient)
 
-        # ── MAP RULE NAMES TO NODES ──
+        # ── VISITED NODE LOGIC ──────────────────────────────────────────
         rule_to_node = {
             "Pediatric Exclusion":                       "testing",
             "Testing Indications":                       "testing",
@@ -175,7 +144,6 @@ with right:
             "Test Result":                               "test_result",
             "Box 2 – Alarm Features":                    "alarm",
             "Pregnancy Screen":                          "pregnancy",
-            "Washout / Test Preparation":                "washout",
             "Box 4 – First Line":                        "treatment",
             "Box 4 – First Line (Penicillin Allergy)":   "treatment",
             "Box 4 – Second Line":                       "treatment",
@@ -187,33 +155,35 @@ with right:
         }
 
         visited_nodes = {"start"}
+
+        # Step 1 — add from audit log
         for step in engine.tracker.steps:
             node = rule_to_node.get(step.rule)
             if node:
                 visited_nodes.add(node)
 
-         # Infer nodes that have no tracker.log based on engine flow order
-        # Flow: testing → test_result → alarm → pregnancy → washout → treatment → followup
-        # If treatment was reached, all steps before it were also visited
-        if "treatment" in visited_nodes or "followup" in visited_nodes:
-            visited_nodes.add("washout")
-            visited_nodes.add("pregnancy")
-            visited_nodes.add("alarm")
-        # If pregnancy was logged (pregnant patient — engine stopped there),
-        # alarm was still checked before pregnancy
-        elif "pregnancy" in visited_nodes:
-            visited_nodes.add("alarm")
-        # If test_result was visited and engine proceeded past it,
-        # alarm was checked next
-        elif "test_result" in visited_nodes and hp_map[hp_positive] is True:
-            visited_nodes.add("alarm")
-
-        # Also add testing if any testing indication was checked
-        # (fallback in case em dash mismatch in rule name)
+        # Step 2 — infer nodes that never get a tracker.log entry
+        # testing: fallback if em-dash encoding mismatched
         if any([dyspepsia, ulcer_hx, family_gastric, immigrant_prev]):
             visited_nodes.add("testing")
 
-        # ── BUILD SVG ──
+        # test_result: reached whenever a test was actually performed
+        if hp_map[hp_positive] is not None:
+            visited_nodes.add("test_result")
+
+        # alarm: always checked after a positive test result
+        if hp_map[hp_positive] is True:
+            visited_nodes.add("alarm")
+
+        # pregnancy: always checked after alarm check on a positive test
+        if "alarm" in visited_nodes and hp_map[hp_positive] is True:
+            visited_nodes.add("pregnancy")
+
+        # washout: reached after pregnancy check if patient is not pregnant
+        if "pregnancy" in visited_nodes and not patient.pregnant_or_nursing:
+            visited_nodes.add("washout")
+
+        # ── BUILD ANIMATED DIAGRAM ──────────────────────────────────────
         all_nodes = [
             ("start",       "Patient\nPresents"),
             ("testing",     "Testing\nIndication?"),
@@ -226,9 +196,10 @@ with right:
         ]
 
         edges = [
-            ("start","testing"), ("testing","test_result"), ("test_result","alarm"),
-            ("alarm","pregnancy"), ("pregnancy","washout"), ("washout","treatment"),
-            ("treatment","followup")
+            ("start","testing"), ("testing","test_result"),
+            ("test_result","alarm"), ("alarm","pregnancy"),
+            ("pregnancy","washout"), ("washout","treatment"),
+            ("treatment","followup"),
         ]
 
         n       = len(all_nodes)
@@ -236,13 +207,13 @@ with right:
         node_h  = 60
         gap     = 30
         pad     = 40
-        total_w = pad + n * node_w + (n - 1) * gap + pad
+        total_w = pad + n * node_w + (n-1) * gap + pad
 
         positions = {}
         for i, (nid, _) in enumerate(all_nodes):
             positions[nid] = (pad + i * (node_w + gap), 30)
 
-        svg_lines = [
+        svg = [
             f'<svg id="pathway-svg" width="100%" viewBox="0 0 {total_w} 160" '
             f'xmlns="http://www.w3.org/2000/svg" '
             f'style="background:#0e0e0e; border-radius:14px;">',
@@ -255,17 +226,18 @@ with right:
         for a, b in edges:
             ax, ay = positions[a]
             bx, by = positions[b]
-            svg_lines.append(
+            svg.append(
                 f'<line class="edge" data-from="{a}" data-to="{b}" '
-                f'x1="{ax + node_w}" y1="{ay + node_h//2}" '
-                f'x2="{bx}" y2="{by + node_h//2}" '
-                f'stroke="#333333" stroke-width="2" marker-end="url(#arr)"/>'
+                f'x1="{ax+node_w}" y1="{ay+node_h//2}" '
+                f'x2="{bx}" y2="{by+node_h//2}" '
+                f'stroke="#333333" stroke-width="2" marker-end="url(#arr)" '
+                f'style="transition: stroke 0.5s"/>'
             )
 
         for nid, title in all_nodes:
             x, y = positions[nid]
             lines = title.split("\n")
-            svg_lines.append(
+            svg.append(
                 f'<rect data-node="{nid}" x="{x}" y="{y}" '
                 f'width="{node_w}" height="{node_h}" rx="8" '
                 f'fill="#1e1e1e" stroke="#3a3a3a" stroke-width="1.5" '
@@ -273,23 +245,25 @@ with right:
             )
             for li, line in enumerate(lines):
                 ty = y + 22 + li * 16
-                svg_lines.append(
-                    f'<text x="{x + node_w//2}" y="{ty}" '
+                svg.append(
+                    f'<text x="{x+node_w//2}" y="{ty}" '
                     f'text-anchor="middle" font-size="11" font-weight="700" '
                     f'fill="#666666" font-family="Arial" '
                     f'data-label="{nid}" style="transition: fill 0.5s">{line}</text>'
                 )
 
-        svg_lines.append(
+        svg.append(
             f'<rect x="{pad}" y="110" width="12" height="12" rx="2" '
             f'fill="#1a5c30" stroke="#21c55d" stroke-width="1.5"/>'
-            f'<text x="{pad+18}" y="121" font-size="10" fill="#888888" font-family="Arial">Followed</text>'
+            f'<text x="{pad+18}" y="121" font-size="10" fill="#888888" '
+            f'font-family="Arial">Followed</text>'
             f'<rect x="{pad+90}" y="110" width="12" height="12" rx="2" '
             f'fill="#1e1e1e" stroke="#3a3a3a" stroke-width="1.5"/>'
-            f'<text x="{pad+108}" y="121" font-size="10" fill="#888888" font-family="Arial">Not reached</text>'
+            f'<text x="{pad+108}" y="121" font-size="10" fill="#888888" '
+            f'font-family="Arial">Not reached</text>'
         )
-        svg_lines.append("</svg>")
-        svg_str = "\n".join(svg_lines)
+        svg.append("</svg>")
+        svg_str = "\n".join(svg)
 
         visited_list = list(visited_nodes)
         node_order   = [nid for nid, _ in all_nodes]
@@ -299,38 +273,32 @@ with right:
         <script>
         const visited = {visited_list};
         const nodeOrder = {node_order};
-
-        function animateNodes() {{
+        function animate() {{
             let i = 0;
             function step() {{
                 if (i >= nodeOrder.length) return;
                 const nid = nodeOrder[i];
-                const rect = document.querySelector('rect[data-node="' + nid + '"]');
-                const labels = document.querySelectorAll('text[data-label="' + nid + '"]');
                 if (visited.includes(nid)) {{
-                    if (rect) {{
-                        rect.style.fill = '#1a5c30';
-                        rect.style.stroke = '#21c55d';
-                    }}
+                    const rect = document.querySelector('rect[data-node="' + nid + '"]');
+                    const labels = document.querySelectorAll('text[data-label="' + nid + '"]');
+                    const edgeIn = document.querySelector('line[data-to="' + nid + '"]');
+                    if (rect) {{ rect.style.fill = '#1a5c30'; rect.style.stroke = '#21c55d'; }}
                     labels.forEach(l => l.style.fill = '#ffffff');
-                    const edge = document.querySelector('line[data-to="' + nid + '"]');
-                    if (edge) {{
-                        edge.style.transition = 'stroke 0.5s';
-                        edge.setAttribute('stroke', '#21c55d');
-                    }}
+                    if (edgeIn) edgeIn.setAttribute('stroke', '#21c55d');
                 }}
                 i++;
-                setTimeout(step, 450);
+                setTimeout(step, 400);
             }}
             step();
         }}
-        setTimeout(animateNodes, 200);
+        setTimeout(animate, 200);
         </script>
         """
 
         st.subheader("🗺 Pathway Followed")
         components.html(animated_html, height=180, scrolling=False)
 
+        # ── CLINICAL RECOMMENDATIONS ────────────────────────────────────
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
