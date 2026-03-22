@@ -2,7 +2,6 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
 import streamlit.components.v1 as components
-import time
 
 from h_pylori_engine import (
     Patient, HPyloriPathwayEngine, generate_clinical_report,
@@ -168,41 +167,41 @@ with right:
         engine  = HPyloriPathwayEngine()
         actions = engine.evaluate(patient)
 
-        # ── VISITED NODES ──
+        # ── MAP RULE NAMES TO NODES ──
         rule_to_node = {
-            "Testing Indications":                      "testing",
-            "Pediatric Exclusion":                      "testing",
-            "Test Result":                              "test_result",
-            "Alarm Features":                           "alarm",
-            "Pregnancy Screen":                         "pregnancy",
-            "Washout / Test Preparation":               "washout",
-            "Box 4 – First Line":                       "treatment",
-            "Box 4 – First Line (Penicillin Allergy)":  "treatment",
-            "Box 4 – Second Line":                      "treatment",
-            "Box 4 – Second Line (Penicillin Allergy)": "treatment",
-            "Box 4 – Third Line":                       "treatment",
-            "Box 4 – Third Line (Penicillin Allergy)":  "treatment",
-            "Box 4 – Fourth Line":                      "treatment",
-            "Eradication Confirmation":                 "followup",
+            "Pediatric Exclusion":                       "testing",
+            "Testing Indications":                       "testing",
+            "Box 1 – Testing Indications":               "testing",
+            "Test Result":                               "test_result",
+            "Box 2 – Alarm Features":                    "alarm",
+            "Pregnancy Screen":                          "pregnancy",
+            "Washout / Test Preparation":                "washout",
+            "Box 4 – First Line":                        "treatment",
+            "Box 4 – First Line (Penicillin Allergy)":   "treatment",
+            "Box 4 – Second Line":                       "treatment",
+            "Box 4 – Second Line (Penicillin Allergy)":  "treatment",
+            "Box 4 – Third Line":                        "treatment",
+            "Box 4 – Third Line (Penicillin Allergy)":   "treatment",
+            "Box 6 – Treatment Failure / Fourth Line":   "treatment",
+            "Eradication Confirmation":                  "followup",
         }
 
-        visited_nodes = set()
+        visited_nodes = {"start"}
         for step in engine.tracker.steps:
             node = rule_to_node.get(step.rule)
             if node:
                 visited_nodes.add(node)
-        visited_nodes.add("start")
 
-        # ── BUILD DIAGRAM ──
+        # ── BUILD SVG ──
         all_nodes = [
-            ("start",       "Patient\nPresents",      ""),
-            ("testing",     "Testing\nIndication?",   ""),
-            ("test_result", "H. Pylori\nTest Result", ""),
-            ("alarm",       "Alarm\nFeatures?",       ""),
-            ("pregnancy",   "Pregnancy\nScreen",      ""),
-            ("washout",     "Washout\nReady?",        ""),
-            ("treatment",   "Treatment\nSelection",   ""),
-            ("followup",    "Eradication\nConfirm",   ""),
+            ("start",       "Patient\nPresents"),
+            ("testing",     "Testing\nIndication?"),
+            ("test_result", "H. Pylori\nTest Result"),
+            ("alarm",       "Alarm\nFeatures?"),
+            ("pregnancy",   "Pregnancy\nScreen"),
+            ("washout",     "Washout\nReady?"),
+            ("treatment",   "Treatment\nSelection"),
+            ("followup",    "Eradication\nConfirm"),
         ]
 
         edges = [
@@ -211,87 +210,130 @@ with right:
             ("treatment","followup")
         ]
 
-        n = len(all_nodes)
-        node_w = 90
-        node_h = 60
-        gap = 36
-        total_w = n * node_w + (n - 1) * gap + 80
-        cy = 80
+        n        = len(all_nodes)
+        node_w   = 100
+        node_h   = 60
+        gap      = 30
+        pad      = 40
+        total_w  = pad + n * node_w + (n - 1) * gap + pad
+        cy       = 30
 
         positions = {}
-        for i, (nid, _, _) in enumerate(all_nodes):
-            positions[nid] = (40 + i * (node_w + gap), cy)
+        for i, (nid, _) in enumerate(all_nodes):
+            positions[nid] = (pad + i * (node_w + gap), cy)
 
-        def node_style(nid):
-            if nid in visited_nodes:
-                return "#1a5c30", "#21c55d", "#ffffff", "#aaddbb"
-            return "#1e1e1e", "#3a3a3a", "#666666", "#444444"
-
-        def edge_col(a, b):
-            return "#21c55d" if a in visited_nodes and b in visited_nodes else "#333333"
-
-        svg_parts = [f'''<svg width="100%" viewBox="0 0 {total_w} 180"
-             xmlns="http://www.w3.org/2000/svg"
-             style="background:#0e0e0e; border-radius:14px; padding:10px">
-          <defs>
-            <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5"
-                    markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke"
-                    stroke-width="1.5" stroke-linecap="round"/>
-            </marker>
-          </defs>''']
+        svg_lines = [
+            f'<svg id="pathway-svg" width="100%" viewBox="0 0 {total_w} 160" '
+            f'xmlns="http://www.w3.org/2000/svg" '
+            f'style="background:#0e0e0e; border-radius:14px;">',
+            '<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" '
+            'markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
+            '<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" '
+            'stroke-width="1.5" stroke-linecap="round"/></marker></defs>',
+        ]
 
         # Edges
         for a, b in edges:
             ax, ay = positions[a]
             bx, by = positions[b]
-            col = edge_col(a, b)
-            svg_parts.append(
-                f'<line x1="{ax + node_w}" y1="{ay + node_h//2}" '
+            a_vis = a in visited_nodes
+            b_vis = b in visited_nodes
+            col = "#21c55d" if a_vis and b_vis else "#333333"
+            svg_lines.append(
+                f'<line class="edge" data-from="{a}" data-to="{b}" '
+                f'x1="{ax + node_w}" y1="{ay + node_h//2}" '
                 f'x2="{bx}" y2="{by + node_h//2}" '
                 f'stroke="{col}" stroke-width="2" marker-end="url(#arr)"/>'
             )
 
-        # Nodes
-        for nid, title, _ in all_nodes:
+        # Nodes — all start dark, JS will animate them
+        for nid, title in all_nodes:
             x, y = positions[nid]
-            bg, border, tc, _ = node_style(nid)
             lines = title.split("\n")
-            svg_parts.append(
-                f'<rect x="{x}" y="{y}" width="{node_w}" height="{node_h}" rx="8" '
-                f'fill="{bg}" stroke="{border}" stroke-width="1.5"/>'
+            svg_lines.append(
+                f'<rect data-node="{nid}" x="{x}" y="{y}" '
+                f'width="{node_w}" height="{node_h}" rx="8" '
+                f'fill="#1e1e1e" stroke="#3a3a3a" stroke-width="1.5" '
+                f'style="transition: fill 0.5s, stroke 0.5s"/>'
             )
             if len(lines) == 2:
-                svg_parts.append(
-                    f'<text x="{x + node_w//2}" y="{y + 22}" text-anchor="middle" '
-                    f'font-size="11" font-weight="700" fill="{tc}" font-family="Arial">{lines[0]}</text>'
+                svg_lines.append(
+                    f'<text x="{x + node_w//2}" y="{y + 22}" '
+                    f'text-anchor="middle" font-size="11" font-weight="700" '
+                    f'fill="#666666" font-family="Arial" '
+                    f'data-label="{nid}" style="transition: fill 0.5s">{lines[0]}</text>'
                 )
-                svg_parts.append(
-                    f'<text x="{x + node_w//2}" y="{y + 38}" text-anchor="middle" '
-                    f'font-size="11" font-weight="700" fill="{tc}" font-family="Arial">{lines[1]}</text>'
+                svg_lines.append(
+                    f'<text x="{x + node_w//2}" y="{y + 38}" '
+                    f'text-anchor="middle" font-size="11" font-weight="700" '
+                    f'fill="#666666" font-family="Arial" '
+                    f'data-label="{nid}" style="transition: fill 0.5s">{lines[1]}</text>'
                 )
             else:
-                svg_parts.append(
-                    f'<text x="{x + node_w//2}" y="{y + 34}" text-anchor="middle" '
-                    f'font-size="11" font-weight="700" fill="{tc}" font-family="Arial">{title}</text>'
+                svg_lines.append(
+                    f'<text x="{x + node_w//2}" y="{y + 34}" '
+                    f'text-anchor="middle" font-size="11" font-weight="700" '
+                    f'fill="#666666" font-family="Arial" '
+                    f'data-label="{nid}" style="transition: fill 0.5s">{title}</text>'
                 )
 
         # Legend
-        svg_parts.append(f'''
-        <rect x="40" y="155" width="12" height="12" rx="2"
-              fill="#1a5c30" stroke="#21c55d" stroke-width="1.5"/>
-        <text x="58" y="165" font-size="10" fill="#888888" font-family="Arial">Followed</text>
-        <rect x="130" y="155" width="12" height="12" rx="2"
-              fill="#1e1e1e" stroke="#3a3a3a" stroke-width="1.5"/>
-        <text x="148" y="165" font-size="10" fill="#888888" font-family="Arial">Not reached</text>
-        ''')
+        svg_lines.append(
+            f'<rect x="{pad}" y="110" width="12" height="12" rx="2" '
+            f'fill="#1a5c30" stroke="#21c55d" stroke-width="1.5"/>'
+            f'<text x="{pad+18}" y="121" font-size="10" fill="#888888" font-family="Arial">Followed</text>'
+            f'<rect x="{pad+90}" y="110" width="12" height="12" rx="2" '
+            f'fill="#1e1e1e" stroke="#3a3a3a" stroke-width="1.5"/>'
+            f'<text x="{pad+108}" y="121" font-size="10" fill="#888888" font-family="Arial">Not reached</text>'
+        )
 
-        svg_parts.append("</svg>")
-        svg_html = "\n".join(svg_parts)
+        svg_lines.append("</svg>")
+        svg_str = "\n".join(svg_lines)
+
+        visited_list = list(visited_nodes)
+        node_order   = [nid for nid, _ in all_nodes]
+
+        animated_html = f"""
+        {svg_str}
+        <script>
+        const visited = {visited_list};
+        const nodeOrder = {node_order};
+
+        function animateNodes() {{
+            let i = 0;
+            function step() {{
+                if (i >= nodeOrder.length) return;
+                const nid = nodeOrder[i];
+                const rect = document.querySelector('rect[data-node="' + nid + '"]');
+                const labels = document.querySelectorAll('text[data-label="' + nid + '"]');
+
+                if (visited.includes(nid)) {{
+                    if (rect) {{
+                        rect.style.fill = '#1a5c30';
+                        rect.style.stroke = '#21c55d';
+                    }}
+                    labels.forEach(l => l.style.fill = '#ffffff');
+
+                    // Also light up the edge coming into this node
+                    const edge = document.querySelector('line[data-to="' + nid + '"]');
+                    if (edge) {{
+                        edge.style.transition = 'stroke 0.5s';
+                        edge.setAttribute('stroke', '#21c55d');
+                    }}
+                }}
+                i++;
+                setTimeout(step, 450);
+            }}
+            step();
+        }}
+
+        // Wait for SVG to render then animate
+        setTimeout(animateNodes, 200);
+        </script>
+        """
 
         st.subheader("🗺 Pathway Followed")
-        components.html(svg_html, height=200, scrolling=False)
-
+        components.html(animated_html, height=180, scrolling=False)
 
         # ── CLINICAL RECOMMENDATIONS ──
         st.markdown("---")
