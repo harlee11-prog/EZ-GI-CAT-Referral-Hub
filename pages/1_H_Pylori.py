@@ -186,11 +186,23 @@ with right:
             "Eradication Confirmation":                  "followup",
         }
 
-        visited_nodes = {"start"}
+    visited_nodes = {"start"}
         for step in engine.tracker.steps:
             node = rule_to_node.get(step.rule)
             if node:
                 visited_nodes.add(node)
+
+        # Washout has no tracker.log — check directly
+        if patient.test_prep_ready:
+            visited_nodes.add("washout")
+
+        # Alarm check has no tracker.log when no alarms — check directly  
+        if not patient.has_alarm_features:
+            visited_nodes.add("alarm")
+
+        # Pregnancy screen only logged if pregnant — add for non-pregnant too
+        if not patient.pregnant_or_nursing:
+            visited_nodes.add("pregnancy")
 
         # ── BUILD SVG ──
         all_nodes = [
