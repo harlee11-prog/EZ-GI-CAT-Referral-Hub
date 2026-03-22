@@ -1,6 +1,8 @@
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
+import graphviz
+import time
 
 from h_pylori_engine import (
     Patient, HPyloriPathwayEngine, generate_clinical_report,
@@ -14,23 +16,22 @@ st.markdown("""
     #MainMenu {visibility: hidden !important;}
     header {visibility: hidden !important;}
     footer {visibility: hidden !important;}
-
     .card-urgent {
-        background-color: #3d0000;
+        background-color: #7a1a1a !important;
         border-left: 5px solid #ff4b4b;
         border-radius: 8px;
         padding: 16px 20px;
         margin-bottom: 12px;
     }
     .card-routine {
-        background-color: #003d15;
+        background-color: #1a5c30 !important;
         border-left: 5px solid #21c55d;
         border-radius: 8px;
         padding: 16px 20px;
         margin-bottom: 12px;
     }
     .card-info {
-        background-color: #002a4d;
+        background-color: #1a3a5c !important;
         border-left: 5px solid #4b9eff;
         border-radius: 8px;
         padding: 16px 20px;
@@ -138,8 +139,6 @@ with left:
     run = st.button("▶ Run Pathway", type="primary", use_container_width=True)
 
 with right:
-    st.subheader("Clinical Recommendations")
-
     if run:
         patient = Patient(
             age=age, sex=sex,
@@ -169,8 +168,106 @@ with right:
         engine  = HPyloriPathwayEngine()
         actions = engine.evaluate(patient)
 
-        # ── Patient Context Card ──
-        st.markdown('<div class="section-header">Patient Context</div>', unsafe_allow_html=True)
+        # ── Get visited nodes from audit log ──
+        visited = [step.rule for step in engine.tracker.steps]
+        decisions = {step.rule: step.decision for step in engine.tracker.steps}
+
+        # ── ANIMATED PATHWAY DIAGRAM ──
+        st.subheader("🗺 Pathway Followed")
+
+        def build_diagram(highlight_up_to):
+            # All pathway nodes in order
+            all_nodes = [
+                ("start",        "Patient\nPresents"),
+                ("testing",      "Testing\nIndication?"),
+                ("test_result",  "H. Pylori\nTest Result"),
+                ("alarm",        "Alarm\nFeatures?"),
+                ("pregnancy",    "Pregnancy\nScreen"),
+                ("washout",      "Washout\nReady?"),
+                ("treatment",    "Treatment\nSelection"),
+                ("followup",     "Eradication\nConfirmation"),
+            ]
+
+            # Map audit log rule names to diagram nodes
+            rule_to_node = {
+                "Testing Indications":               "testing",
+                "Test Result":                       "test_result",
+                "Alarm Features":                    "alarm",
+                "Pregnancy Screen":                  "pregnancy",
+                "Washout / Test Preparation":        "washout",
+                "Box 4 – First Line":                "treatment",
+                "Box 4 – First Line (Penicillin Allergy)": "treatment",
+                "Box 4 – Second Line":               "treatment",
+                "Box 4 – Second Line (Penicillin Allergy)": "treatment",
+                "Box 4 – Third Line":                "treatment",
+                "Box 4 – Third Line (Penicillin Allergy)": "treatment",
+                "Box 4 – Fourth Line":               "treatment",
+                "Eradication Confirmation":          "followup",
+                "Pediatric Exclusion":               "testing",
+            }
+
+            visited_nodes = set()
+            for rule in visited[:highlight_up_to]:
+                node = rule_to_node.get(rule)
+                if node:
+                    visited_nodes.add(node)
+
+            last_node = None
+            if highlight_up_to > 0 and highlight_up_to <= len(visited):
+                last_rule = visited[highlight_up_to - 1]
+                last_node = rule_to_node.get(last_rule)
+
+            g = graphviz.Digraph()
+            g.attr(rankdir="TB", bgcolor="transparent")
+            g.attr("node", shape="roundedbox", style="filled",
+                   fontname="Arial", fontsize="11", margin="0.2")
+
+            for node_id, label in all_nodes:
+                if node_id == last_node:
+                    # Last visited — highlight as endpoint
+                    g.node(node_id, label,
+                           fillcolor="#1a5c30", fontcolor="white",
+                           color="#21c55d", penwidth="3")
+                elif node_id in visited_nodes:
+                    # Visited — green
+                    g.node(node_id, label,
+                           fillcolor="#1a5c30", fontcolor="white",
+                           color="#21c55d", penwidth="2")
+                else:
+                    # Not visited — grey
+                    g.node(node_id, label,
+                           fillcolor="#2a2a2a", fontcolor="#888888",
+                           color="#444444", penwidth="1")
+
+            # Edges
+            edges = [
+                ("start",    "testing"),
+                ("testing",  "test_result"),
+                ("test_result", "alarm"),
+                ("alarm",    "pregnancy"),
+                ("pregnancy","washout"),
+                ("washout",  "treatment"),
+                ("treatment","followup"),
+            ]
+            for a, b in edges:
+                if a in visited_nodes and b in visited_nodes:
+                    g.edge(a, b, color="#21c55d", penwidth="2")
+                else:
+                    g.edge(a, b, color="#444444", penwidth="1")
+
+            return g
+
+        # Animate — show nodes lighting up one by one
+        diagram_placeholder = st.empty()
+        for i in range(1, len(visited) + 1):
+            diagram_placeholder.graphviz_chart(build_diagram(i))
+            time.sleep(0.4)
+
+        # ── Patient Context ──
+        st.markdown("---")
+        st.subheader("Clinical Recommendations")
+        st.markdown('<div class="section-header">Patient Context</div>',
+                    unsafe_allow_html=True)
         st.markdown(f"""
         <div class="card-info">
             <div class="card-detail">👤 <b>Age / Sex:</b> {age} / {sex.capitalize()}</div>
@@ -181,25 +278,20 @@ with right:
         """, unsafe_allow_html=True)
 
         # ── Actions ──
-        st.markdown('<div class="section-header">Recommended Actions</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Recommended Actions</div>',
+                    unsafe_allow_html=True)
 
         for action in actions:
             urgency = action.urgency.upper() if action.urgency else "INFO"
-
             if urgency == "URGENT":
-                card_class = "card-urgent"
-                badge = '<span class="badge-urgent">🔴 URGENT</span>'
+                card_class, badge = "card-urgent", '<span class="badge-urgent">🔴 URGENT</span>'
             elif urgency == "ROUTINE":
-                card_class = "card-routine"
-                badge = '<span class="badge-routine">🟢 ROUTINE</span>'
+                card_class, badge = "card-routine", '<span class="badge-routine">🟢 ROUTINE</span>'
             else:
-                card_class = "card-info"
-                badge = '<span class="badge-info">🔵 INFO</span>'
+                card_class, badge = "card-info", '<span class="badge-info">🔵 INFO</span>'
 
             details_html = "".join(
-                f'<div class="card-detail">• {d}</div>'
-                for d in action.details
-            )
+                f'<div class="card-detail">• {d}</div>' for d in action.details)
 
             st.markdown(f"""
             <div class="{card_class}">
