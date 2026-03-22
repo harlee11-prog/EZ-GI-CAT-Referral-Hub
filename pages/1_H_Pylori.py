@@ -195,14 +195,14 @@ with right:
 
         # ── BUILD DIAGRAM ──
         all_nodes = [
-            ("start",       "Patient Presents",          ""),
-            ("testing",     "Testing Indication?",       "Dyspepsia · ulcer hx · family hx · immigrant"),
-            ("test_result", "H. Pylori Test Result",     "Positive → proceed   |   Negative → dyspepsia"),
-            ("alarm",       "Alarm Features?",           "Weight loss · black stool · dysphagia · IDA"),
-            ("pregnancy",   "Pregnancy Screen",          "Contraindicated if pregnant or nursing"),
-            ("washout",     "Washout Ready?",            "ABx ≥4w  ·  PPI ≥2w  ·  bismuth ≥2w"),
-            ("treatment",   "Treatment Selection",       "Line 1 / 2 / 3 / 4 based on history"),
-            ("followup",    "Eradication Confirmation",  "Retest ≥4 weeks after completing treatment"),
+            ("start",       "Patient\nPresents",      ""),
+            ("testing",     "Testing\nIndication?",   ""),
+            ("test_result", "H. Pylori\nTest Result", ""),
+            ("alarm",       "Alarm\nFeatures?",       ""),
+            ("pregnancy",   "Pregnancy\nScreen",      ""),
+            ("washout",     "Washout\nReady?",        ""),
+            ("treatment",   "Treatment\nSelection",   ""),
+            ("followup",    "Eradication\nConfirm",   ""),
         ]
 
         edges = [
@@ -211,28 +211,28 @@ with right:
             ("treatment","followup")
         ]
 
-        cx = 300
-        node_h = 64
-        gap = 30
-        node_w = 480
+        n = len(all_nodes)
+        node_w = 90
+        node_h = 60
+        gap = 36
+        total_w = n * node_w + (n - 1) * gap + 80
+        cy = 80
 
         positions = {}
         for i, (nid, _, _) in enumerate(all_nodes):
-            positions[nid] = (cx, 30 + i * (node_h + gap))
-
-        total_h = 30 + len(all_nodes) * (node_h + gap) + 60
+            positions[nid] = (40 + i * (node_w + gap), cy)
 
         def node_style(nid):
             if nid in visited_nodes:
                 return "#1a5c30", "#21c55d", "#ffffff", "#aaddbb"
-            return "#1e1e1e", "#444444", "#888888", "#666666"
+            return "#1e1e1e", "#3a3a3a", "#666666", "#444444"
 
         def edge_col(a, b):
             return "#21c55d" if a in visited_nodes and b in visited_nodes else "#333333"
 
-        svg_parts = [f'''<svg width="100%" viewBox="0 0 600 {total_h}"
+        svg_parts = [f'''<svg width="100%" viewBox="0 0 {total_w} 180"
              xmlns="http://www.w3.org/2000/svg"
-             style="background:#0e0e0e; border-radius:14px;">
+             style="background:#0e0e0e; border-radius:14px; padding:10px">
           <defs>
             <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5"
                     markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -241,50 +241,57 @@ with right:
             </marker>
           </defs>''']
 
-        # Draw edges first
+        # Edges
         for a, b in edges:
             ax, ay = positions[a]
             bx, by = positions[b]
             col = edge_col(a, b)
             svg_parts.append(
-                f'<line x1="{ax}" y1="{ay + node_h}" x2="{bx}" y2="{by}" '
+                f'<line x1="{ax + node_w}" y1="{ay + node_h//2}" '
+                f'x2="{bx}" y2="{by + node_h//2}" '
                 f'stroke="{col}" stroke-width="2" marker-end="url(#arr)"/>'
             )
 
-        # Draw nodes
-        for nid, title, subtitle in all_nodes:
+        # Nodes
+        for nid, title, _ in all_nodes:
             x, y = positions[nid]
-            bg, border, title_col, sub_col = node_style(nid)
-            x0 = x - node_w // 2
-            svg_parts.append(f'''
-            <rect x="{x0}" y="{y}" width="{node_w}" height="{node_h}" rx="10"
-                  fill="{bg}" stroke="{border}" stroke-width="1.5"/>
-            <text x="{x}" y="{y + 24}" text-anchor="middle"
-                  font-size="14" font-weight="700" fill="{title_col}"
-                  font-family="Arial, sans-serif">{title}</text>
-            <text x="{x}" y="{y + 46}" text-anchor="middle"
-                  font-size="11" fill="{sub_col}"
-                  font-family="Arial, sans-serif">{subtitle}</text>
-            ''')
+            bg, border, tc, _ = node_style(nid)
+            lines = title.split("\n")
+            svg_parts.append(
+                f'<rect x="{x}" y="{y}" width="{node_w}" height="{node_h}" rx="8" '
+                f'fill="{bg}" stroke="{border}" stroke-width="1.5"/>'
+            )
+            if len(lines) == 2:
+                svg_parts.append(
+                    f'<text x="{x + node_w//2}" y="{y + 22}" text-anchor="middle" '
+                    f'font-size="11" font-weight="700" fill="{tc}" font-family="Arial">{lines[0]}</text>'
+                )
+                svg_parts.append(
+                    f'<text x="{x + node_w//2}" y="{y + 38}" text-anchor="middle" '
+                    f'font-size="11" font-weight="700" fill="{tc}" font-family="Arial">{lines[1]}</text>'
+                )
+            else:
+                svg_parts.append(
+                    f'<text x="{x + node_w//2}" y="{y + 34}" text-anchor="middle" '
+                    f'font-size="11" font-weight="700" fill="{tc}" font-family="Arial">{title}</text>'
+                )
 
         # Legend
-        legend_y = total_h - 40
         svg_parts.append(f'''
-        <rect x="60" y="{legend_y}" width="14" height="14" rx="3"
+        <rect x="40" y="155" width="12" height="12" rx="2"
               fill="#1a5c30" stroke="#21c55d" stroke-width="1.5"/>
-        <text x="82" y="{legend_y + 11}" font-size="11" fill="#aaaaaa"
-              font-family="Arial">Pathway followed</text>
-        <rect x="220" y="{legend_y}" width="14" height="14" rx="3"
-              fill="#1e1e1e" stroke="#444444" stroke-width="1.5"/>
-        <text x="242" y="{legend_y + 11}" font-size="11" fill="#aaaaaa"
-              font-family="Arial">Not reached</text>
+        <text x="58" y="165" font-size="10" fill="#888888" font-family="Arial">Followed</text>
+        <rect x="130" y="155" width="12" height="12" rx="2"
+              fill="#1e1e1e" stroke="#3a3a3a" stroke-width="1.5"/>
+        <text x="148" y="165" font-size="10" fill="#888888" font-family="Arial">Not reached</text>
         ''')
 
         svg_parts.append("</svg>")
         svg_html = "\n".join(svg_parts)
 
         st.subheader("🗺 Pathway Followed")
-        components.html(svg_html, height=total_h + 20, scrolling=False)
+        components.html(svg_html, height=200, scrolling=False)
+
 
         # ── CLINICAL RECOMMENDATIONS ──
         st.markdown("---")
