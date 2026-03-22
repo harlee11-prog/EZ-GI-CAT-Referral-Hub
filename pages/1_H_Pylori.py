@@ -186,21 +186,17 @@ with right:
             "Eradication Confirmation":                  "followup",
         }
 
-    visited_nodes = {"start"}
+        visited_nodes = {"start"}
         for step in engine.tracker.steps:
             node = rule_to_node.get(step.rule)
             if node:
                 visited_nodes.add(node)
 
-        # Washout has no tracker.log — check directly
+        # These nodes have no tracker.log — infer from patient state
         if patient.test_prep_ready:
             visited_nodes.add("washout")
-
-        # Alarm check has no tracker.log when no alarms — check directly  
         if not patient.has_alarm_features:
             visited_nodes.add("alarm")
-
-        # Pregnancy screen only logged if pregnant — add for non-pregnant too
         if not patient.pregnant_or_nursing:
             visited_nodes.add("pregnancy")
 
@@ -222,17 +218,16 @@ with right:
             ("treatment","followup")
         ]
 
-        n        = len(all_nodes)
-        node_w   = 100
-        node_h   = 60
-        gap      = 30
-        pad      = 40
-        total_w  = pad + n * node_w + (n - 1) * gap + pad
-        cy       = 30
+        n       = len(all_nodes)
+        node_w  = 100
+        node_h  = 60
+        gap     = 30
+        pad     = 40
+        total_w = pad + n * node_w + (n - 1) * gap + pad
 
         positions = {}
         for i, (nid, _) in enumerate(all_nodes):
-            positions[nid] = (pad + i * (node_w + gap), cy)
+            positions[nid] = (pad + i * (node_w + gap), 30)
 
         svg_lines = [
             f'<svg id="pathway-svg" width="100%" viewBox="0 0 {total_w} 160" '
@@ -244,21 +239,16 @@ with right:
             'stroke-width="1.5" stroke-linecap="round"/></marker></defs>',
         ]
 
-        # Edges
         for a, b in edges:
             ax, ay = positions[a]
             bx, by = positions[b]
-            a_vis = a in visited_nodes
-            b_vis = b in visited_nodes
-            col = "#21c55d" if a_vis and b_vis else "#333333"
             svg_lines.append(
                 f'<line class="edge" data-from="{a}" data-to="{b}" '
                 f'x1="{ax + node_w}" y1="{ay + node_h//2}" '
                 f'x2="{bx}" y2="{by + node_h//2}" '
-                f'stroke="{col}" stroke-width="2" marker-end="url(#arr)"/>'
+                f'stroke="#333333" stroke-width="2" marker-end="url(#arr)"/>'
             )
 
-        # Nodes — all start dark, JS will animate them
         for nid, title in all_nodes:
             x, y = positions[nid]
             lines = title.split("\n")
@@ -268,28 +258,15 @@ with right:
                 f'fill="#1e1e1e" stroke="#3a3a3a" stroke-width="1.5" '
                 f'style="transition: fill 0.5s, stroke 0.5s"/>'
             )
-            if len(lines) == 2:
+            for li, line in enumerate(lines):
+                ty = y + 22 + li * 16
                 svg_lines.append(
-                    f'<text x="{x + node_w//2}" y="{y + 22}" '
+                    f'<text x="{x + node_w//2}" y="{ty}" '
                     f'text-anchor="middle" font-size="11" font-weight="700" '
                     f'fill="#666666" font-family="Arial" '
-                    f'data-label="{nid}" style="transition: fill 0.5s">{lines[0]}</text>'
-                )
-                svg_lines.append(
-                    f'<text x="{x + node_w//2}" y="{y + 38}" '
-                    f'text-anchor="middle" font-size="11" font-weight="700" '
-                    f'fill="#666666" font-family="Arial" '
-                    f'data-label="{nid}" style="transition: fill 0.5s">{lines[1]}</text>'
-                )
-            else:
-                svg_lines.append(
-                    f'<text x="{x + node_w//2}" y="{y + 34}" '
-                    f'text-anchor="middle" font-size="11" font-weight="700" '
-                    f'fill="#666666" font-family="Arial" '
-                    f'data-label="{nid}" style="transition: fill 0.5s">{title}</text>'
+                    f'data-label="{nid}" style="transition: fill 0.5s">{line}</text>'
                 )
 
-        # Legend
         svg_lines.append(
             f'<rect x="{pad}" y="110" width="12" height="12" rx="2" '
             f'fill="#1a5c30" stroke="#21c55d" stroke-width="1.5"/>'
@@ -298,7 +275,6 @@ with right:
             f'fill="#1e1e1e" stroke="#3a3a3a" stroke-width="1.5"/>'
             f'<text x="{pad+108}" y="121" font-size="10" fill="#888888" font-family="Arial">Not reached</text>'
         )
-
         svg_lines.append("</svg>")
         svg_str = "\n".join(svg_lines)
 
@@ -318,15 +294,12 @@ with right:
                 const nid = nodeOrder[i];
                 const rect = document.querySelector('rect[data-node="' + nid + '"]');
                 const labels = document.querySelectorAll('text[data-label="' + nid + '"]');
-
                 if (visited.includes(nid)) {{
                     if (rect) {{
                         rect.style.fill = '#1a5c30';
                         rect.style.stroke = '#21c55d';
                     }}
                     labels.forEach(l => l.style.fill = '#ffffff');
-
-                    // Also light up the edge coming into this node
                     const edge = document.querySelector('line[data-to="' + nid + '"]');
                     if (edge) {{
                         edge.style.transition = 'stroke 0.5s';
@@ -338,8 +311,6 @@ with right:
             }}
             step();
         }}
-
-        // Wait for SVG to render then animate
         setTimeout(animateNodes, 200);
         </script>
         """
@@ -347,7 +318,6 @@ with right:
         st.subheader("🗺 Pathway Followed")
         components.html(animated_html, height=180, scrolling=False)
 
-        # ── CLINICAL RECOMMENDATIONS ──
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
