@@ -1,7 +1,7 @@
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
-import graphviz
+import streamlit.components.v1 as components
 import time
 
 from h_pylori_engine import (
@@ -168,104 +168,128 @@ with right:
         engine  = HPyloriPathwayEngine()
         actions = engine.evaluate(patient)
 
-        # ── Get visited nodes from audit log ──
-        visited = [step.rule for step in engine.tracker.steps]
-        decisions = {step.rule: step.decision for step in engine.tracker.steps}
+        # ── VISITED NODES ──
+        rule_to_node = {
+            "Testing Indications":                      "testing",
+            "Pediatric Exclusion":                      "testing",
+            "Test Result":                              "test_result",
+            "Alarm Features":                           "alarm",
+            "Pregnancy Screen":                         "pregnancy",
+            "Washout / Test Preparation":               "washout",
+            "Box 4 – First Line":                       "treatment",
+            "Box 4 – First Line (Penicillin Allergy)":  "treatment",
+            "Box 4 – Second Line":                      "treatment",
+            "Box 4 – Second Line (Penicillin Allergy)": "treatment",
+            "Box 4 – Third Line":                       "treatment",
+            "Box 4 – Third Line (Penicillin Allergy)":  "treatment",
+            "Box 4 – Fourth Line":                      "treatment",
+            "Eradication Confirmation":                 "followup",
+        }
 
-        # ── ANIMATED PATHWAY DIAGRAM ──
+        visited_nodes = set()
+        for step in engine.tracker.steps:
+            node = rule_to_node.get(step.rule)
+            if node:
+                visited_nodes.add(node)
+        visited_nodes.add("start")
+
+        # ── BUILD DIAGRAM ──
+        all_nodes = [
+            ("start",       "Patient Presents",          ""),
+            ("testing",     "Testing Indication?",       "Dyspepsia · ulcer hx · family hx · immigrant"),
+            ("test_result", "H. Pylori Test Result",     "Positive → proceed   |   Negative → dyspepsia"),
+            ("alarm",       "Alarm Features?",           "Weight loss · black stool · dysphagia · IDA"),
+            ("pregnancy",   "Pregnancy Screen",          "Contraindicated if pregnant or nursing"),
+            ("washout",     "Washout Ready?",            "ABx ≥4w  ·  PPI ≥2w  ·  bismuth ≥2w"),
+            ("treatment",   "Treatment Selection",       "Line 1 / 2 / 3 / 4 based on history"),
+            ("followup",    "Eradication Confirmation",  "Retest ≥4 weeks after completing treatment"),
+        ]
+
+        edges = [
+            ("start","testing"), ("testing","test_result"), ("test_result","alarm"),
+            ("alarm","pregnancy"), ("pregnancy","washout"), ("washout","treatment"),
+            ("treatment","followup")
+        ]
+
+        cx = 300
+        node_h = 64
+        gap = 30
+        node_w = 480
+
+        positions = {}
+        for i, (nid, _, _) in enumerate(all_nodes):
+            positions[nid] = (cx, 30 + i * (node_h + gap))
+
+        total_h = 30 + len(all_nodes) * (node_h + gap) + 60
+
+        def node_style(nid):
+            if nid in visited_nodes:
+                return "#1a5c30", "#21c55d", "#ffffff", "#aaddbb"
+            return "#1e1e1e", "#444444", "#888888", "#666666"
+
+        def edge_col(a, b):
+            return "#21c55d" if a in visited_nodes and b in visited_nodes else "#333333"
+
+        svg_parts = [f'''<svg width="100%" viewBox="0 0 600 {total_h}"
+             xmlns="http://www.w3.org/2000/svg"
+             style="background:#0e0e0e; border-radius:14px;">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5"
+                    markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke"
+                    stroke-width="1.5" stroke-linecap="round"/>
+            </marker>
+          </defs>''']
+
+        # Draw edges first
+        for a, b in edges:
+            ax, ay = positions[a]
+            bx, by = positions[b]
+            col = edge_col(a, b)
+            svg_parts.append(
+                f'<line x1="{ax}" y1="{ay + node_h}" x2="{bx}" y2="{by}" '
+                f'stroke="{col}" stroke-width="2" marker-end="url(#arr)"/>'
+            )
+
+        # Draw nodes
+        for nid, title, subtitle in all_nodes:
+            x, y = positions[nid]
+            bg, border, title_col, sub_col = node_style(nid)
+            x0 = x - node_w // 2
+            svg_parts.append(f'''
+            <rect x="{x0}" y="{y}" width="{node_w}" height="{node_h}" rx="10"
+                  fill="{bg}" stroke="{border}" stroke-width="1.5"/>
+            <text x="{x}" y="{y + 24}" text-anchor="middle"
+                  font-size="14" font-weight="700" fill="{title_col}"
+                  font-family="Arial, sans-serif">{title}</text>
+            <text x="{x}" y="{y + 46}" text-anchor="middle"
+                  font-size="11" fill="{sub_col}"
+                  font-family="Arial, sans-serif">{subtitle}</text>
+            ''')
+
+        # Legend
+        legend_y = total_h - 40
+        svg_parts.append(f'''
+        <rect x="60" y="{legend_y}" width="14" height="14" rx="3"
+              fill="#1a5c30" stroke="#21c55d" stroke-width="1.5"/>
+        <text x="82" y="{legend_y + 11}" font-size="11" fill="#aaaaaa"
+              font-family="Arial">Pathway followed</text>
+        <rect x="220" y="{legend_y}" width="14" height="14" rx="3"
+              fill="#1e1e1e" stroke="#444444" stroke-width="1.5"/>
+        <text x="242" y="{legend_y + 11}" font-size="11" fill="#aaaaaa"
+              font-family="Arial">Not reached</text>
+        ''')
+
+        svg_parts.append("</svg>")
+        svg_html = "\n".join(svg_parts)
+
         st.subheader("🗺 Pathway Followed")
+        components.html(svg_html, height=total_h + 20, scrolling=False)
 
-        def build_diagram(highlight_up_to):
-            # All pathway nodes in order
-            all_nodes = [
-                ("start",        "Patient\nPresents"),
-                ("testing",      "Testing\nIndication?"),
-                ("test_result",  "H. Pylori\nTest Result"),
-                ("alarm",        "Alarm\nFeatures?"),
-                ("pregnancy",    "Pregnancy\nScreen"),
-                ("washout",      "Washout\nReady?"),
-                ("treatment",    "Treatment\nSelection"),
-                ("followup",     "Eradication\nConfirmation"),
-            ]
-
-            # Map audit log rule names to diagram nodes
-            rule_to_node = {
-                "Testing Indications":               "testing",
-                "Test Result":                       "test_result",
-                "Alarm Features":                    "alarm",
-                "Pregnancy Screen":                  "pregnancy",
-                "Washout / Test Preparation":        "washout",
-                "Box 4 – First Line":                "treatment",
-                "Box 4 – First Line (Penicillin Allergy)": "treatment",
-                "Box 4 – Second Line":               "treatment",
-                "Box 4 – Second Line (Penicillin Allergy)": "treatment",
-                "Box 4 – Third Line":                "treatment",
-                "Box 4 – Third Line (Penicillin Allergy)": "treatment",
-                "Box 4 – Fourth Line":               "treatment",
-                "Eradication Confirmation":          "followup",
-                "Pediatric Exclusion":               "testing",
-            }
-
-            visited_nodes = set()
-            for rule in visited[:highlight_up_to]:
-                node = rule_to_node.get(rule)
-                if node:
-                    visited_nodes.add(node)
-
-            last_node = None
-            if highlight_up_to > 0 and highlight_up_to <= len(visited):
-                last_rule = visited[highlight_up_to - 1]
-                last_node = rule_to_node.get(last_rule)
-
-            g = graphviz.Digraph()
-            g.attr(rankdir="TB", bgcolor="transparent")
-            g.attr("node", shape="roundedbox", style="filled",
-                   fontname="Arial", fontsize="11", margin="0.2")
-
-            for node_id, label in all_nodes:
-                if node_id == last_node:
-                    # Last visited — highlight as endpoint
-                    g.node(node_id, label,
-                           fillcolor="#1a5c30", fontcolor="white",
-                           color="#21c55d", penwidth="3")
-                elif node_id in visited_nodes:
-                    # Visited — green
-                    g.node(node_id, label,
-                           fillcolor="#1a5c30", fontcolor="white",
-                           color="#21c55d", penwidth="2")
-                else:
-                    # Not visited — grey
-                    g.node(node_id, label,
-                           fillcolor="#2a2a2a", fontcolor="#888888",
-                           color="#444444", penwidth="1")
-
-            # Edges
-            edges = [
-                ("start",    "testing"),
-                ("testing",  "test_result"),
-                ("test_result", "alarm"),
-                ("alarm",    "pregnancy"),
-                ("pregnancy","washout"),
-                ("washout",  "treatment"),
-                ("treatment","followup"),
-            ]
-            for a, b in edges:
-                if a in visited_nodes and b in visited_nodes:
-                    g.edge(a, b, color="#21c55d", penwidth="2")
-                else:
-                    g.edge(a, b, color="#444444", penwidth="1")
-
-            return g
-
-        # Animate — show nodes lighting up one by one
-        diagram_placeholder = st.empty()
-        for i in range(1, len(visited) + 1):
-            diagram_placeholder.graphviz_chart(build_diagram(i))
-            time.sleep(0.4)
-
-        # ── Patient Context ──
+        # ── CLINICAL RECOMMENDATIONS ──
         st.markdown("---")
         st.subheader("Clinical Recommendations")
+
         st.markdown('<div class="section-header">Patient Context</div>',
                     unsafe_allow_html=True)
         st.markdown(f"""
@@ -277,18 +301,20 @@ with right:
         </div>
         """, unsafe_allow_html=True)
 
-        # ── Actions ──
         st.markdown('<div class="section-header">Recommended Actions</div>',
                     unsafe_allow_html=True)
 
         for action in actions:
             urgency = action.urgency.upper() if action.urgency else "INFO"
             if urgency == "URGENT":
-                card_class, badge = "card-urgent", '<span class="badge-urgent">🔴 URGENT</span>'
+                card_class = "card-urgent"
+                badge = '<span class="badge-urgent">🔴 URGENT</span>'
             elif urgency == "ROUTINE":
-                card_class, badge = "card-routine", '<span class="badge-routine">🟢 ROUTINE</span>'
+                card_class = "card-routine"
+                badge = '<span class="badge-routine">🟢 ROUTINE</span>'
             else:
-                card_class, badge = "card-info", '<span class="badge-info">🔵 INFO</span>'
+                card_class = "card-info"
+                badge = '<span class="badge-info">🔵 INFO</span>'
 
             details_html = "".join(
                 f'<div class="card-detail">• {d}</div>' for d in action.details)
@@ -300,7 +326,6 @@ with right:
             </div>
             """, unsafe_allow_html=True)
 
-        # ── Audit Log ──
         with st.expander("📋 Decision Audit Log"):
             for step in engine.tracker.steps:
                 st.markdown(f"**[{step.timestamp[11:19]}] {step.rule}**")
