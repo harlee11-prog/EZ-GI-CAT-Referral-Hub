@@ -192,13 +192,26 @@ with right:
             if node:
                 visited_nodes.add(node)
 
-        # These nodes have no tracker.log — infer from patient state
-        if patient.test_prep_ready:
+         # Infer nodes that have no tracker.log based on engine flow order
+        # Flow: testing → test_result → alarm → pregnancy → washout → treatment → followup
+        # If treatment was reached, all steps before it were also visited
+        if "treatment" in visited_nodes or "followup" in visited_nodes:
             visited_nodes.add("washout")
-        if not patient.has_alarm_features:
-            visited_nodes.add("alarm")
-        if not patient.pregnant_or_nursing:
             visited_nodes.add("pregnancy")
+            visited_nodes.add("alarm")
+        # If pregnancy was logged (pregnant patient — engine stopped there),
+        # alarm was still checked before pregnancy
+        elif "pregnancy" in visited_nodes:
+            visited_nodes.add("alarm")
+        # If test_result was visited and engine proceeded past it,
+        # alarm was checked next
+        elif "test_result" in visited_nodes and hp_map[hp_positive] is True:
+            visited_nodes.add("alarm")
+
+        # Also add testing if any testing indication was checked
+        # (fallback in case em dash mismatch in rule name)
+        if any([dyspepsia, ulcer_hx, family_gastric, immigrant_prev]):
+            visited_nodes.add("testing")
 
         # ── BUILD SVG ──
         all_nodes = [
