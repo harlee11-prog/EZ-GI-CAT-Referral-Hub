@@ -43,3 +43,35 @@ with col3:
         with pdf3:
             st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-cancer-iron-deficiency-anemia-pathway.pdf", use_container_width=True)
 
+
+st.markdown("")
+
+# ── ROW 2 ──
+col4, col5, col6 = st.columns(3)
+
+with col4:
+    with st.container(border=True):
+        st.markdown("### 🔬 Chronic Diarrhea")
+        nav4, pdf4 = st.columns([2, 1])
+        with nav4:
+            st.page_link("pages/4_Chronic_Diarrhea.py", label="Open →", use_container_width=True)
+        with pdf4:
+            st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-dh-pathway-chronic-diarrhea.pdf", use_container_width=True)
+
+with col5:
+    with st.container(border=True):
+        st.markdown("### 🫁 Irritable Bowel Syndrome")
+        nav5, pdf5 = st.columns([2, 1])
+        with nav5:
+            st.page_link("pages/5_IBS.py", label="Open →", use_container_width=True)
+        with pdf5:
+            st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-dh-pathway-ibs.pdf", use_container_width=True)
+
+with col6:
+    with st.container(border=True):
+        st.markdown("### 🩺 Rectal Bleeding")
+        nav6, pdf6 = st.columns([2, 1])
+        with nav6:
+            st.page_link("pages/6_HRRB.py", label="Open →", use_container_width=True)
+        with pdf6:
+            st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-cancer-high-risk-rectal-bleeding-pathway.pdf", use_container_width=True)
