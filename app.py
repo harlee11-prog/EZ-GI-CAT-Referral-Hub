@@ -49,4 +49,4 @@ with col3:
         with pdf3:
             st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/info/hp/cancer/if-hp-cancer-cr-ida-pathway.pdf", use_container_width=True)
 
-st.caption("Does not override clinical judgment.")
+
