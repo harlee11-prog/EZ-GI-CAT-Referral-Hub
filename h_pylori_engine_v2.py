@@ -1,15 +1,3 @@
-========================================================
-PATHWAY FILE: Helicobacter pylori (H. pylori)
-========================================================
-
-Design goals
-- Same architecture as other pathway engines
-- Progressive gating with DataRequest where appropriate
-- UI-friendly outputs: Action / DataRequest / Stop
-- Audit log support
-- Override capability
-"""
-
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Callable
 from datetime import datetime, timezone
@@ -21,10 +9,6 @@ try:
 except Exception:
     DYSPEPSIA_ENGINE_AVAILABLE = False
 
-
-# =========================================================
-# OUTPUT TYPES
-# =========================================================
 
 @dataclass
 class Action:
