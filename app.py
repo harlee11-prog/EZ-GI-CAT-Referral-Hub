@@ -47,6 +47,6 @@ with col3:
         with nav3:
             st.page_link("pages/7_IDA.py", label="Open →", use_container_width=True)
         with pdf3:
-            st.link_button("📄 PDF", "www.ahs.ca/assets/about/scn/ahs-scn-cancer-iron-deficiency-anemia-pathway.pdf", use_container_width=True)
+            st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-cancer-iron-deficiency-anemia-pathway.pdf", use_container_width=True)
 
 
