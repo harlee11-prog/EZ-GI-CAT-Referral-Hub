@@ -10,7 +10,7 @@ from h_pylori_engine import (
 
 st.set_page_config(page_title="H. Pylori Pathway", page_icon="🦠", layout="wide")
 
-# Styling remains consistent with your previous UI but adds specific node positioning
+# CSS for clinical UI components
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden !important;}
@@ -96,7 +96,7 @@ with right:
         engine  = HPyloriPathwayEngine()
         actions = engine.evaluate(patient)
 
-        # Updated mapping to AHS Boxes based on rules in the engine
+        # Mapping engine rules to AHS PDF Boxes
         rule_to_node = {
             "Box 1 – Testing Indications":               "box1",
             "Box 2 – Alarm Features":                    "box2",
@@ -112,72 +112,95 @@ with right:
         }
 
         visited_nodes = {"box1"}
-
-        # 1. Add nodes from the Decision Audit Log
         for step in engine.tracker.steps:
             node = rule_to_node.get(step.rule)
-            if node: 
-                visited_nodes.add(node)
-
-        # 2. Check the generated Clinical Actions for Referral or Dyspepsia routing
+            if node: visited_nodes.add(node)
+        
         for action in actions:
             if action.category == "REFERRAL":
                 visited_nodes.add("box7")
             if "Dyspepsia" in action.description:
                 visited_nodes.add("dysp")
 
-        # ── VERTICAL FLOWCHART SVG (Mirroring AHS PDF)  ──
-        # Coordinates: box1 (top), box2 (below), box3 (below box2), box7 (left of box2), dysp (right of box3)
+        # -- REVISED VERTICAL FLOWCHART SVG --
+        canvas_w, canvas_h = 600, 650
+        node_w, node_h = 140, 60
+        mid_x = canvas_w // 2 - node_w // 2
+
+        # Define vertical structure matching PDF Layout [cite: 1]
         nodes = [
-            ("box1", "1. Who to test?", 180, 20),
-            ("box2", "2. Alarm Features", 180, 100),
-            ("box7", "7. Referral / GI", 20, 100),
-            ("box3", "3. Diagnosis", 180, 180),
-            ("dysp", "Dyspepsia Path", 340, 180),
-            ("box4", "4. Treatment", 180, 260),
-            ("box5", "5. Confirm Erad.", 180, 340),
-            ("box6", "6. Tx Failure", 180, 420),
+            ("box1", "1. Who to test?", mid_x, 20),
+            ("box2", "2. Alarm Features", mid_x, 120),
+            ("box7", "7. Referral / GI", 40, 120),
+            ("box3", "3. Diagnosis", mid_x, 220),
+            ("dysp", "Dyspepsia Path", 420, 220),
+            ("box4", "4. Treatment", mid_x, 320),
+            ("box5", "5. Confirm Erad.", mid_x, 420),
+            ("box6", "6. Tx Failure", mid_x, 520),
         ]
 
         edges = [
-            ("box1", "box2", ""), ("box2", "box7", "Yes"), ("box2", "box3", "No"),
-            ("box3", "box4", "Positive"), ("box3", "dysp", "Negative"),
-            ("box4", "box5", ""), ("box5", "box6", "No"), ("box6", "box4", "Retry")
+            ("box1", "box2", "", "straight"),
+            ("box2", "box7", "Yes", "horizontal"),
+            ("box2", "box3", "No", "straight"),
+            ("box3", "box4", "Positive", "straight"),
+            ("box3", "dysp", "Negative", "horizontal"),
+            ("box4", "box5", "", "straight"),
+            ("box5", "box6", "No", "straight"),
+            ("box6", "box4", "Retry", "curve")
         ]
 
-        node_w, node_h = 110, 50
         svg = [
-            f'<svg width="100%" viewBox="0 0 480 500" xmlns="http://www.w3.org/2000/svg" style="background:#0e0e0e; border-radius:14px;">',
+            f'<svg width="100%" viewBox="0 0 {canvas_w} {canvas_h}" xmlns="http://www.w3.org/2000/svg" style="background:#0e0e0e; border-radius:14px;">',
             '<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
-            '<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round"/></marker></defs>',
+            '<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round"/></marker></defs>'
         ]
 
-        for a, b, label in edges:
+        # Render paths with differentiated styles
+        for a, b, label, style in edges:
             ax, ay = next(n[2:] for n in nodes if n[0] == a)
             bx, by = next(n[2:] for n in nodes if n[0] == b)
-            x1, y1 = ax + node_w/2, ay + node_h/2
-            x2, y2 = bx + node_w/2, by + node_h/2
-            svg.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#333" stroke-width="2" marker-end="url(#arr)" data-from="{a}" data-to="{b}"/>')
-            if label:
-                svg.append(f'<text x="{(x1+x2)/2}" y="{(y1+y2)/2-5}" fill="#888" font-size="10" text-anchor="middle">{label}</text>')
+            x1, y1, x2, y2 = ax + node_w/2, ay + node_h/2, bx + node_w/2, by + node_h/2
+            
+            if style == "straight":
+                d = f"M {x1} {ay+node_h} L {x2} {by}"
+            elif style == "horizontal":
+                # Lateral movement to/from side boxes
+                side_x1 = ax if x1 > x2 else ax + node_w
+                side_x2 = bx + node_w if x1 > x2 else bx
+                d = f"M {side_x1} {y1} L {side_x2} {y2}"
+            elif style == "curve":
+                # Looping back for treatment retries 
+                d = f"M {ax} {y1} C {ax-60} {y1}, {bx-60} {y2}, {bx} {y2}"
 
+            svg.append(f'<path d="{d}" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arr)" data-from="{a}" data-to="{b}" style="transition:0.5s"/>')
+            if label:
+                lx = (side_x1 + side_x2)/2 if style=="horizontal" else x1
+                ly = (y1 + y2)/2 - 10
+                svg.append(f'<text x="{lx}" y="{ly}" fill="#888" font-size="12" text-anchor="middle" font-family="Arial">{label}</text>')
+
+        # Render Clinical Boxes
         for nid, title, x, y in nodes:
             svg.append(f'<rect data-node="{nid}" x="{x}" y="{y}" width="{node_w}" height="{node_h}" rx="6" fill="#1e1e1e" stroke="#3a3a3a" stroke-width="1.5" style="transition:0.5s"/>')
-            svg.append(f'<text data-label="{nid}" x="{x+node_w/2}" y="{y+node_h/2+5}" text-anchor="middle" font-size="11" fill="#666" font-family="Arial" font-weight="700">{title}</text>')
+            svg.append(f'<text data-label="{nid}" x="{x+node_w/2}" y="{y+node_h/2+5}" text-anchor="middle" font-size="12" fill="#666" font-family="Arial" font-weight="700">{title}</text>')
         
         svg.append("</svg>")
+        
+        # Animate visited nodes based on clinical findings
         animated_html = f'{"".join(svg)}<script>' + f'const visited={list(visited_nodes)};' + """
             visited.forEach(id => {
                 const r = document.querySelector(`rect[data-node="${id}"]`);
                 const t = document.querySelector(`text[data-label="${id}"]`);
+                const edges = document.querySelectorAll(`path[data-to="${id}"]`);
                 if(r) { r.style.fill="#1a5c30"; r.style.stroke="#21c55d"; }
                 if(t) t.style.fill="#fff";
+                edges.forEach(e => e.style.stroke = "#21c55d");
             });</script>"""
 
         st.subheader("🗺 Pathway Navigation")
-        components.html(animated_html, height=450)
+        components.html(animated_html, height=600)
 
-        # ── CLINICAL RECOMMENDATIONS ──
+        # -- CLINICAL RECOMMENDATIONS --
         st.markdown('<div class="section-header">Patient Context</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="card-info"><div class="card-detail">👤 <b>Age/Sex:</b> {age}/{sex.capitalize()} | 🧪 <b>Result:</b> {hp_positive} | ⚠️ <b>Alarms:</b> {"Yes" if patient.has_alarm_features else "None"}</div></div>', unsafe_allow_html=True)
 
