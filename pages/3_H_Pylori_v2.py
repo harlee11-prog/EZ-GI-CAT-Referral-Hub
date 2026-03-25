@@ -352,132 +352,119 @@ with right:
   <span>⚠️ <b>Alarm Features:</b> {alarm_str}</span>
 </div>""", unsafe_allow_html=True)
 
-        # Render outputs
-        st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
+                # ── RENDERING HELPERS ─────────────────────────────────────
 
-        override_candidates = []   # collect actions that support overrides
+        SUPPRESS_CODES = {
+            "TESTING_INDICATED", "HP_POSITIVE",
+            "NO_ALARM_FEATURES", "HP_NEGATIVE",
+        }
 
-        def render_action(a: Action, extra_cls=""):
-            urgency_to_cls = {"urgent":"urgent","warning":"warning",None:"routine","":"routine"}
-            cls = urgency_to_cls.get(a.urgency or "", "routine")
-            if extra_cls: cls = extra_cls
-            badge_label = (a.urgency or "info").upper()
-            detail_items = ""
-            if isinstance(a.details, dict):
-                detail_items = "".join(
-                    f"<li><b>{k}:</b> {v}</li>"
-                    for k, v in a.details.items()
-                    if k not in ("supported_by",) and v not in (None, False, "")
-                )
-            elif isinstance(a.details, list):
-                detail_items = "".join(f"<li>{d}</li>" for d in a.details if str(d).strip())
-            detail_html = f"<ul>{detail_items}</ul>" if detail_items else ""
+        FIELD_LABELS = {
+            "progressive_dysphagia":                                    "Progressive dysphagia",
+            "persistent_vomiting_not_cannabis_related":                 "Persistent vomiting (not associated with cannabis use)",
+            "black_stool_or_blood_in_vomit":                            "Black stool or blood in vomit",
+            "family_history_esophageal_or_gastric_cancer_first_degree": "Family history (first-degree) of esophageal or gastric cancer",
+            "personal_history_peptic_ulcer_disease":                    "Personal history of peptic ulcer disease",
+            "age_over_60_new_persistent_symptoms_over_3_months":        "Age >60 with new persistent symptoms",
+            "unintended_weight_loss":                                   "Unintended weight loss",
+            "iron_deficiency_anemia_present":                           "Iron deficiency anemia",
+            "clinician_concern_serious_pathology":                      "Clinician concern about serious pathology",
+            "personal_or_first_degree_relative_history_gastric_cancer": "Personal/family history of gastric cancer",
+            "dyspepsia_symptoms":                                       "Dyspepsia symptoms",
+            "current_or_past_gastric_or_duodenal_ulcer_or_upper_gi_bleed": "History of ulcer or GI bleed",
+            "first_generation_immigrant_high_prevalence_region":        "First-generation immigrant from high-prevalence region",
+        }
+
+        SKIP_KEYS = {"indicated", "supported_by"}
+
+        def _clean_details(details) -> list:
+            if isinstance(details, list):
+                return [str(d) for d in details if str(d).strip()]
+            if isinstance(details, dict):
+                lines = []
+                for k, v in details.items():
+                    if k in SKIP_KEYS or v is False or v is None:
+                        continue
+                    label = FIELD_LABELS.get(k, k.replace("_", " ").capitalize())
+                    lines.append(f"• {label}" if v is True else f"• {label}: {v}")
+                return lines
+            return []
+
+        def _cls(urgency):
+            return {"urgent":"urgent","warning":"warning","routine":"routine","info":"info"}.get((urgency or "").lower(), "routine")
+
+        def _card(title, badge, cls, details, override_opts=None):
+            items = "".join(f"<li>{d}</li>" for d in details if d.strip())
+            detail_html = f"<ul>{items}</ul>" if items else ""
             st.markdown(f"""
 <div class="action-card {cls}">
-  <h4><span class="badge {cls}">{badge_label}</span> {a.label}</h4>
+  <h4><span class="badge {cls}">{badge.upper()}</span> {title}</h4>
   {detail_html}
 </div>""", unsafe_allow_html=True)
-            if a.override_options:
-                override_candidates.append(a)
+            if override_opts:
+                override_candidates.append((title, override_opts))
+
+        # ── RENDER OUTPUTS ────────────────────────────────────────
+        st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
+        override_candidates = []
 
         for output in outputs:
             if isinstance(output, Action):
-                render_action(output)
+                if output.code in SUPPRESS_CODES:
+                    continue
+                cls = _cls(output.urgency or output.display.get("badge",""))
+                badge = (output.urgency or output.display.get("badge","INFO")).upper()
+                _card(output.label, badge, cls, _clean_details(output.details), output.override_options)
 
             elif isinstance(output, DataRequest):
-                missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
-                st.markdown(f"""
-<div class="action-card warning">
-  <h4><span class="badge warning">DATA NEEDED</span> ⏳ {output.message}</h4>
-  <ul><li>Missing fields: {missing_str}</li></ul>
-</div>""", unsafe_allow_html=True)
-                for sa in output.suggested_actions:
-                    render_action(sa, extra_cls="info")
+                missing = [f"• {f.replace('_',' ').capitalize()}" for f in output.missing_fields]
+                _card(f"Additional Information Required: {output.message}", "INFO", "info", missing)
 
             elif isinstance(output, Stop):
-                st.markdown(f"""
-<div class="action-card stop">
-  <h4><span class="badge stop">STOP</span> 🛑 {output.reason}</h4>
-</div>""", unsafe_allow_html=True)
+                # No separate STOP banner — render nested actions directly like old engine
                 for a in output.actions:
-                    render_action(a)
+                    if a.code in SUPPRESS_CODES:
+                        continue
+                    cls = _cls(a.urgency or output.urgency or a.display.get("badge",""))
+                    badge = (a.urgency or output.urgency or "INFO").upper()
+                    _card(a.label, badge, cls, _clean_details(a.details), a.override_options)
 
-        # ── CLINICIAN OVERRIDE PANEL ───────────────────────────────────────
+        # ── CLINICIAN OVERRIDE PANEL ───────────────────────────────
         if override_candidates:
             st.markdown("---")
             st.markdown('<p class="section-label">CLINICIAN OVERRIDES</p>', unsafe_allow_html=True)
-            st.caption("Override engine decisions where clinical judgement differs. A reason is required for each override.")
-
-            for a in override_candidates:
-                opt = a.override_options
-                node  = opt["node"]
-                field = opt["field"]
+            st.caption("Override engine decisions where clinical judgement differs. A reason is required.")
+            for (card_title, opt) in override_candidates:
+                node, field_ = opt["node"], opt["field"]
                 allowed = opt.get("allowed", [True, False])
-
-                with st.expander(f"⚙️ Override: **{node}** → `{field}`"):
-                    st.markdown(f'<div class="override-card">Engine decision based on: <b>{a.label}</b></div>', unsafe_allow_html=True)
-
-                    # Check if already overridden
-                    existing = next(
-                        (o for o in st.session_state.hp_overrides
-                         if o.target_node == node and o.field == field), None
-                    )
-                    current_val = existing.new_value if existing else None
-
-                    new_val = st.radio(
-                        f"Set `{field}` to:",
-                        options=allowed,
-                        index=allowed.index(current_val) if current_val in allowed else 0,
-                        key=f"ov_val_{node}_{field}",
-                        horizontal=True,
-                    )
-                    reason = st.text_input(
-                        "Reason (required):",
-                        value=existing.reason if existing else "",
-                        key=f"ov_reason_{node}_{field}",
-                        placeholder="Document clinical rationale..."
-                    )
-
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button(f"✅ Apply Override", key=f"ov_apply_{node}_{field}"):
+                with st.expander(f"⚙️ Override: **{node}** → `{field_}`"):
+                    st.markdown(f'<div class="override-card">Engine decision: <b>{card_title}</b></div>', unsafe_allow_html=True)
+                    existing = next((o for o in st.session_state.hp_overrides if o.target_node == node and o.field == field_), None)
+                    new_val = st.radio(f"Set `{field_}` to:", options=allowed,
+                        index=allowed.index(existing.new_value) if existing and existing.new_value in allowed else 0,
+                        key=f"ov_val_{node}_{field_}", horizontal=True)
+                    reason = st.text_input("Reason (required):", value=existing.reason if existing else "",
+                        key=f"ov_reason_{node}_{field_}", placeholder="Document clinical rationale...")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("✅ Apply Override", key=f"ov_apply_{node}_{field_}"):
                             if not reason.strip():
-                                st.error("A reason is required to apply an override.")
+                                st.error("A reason is required.")
                             else:
-                                # Remove existing override for same node+field
-                                st.session_state.hp_overrides = [
-                                    o for o in st.session_state.hp_overrides
-                                    if not (o.target_node == node and o.field == field)
-                                ]
-                                st.session_state.hp_overrides.append(Override(
-                                    target_node=node,
-                                    field=field,
-                                    old_value=None,
-                                    new_value=new_val,
-                                    reason=reason.strip(),
-                                ))
-                                st.success(f"Override applied. Click **▶ Run Pathway** to re-evaluate.")
-
-                    with col2:
-                        if existing and st.button(f"🗑 Remove Override", key=f"ov_remove_{node}_{field}"):
-                            st.session_state.hp_overrides = [
-                                o for o in st.session_state.hp_overrides
-                                if not (o.target_node == node and o.field == field)
-                            ]
+                                st.session_state.hp_overrides = [o for o in st.session_state.hp_overrides if not (o.target_node == node and o.field == field_)]
+                                st.session_state.hp_overrides.append(Override(target_node=node, field=field_, old_value=None, new_value=new_val, reason=reason.strip()))
+                                st.success("Override applied. Click ▶ Run Pathway to re-evaluate.")
+                    with c2:
+                        if existing and st.button("🗑 Remove Override", key=f"ov_rm_{node}_{field_}"):
+                            st.session_state.hp_overrides = [o for o in st.session_state.hp_overrides if not (o.target_node == node and o.field == field_)]
                             st.success("Override removed.")
-
-            # Show active overrides summary
             if st.session_state.hp_overrides:
                 st.markdown('<p class="section-label">ACTIVE OVERRIDES</p>', unsafe_allow_html=True)
                 for o in st.session_state.hp_overrides:
-                    st.markdown(f"""
-<div class="override-card">
-  🔧 <b>{o.target_node}</b> → <code>{o.field}</code> set to <b>{o.new_value}</b><br>
-  <span style="color:#a5b4fc">Reason: {o.reason}</span><br>
-  <span style="color:#64748b;font-size:11px">Applied: {o.created_at.strftime("%H:%M:%S")}</span>
-</div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="override-card">🔧 <b>{o.target_node}</b> → <code>{o.field}</code> = <b>{o.new_value}</b><br>
+  <span style="color:#a5b4fc">Reason: {o.reason}</span></div>""", unsafe_allow_html=True)
 
-        # ── DECISION AUDIT LOG ─────────────────────────────────────────────
+        # ── DECISION AUDIT LOG ─────────────────────────────────────
         with st.expander("📋 Decision Audit Log"):
             for log in logs:
                 try:    ts = datetime.fromisoformat(log.timestamp).strftime("%H:%M:%S")
