@@ -96,25 +96,35 @@ with right:
         engine  = HPyloriPathwayEngine()
         actions = engine.evaluate(patient)
 
-        # Updated mapping to AHS Boxes 
+        # Updated mapping to AHS Boxes based on rules in the engine
         rule_to_node = {
             "Box 1 – Testing Indications":               "box1",
             "Box 2 – Alarm Features":                    "box2",
-            "Urgent Referral Triggered":                 "box7",
             "Test Result":                               "box3",
-            "Route to Dyspepsia Pathway":                "dysp",
             "Box 4 – First Line":                        "box4",
+            "Box 4 – First Line (Penicillin Allergy)":   "box4",
             "Box 4 – Second Line":                       "box4",
+            "Box 4 – Second Line (Penicillin Allergy)":  "box4",
             "Box 4 – Third Line":                        "box4",
+            "Box 4 – Third Line (Penicillin Allergy)":   "box4",
             "Eradication Confirmation":                  "box5",
             "Box 6 – Treatment Failure / Fourth Line":   "box6",
         }
 
         visited_nodes = {"box1"}
+
+        # 1. Add nodes from the Decision Audit Log
         for step in engine.tracker.steps:
             node = rule_to_node.get(step.rule)
-            if node: visited_nodes.add(node)
-            if "Referral" in step.category: visited_nodes.add("box7")
+            if node: 
+                visited_nodes.add(node)
+
+        # 2. Check the generated Clinical Actions for Referral or Dyspepsia routing
+        for action in actions:
+            if action.category == "REFERRAL":
+                visited_nodes.add("box7")
+            if "Dyspepsia" in action.description:
+                visited_nodes.add("dysp")
 
         # ── VERTICAL FLOWCHART SVG (Mirroring AHS PDF)  ──
         # Coordinates: box1 (top), box2 (below), box3 (below box2), box7 (left of box2), dysp (right of box3)
