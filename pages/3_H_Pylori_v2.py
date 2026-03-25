@@ -5,7 +5,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from h_pylori_engine_v2 import (
     run_h_pylori_pathway, Action, DataRequest, Stop, Override,
-    REGIMEN_DETAILS, format_outputs_for_nurse,
+    REGIMEN_DETAILS,
 )
 from datetime import datetime
 
@@ -422,37 +422,6 @@ with right:
             unsafe_allow_html=True,
         )
 
-        # ── MEDICATION QUICK REFERENCE ────────────────────────────────────
-        with st.expander("\U0001f48a Treatment Regimen Quick Reference", expanded=False):
-            st.caption(
-                "All regimens should be dispensed in a blister/bubble pack to improve adherence. "
-                "Pregnant or breastfeeding patients must NOT receive any H. pylori treatment."
-            )
-            for key, r in REGIMEN_DETAILS.items():
-                if key == "PCM":
-                    allergy_tag = " \u2014 \u26a0\ufe0f Penicillin-Allergic Only"
-                elif key in ("PAMC", "PAL", "PAR"):
-                    allergy_tag = " \u2014 \u2705 No Penicillin Allergy"
-                else:
-                    allergy_tag = " \u2014 \u2705 Either (PBMT used for both)"
-                st.markdown(
-                    f"**{r['name']}**{allergy_tag}"
-                    f" &nbsp;|&nbsp; \u23f1 {r['duration']}"
-                    f" &nbsp;|&nbsp; \U0001f48a {r['approx_cost']}"
-                )
-                col_h = st.columns([3, 2, 1])
-                col_h[0].caption("Drug")
-                col_h[1].caption("Dose")
-                col_h[2].caption("Frequency")
-                for m in r["medications"]:
-                    c = st.columns([3, 2, 1])
-                    c[0].write(m["drug"])
-                    c[1].write(m["dose"])
-                    c[2].write(m["frequency"])
-                if r.get("notes"):
-                    st.warning(r["notes"], icon="\u26a0\ufe0f")
-                st.divider()
-
         # ── RENDER HELPERS ────────────────────────────────────────────────
         override_candidates: list = []
 
@@ -488,12 +457,21 @@ with right:
                 return ""
             items = ""
             if isinstance(details, dict):
+                # Primary bullet list
+                for bullet in details.get("bullets", []):
+                    items += f"<li>{bullet}</li>"
+                # Advisory notes shown after bullets
+                for note in details.get("notes", []):
+                    items += f'<li style="color:#fde68a">\u26a0\ufe0f {note}</li>'
+                # Evidence / source notes
+                for src in details.get("supported_by", []):
+                    items += f"<li>\U0001f4cc {src}</li>"
+                # Fallback: any other keys except reserved ones
+                skip = {"bullets", "notes", "supported_by", "regimen_key"}
                 for k, v in details.items():
-                    if k == "regimen_key":
+                    if k in skip:
                         continue
-                    if k == "supported_by" and isinstance(v, list):
-                        items += "".join(f"<li>\U0001f4cc {n}</li>" for n in v)
-                    elif isinstance(v, list) and v:
+                    if isinstance(v, list) and v:
                         items += "".join(f"<li>{i}</li>" for i in v)
                     elif v not in (None, False, "", []):
                         items += f"<li><b>{k}:</b> {v}</li>"
