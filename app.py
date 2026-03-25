@@ -45,7 +45,7 @@ with col3:
         st.markdown("### 🩸 Iron Deficiency Anemia")
         nav3, pdf3 = st.columns([2, 1])
         with nav3:
-            st.page_link("pages/3_IDA.py", label="Open →", use_container_width=True)
+            st.page_link("pages/7_IDA.py", label="Open →", use_container_width=True)
         with pdf3:
             st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/info/hp/cancer/if-hp-cancer-cr-ida-pathway.pdf", use_container_width=True)
 
