@@ -379,10 +379,12 @@ with right:
         )
 
         # ── CLINICAL RECOMMENDATIONS ──────────────────────────────────────
+                # ── CLINICAL RECOMMENDATIONS ──────────────────────────────────────
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
-        test_str = {None:"Not yet tested", True:"✅ Positive", False:"❌ Negative"}[patient.h_pylori_test_positive]
+        # ── PATIENT CONTEXT ───────────────────────────────────────────────
+        test_str = {None:"Not yet tested", True:"Positive", False:"Negative"}[patient.h_pylori_test_positive]
         alarm_str = ", ".join(patient.active_alarms) if patient.has_alarm_features else "None"
         line_labels = {
             TreatmentLine.NAIVE:       "Treatment Naive",
@@ -390,13 +392,18 @@ with right:
             TreatmentLine.THIRD_LINE:  "Third Line",
             TreatmentLine.FOURTH_LINE: "Fourth Line",
         }
+
+        st.markdown('<p style="font-size:11px;font-weight:700;letter-spacing:1.2px;color:#94a3b8;margin-bottom:6px">PATIENT CONTEXT</p>', unsafe_allow_html=True)
         st.markdown(f"""
 <div class="ctx-card">
-  <b>🧑 Age / Sex:</b> {patient.age} / {(patient.sex or "").capitalize()}&nbsp;&nbsp;
-  <b>🦠 H. Pylori Test:</b> {test_str}&nbsp;&nbsp;
-  <b>💊 Treatment Line:</b> {line_labels[patient.treatment_line]}<br>
-  <b>⚠ Alarm Features:</b> {alarm_str}
+  <span>🧑 <b>Age / Sex:</b> {patient.age} / {(patient.sex or "").capitalize()}</span><br>
+  <span>🦠 <b>H. Pylori Test:</b> {test_str}</span><br>
+  <span>💊 <b>Treatment Line:</b> {line_labels[patient.treatment_line]}</span><br>
+  <span>⚠️ <b>Alarm Features:</b> {alarm_str}</span>
 </div>""", unsafe_allow_html=True)
+
+        # ── RECOMMENDED ACTIONS ───────────────────────────────────────────
+        st.markdown('<p style="font-size:11px;font-weight:700;letter-spacing:1.2px;color:#94a3b8;margin-top:18px;margin-bottom:6px">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
 
         cat_icon = {
             "TREATMENT":"💊","REFERRAL":"📋","TESTING":"🧪",
@@ -406,14 +413,14 @@ with right:
         urgency_cls = {"URGENT":"urgent","ROUTINE":"routine","INFO":"info","NONE":"info"}
 
         for action in actions:
-            cls  = urgency_cls.get(action.urgency, "info")
-            icon = cat_icon.get(action.category, "📌")
-            badge = f'<span class="badge {cls}">{action.urgency if action.urgency!="INFO" else action.category}</span>'
+            cls   = urgency_cls.get(action.urgency, "info")
+            icon  = cat_icon.get(action.category, "📌")
+            badge = f'<span class="badge {cls}">{action.urgency if action.urgency != "INFO" else action.category}</span>'
             items_html = "".join(f"<li>{d}</li>" for d in action.details if d.strip()) if action.details else ""
             detail_html = f"<ul>{items_html}</ul>" if items_html else ""
             st.markdown(f"""
 <div class="action-card {cls}">
-  <h4>{badge}{icon} {action.category}: {action.description}</h4>
+  <h4>{badge}{icon} {action.description}</h4>
   {detail_html}
 </div>""", unsafe_allow_html=True)
 
