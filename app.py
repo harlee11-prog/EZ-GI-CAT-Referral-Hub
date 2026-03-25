@@ -29,7 +29,7 @@ with col1:
         with nav1:
             st.page_link("pages/1_H_Pylori.py", label="Open →", use_container_width=True)
         with pdf1:
-            st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/info/hp/cancer/if-hp-cancer-cr-h-pylori-pathway.pdf", use_container_width=True)
+            st.link_button("📄 PDF", "www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-hpylori.pdf", use_container_width=True)
 
 with col2:
     with st.container(border=True):
@@ -38,7 +38,7 @@ with col2:
         with nav2:
             st.page_link("pages/2_Constipation.py", label="Open →", use_container_width=True)
         with pdf2:
-            st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/info/hp/cancer/if-hp-cancer-cr-constipation-pathway.pdf", use_container_width=True)
+            st.link_button("📄 PDF", "www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-chronic-constipation.pdf", use_container_width=True)
 
 with col3:
     with st.container(border=True):
@@ -47,6 +47,6 @@ with col3:
         with nav3:
             st.page_link("pages/7_IDA.py", label="Open →", use_container_width=True)
         with pdf3:
-            st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/info/hp/cancer/if-hp-cancer-cr-ida-pathway.pdf", use_container_width=True)
+            st.link_button("📄 PDF", "www.ahs.ca/assets/about/scn/ahs-scn-cancer-iron-deficiency-anemia-pathway.pdf", use_container_width=True)
 
 
