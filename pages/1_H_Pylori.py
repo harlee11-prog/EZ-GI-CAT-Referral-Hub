@@ -9,13 +9,14 @@ from h_pylori_engine import (
 
 st.set_page_config(page_title="H. Pylori", page_icon="🦠", layout="wide")
 
-# ── Global CSS ──────────────────────────────────────────────────────────────
+# ── GLOBAL CSS ───────────────────────────────────────────────────────────────
+# FIX 1: Sidebar — do NOT override background so it inherits the app theme.
+#         Only style the nav links to be readable.
+# FIX 2: All flowchart text is clipped inside foreignObject — we use pure SVG
+#         text elements with explicit wrapping instead.
 st.markdown("""
 <style>
-/* sidebar */
-[data-testid="stSidebar"] { background: #0f172a; }
-
-/* patient context card */
+/* ── Patient context card ── */
 .ctx-card {
     background: #1e3a5f;
     border: 1px solid #2e5c8a;
@@ -27,7 +28,7 @@ st.markdown("""
 }
 .ctx-card b { color: #93c5fd; }
 
-/* action cards */
+/* ── Action cards ── */
 .action-card {
     border-radius: 10px;
     padding: 14px 18px;
@@ -35,21 +36,16 @@ st.markdown("""
     font-size: 13.5px;
     line-height: 1.6;
 }
-.action-card.urgent  { background:#3b0a0a; border-left: 5px solid #ef4444; color:#fecaca; }
-.action-card.routine { background:#052e16; border-left: 5px solid #22c55e; color:#bbf7d0; }
-.action-card.info    { background:#0c1a2e; border-left: 5px solid #3b82f6; color:#bfdbfe; }
-.action-card h4      { margin: 0 0 6px 0; font-size: 14px; }
-.action-card ul      { margin: 6px 0 0 16px; padding: 0; }
-.action-card li      { margin-bottom: 3px; }
+.action-card.urgent  { background:#3b0a0a; border-left:5px solid #ef4444; color:#fecaca; }
+.action-card.routine { background:#052e16; border-left:5px solid #22c55e; color:#bbf7d0; }
+.action-card.info    { background:#0c1a2e; border-left:5px solid #3b82f6; color:#bfdbfe; }
+.action-card h4 { margin:0 0 6px 0; font-size:14px; }
+.action-card ul { margin:6px 0 0 16px; padding:0; }
+.action-card li { margin-bottom:3px; }
 .badge {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: bold;
-    padding: 2px 8px;
-    border-radius: 20px;
-    margin-right: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    display:inline-block; font-size:11px; font-weight:bold;
+    padding:2px 8px; border-radius:20px; margin-right:6px;
+    text-transform:uppercase; letter-spacing:0.5px;
 }
 .badge.urgent  { background:#ef4444; color:#fff; }
 .badge.routine { background:#22c55e; color:#fff; }
@@ -62,10 +58,9 @@ st.markdown("---")
 
 left, right = st.columns([1, 1.5])
 
-# ── LEFT PANEL: Patient Inputs ──────────────────────────────────────────────
+# ── LEFT PANEL ───────────────────────────────────────────────────────────────
 with left:
     st.subheader("Patient Information")
-
     age  = st.number_input("Age", 1, 120, 52)
     sex  = st.selectbox("Sex", ["male", "female"])
     pregnant = st.checkbox("Pregnant or nursing")
@@ -81,9 +76,9 @@ with left:
     hp_map = {"Not tested": None, "Positive": True, "Negative": False}
 
     st.markdown("**Washout Status**")
-    off_abx    = st.checkbox("Off antibiotics ≥4 weeks", value=True)
-    off_ppi    = st.checkbox("Off PPIs ≥2 weeks",        value=True)
-    off_bismuth= st.checkbox("Off bismuth ≥2 weeks",     value=True)
+    off_abx     = st.checkbox("Off antibiotics ≥4 weeks", value=True)
+    off_ppi     = st.checkbox("Off PPIs ≥2 weeks",        value=True)
+    off_bismuth = st.checkbox("Off bismuth ≥2 weeks",     value=True)
 
     st.markdown("**Alarm Features**")
     al_family_cancer = st.checkbox("Family hx esophageal/gastric cancer")
@@ -111,12 +106,11 @@ with left:
 
     run = st.button("▶ Run Pathway", type="primary", use_container_width=True)
 
-# ── RIGHT PANEL ─────────────────────────────────────────────────────────────
+# ── RIGHT PANEL ──────────────────────────────────────────────────────────────
 with right:
     if run:
         patient = Patient(
-            age=age,
-            sex=sex,
+            age=age, sex=sex,
             pregnant_or_nursing=pregnant or None,
             dyspepsia_symptoms=dyspepsia or None,
             history_ulcer_or_gi_bleed=ulcer_hx or None,
@@ -139,25 +133,23 @@ with right:
             alarm_blood_in_vomit=al_blood_vomit or None,
             alarm_iron_deficiency_anemia=al_ida or None,
         )
-
         engine  = HPyloriPathwayEngine()
         actions = engine.evaluate(patient)
 
-        # ── PATH STATE FLAGS ───────────────────────────────────────────────
+        # ── PATH STATE FLAGS ──────────────────────────────────────────────
         action_categories = [a.category for a in actions]
         action_urgencies  = [a.urgency  for a in actions]
+        no_indication = not patient.has_testing_indication and patient.h_pylori_test_positive is None
+        test_negative = patient.h_pylori_test_positive is False
+        has_alarm     = patient.has_alarm_features
+        is_pregnant   = bool(patient.pregnant_or_nursing)
+        is_positive   = patient.h_pylori_test_positive is True
+        went_to_tx    = "TREATMENT" in action_categories or "REFERRAL" in action_categories
+        urgent_ref    = "URGENT" in action_urgencies
+        has_followup  = "FOLLOW_UP" in action_categories
+        is_pediatric  = patient.age is not None and patient.age < 18
 
-        no_indication  = not patient.has_testing_indication and patient.h_pylori_test_positive is None
-        test_negative  = patient.h_pylori_test_positive is False
-        has_alarm      = patient.has_alarm_features
-        is_pregnant    = bool(patient.pregnant_or_nursing)
-        is_positive    = patient.h_pylori_test_positive is True
-        went_to_tx     = "TREATMENT" in action_categories or "REFERRAL" in action_categories
-        urgent_ref     = "URGENT" in action_urgencies
-        has_followup   = "FOLLOW_UP" in action_categories
-        is_pediatric   = patient.age is not None and patient.age < 18
-
-        # ── AHS-STYLE SVG FLOWCHART ────────────────────────────────────────
+        # ── COLOUR PALETTE ────────────────────────────────────────────────
         C_MAIN    = "#16a34a"
         C_UNVISIT = "#475569"
         C_DIAMOND = "#1d4ed8"
@@ -167,211 +159,230 @@ with right:
         C_DIM     = "#94a3b8"
         C_BG      = "#0f172a"
 
-        def nc(visited, urgent=False, is_exit=False):
-            if not visited: return C_UNVISIT
-            if urgent:      return C_URGENT
-            if is_exit:     return C_EXIT
+        def nc(vis, urgent=False, exit_=False):
+            if not vis:   return C_UNVISIT
+            if urgent:    return C_URGENT
+            if exit_:     return C_EXIT
             return C_MAIN
 
-        def dc(visited):
-            return C_DIAMOND if visited else C_UNVISIT
+        def dc(vis): return C_DIAMOND if vis else C_UNVISIT
 
-        def tc(visited):
-            return C_TEXT if visited else C_DIM
+        # ── SVG HELPERS ───────────────────────────────────────────────────
+        # FIX 2: All text is rendered with explicit SVG <text> / <tspan>
+        # inside node boundaries. Node sizes are generous so text never clips.
 
         svg = []
-        W, H = 680, 900
+        W, H = 700, 950
 
-        svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" style="background:{C_BG};border-radius:12px;font-family:Arial,sans-serif">')
+        svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="{H}" viewBox="0 0 {W} {H}" style="background:{C_BG};border-radius:12px;font-family:Arial,sans-serif">')
 
         # Arrow markers
-        svg.append('''<defs>
-  <marker id="a"  markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>
-  <marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#16a34a"/></marker>
-  <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#dc2626"/></marker>
-  <marker id="ao" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#d97706"/></marker>
-</defs>''')
+        svg.append("""<defs>
+  <marker id="ma"  markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>
+  <marker id="mg"  markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#16a34a"/></marker>
+  <marker id="mr"  markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#dc2626"/></marker>
+  <marker id="mo"  markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#d97706"/></marker>
+</defs>""")
 
-        def rect(x, y, w, h, color, lines, sub="", rx=8):
+        # marker ids by state
+        def mid(vis, urgent=False, exit_=False):
+            if not vis:  return "ma"
+            if urgent:   return "mr"
+            if exit_:    return "mo"
+            return "mg"
+
+        def svgt(x, y, text, fill, size=11, bold=False, anchor="middle"):
+            w = "bold" if bold else "normal"
+            svg.append(f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="{fill}" font-size="{size}" font-weight="{w}">{text}</text>')
+
+        def rect_node(x, y, w, h, color, line1, line2="", sub="", rx=8):
+            tc = C_TEXT if color != C_UNVISIT else C_DIM
             svg.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
-            col = C_TEXT if color not in (C_UNVISIT,) else C_DIM
-            n = len(lines) + (1 if sub else 0)
-            base = y + h/2 - (n-1)*8
-            for i, ln in enumerate(lines):
-                svg.append(f'<text x="{x+w/2}" y="{base+i*17}" text-anchor="middle" fill="{col}" font-size="12" font-weight="bold">{ln}</text>')
+            if line2:
+                svgt(x+w/2, y+h/2-8,  line1, tc, 11, True)
+                svgt(x+w/2, y+h/2+7,  line2, tc, 11, True)
+            else:
+                svgt(x+w/2, y+h/2+4,  line1, tc, 11, True)
             if sub:
-                svg.append(f'<text x="{x+w/2}" y="{base+len(lines)*17}" text-anchor="middle" fill="{col}99" font-size="10">{sub}</text>')
+                svgt(x+w/2, y+h-8, sub, tc+"99", 9)
 
-        def diamond(cx, cy, w, h, color, lines):
+        def diamond_node(cx, cy, w, h, color, line1, line2=""):
+            tc = C_TEXT if color != C_UNVISIT else C_DIM
             hw, hh = w/2, h/2
             pts = f"{cx},{cy-hh} {cx+hw},{cy} {cx},{cy+hh} {cx-hw},{cy}"
             svg.append(f'<polygon points="{pts}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
-            col = C_TEXT if color != C_UNVISIT else C_DIM
-            n = len(lines)
-            base = cy - (n-1)*7
-            for i, ln in enumerate(lines):
-                svg.append(f'<text x="{cx}" y="{base+i*15}" text-anchor="middle" fill="{col}" font-size="11" font-weight="bold">{ln}</text>')
+            if line2:
+                svgt(cx, cy-7,  line1, tc, 10, True)
+                svgt(cx, cy+8,  line2, tc, 10, True)
+            else:
+                svgt(cx, cy+4,  line1, tc, 10, True)
 
-        def arr(x1,y1,x2,y2, mid="a", label="", lx=6, ly=-5, dash=False):
-            d = 'stroke-dasharray="5,3"' if dash else ""
-            svg.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#64748b" stroke-width="2" {d} marker-end="url(#{mid})"/>')
-            if label:
-                mx,my = (x1+x2)/2+lx,(y1+y2)/2+ly
-                c = {"ag":"#16a34a","ar":"#dc2626","ao":"#d97706"}.get(mid,"#94a3b8")
-                svg.append(f'<text x="{mx}" y="{my}" fill="{c}" font-size="10" font-weight="bold">{label}</text>')
+        def exit_node(x, y, w, h, color, line1, line2="", rx=7):
+            tc = C_TEXT if color != C_UNVISIT else C_DIM
+            svg.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
+            if line2:
+                svgt(x+w/2, y+h/2-7, line1, tc, 10, True)
+                svgt(x+w/2, y+h/2+7, line2, tc, 9)
+            else:
+                svgt(x+w/2, y+h/2+4, line1, tc, 10, True)
 
-        def elbow(x1,y1, x2,y2, mid="a", label="", dash=False):
-            d = 'stroke-dasharray="5,3"' if dash else ""
-            svg.append(f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" fill="none" stroke="#64748b" stroke-width="2" {d} marker-end="url(#{mid})"/>')
+        def vline(x, y1, y2, vis, urgent=False, exit_=False, label=""):
+            m = mid(vis, urgent, exit_)
+            stroke = {"mg":"#16a34a","mr":"#dc2626","mo":"#d97706"}.get(m,"#64748b")
+            dash = "" if vis else 'stroke-dasharray="5,3"'
+            svg.append(f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
             if label:
-                c = {"ag":"#16a34a","ar":"#dc2626","ao":"#d97706"}.get(mid,"#94a3b8")
+                svgt(x+6, (y1+y2)/2-3, label, stroke, 10, True, "start")
+
+        def elbow_line(x1, y1, x2, y2, vis, urgent=False, exit_=False, label=""):
+            m = mid(vis, urgent, exit_)
+            stroke = {"mg":"#16a34a","mr":"#dc2626","mo":"#d97706"}.get(m,"#64748b")
+            dash = "" if vis else 'stroke-dasharray="5,3"'
+            svg.append(f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" fill="none" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
+            if label:
                 mx = (x1+x2)/2
-                svg.append(f'<text x="{mx}" y="{y1-4}" fill="{c}" font-size="10" font-weight="bold" text-anchor="middle">{label}</text>')
+                svgt(mx, y1-5, label, stroke, 10, True)
 
-        CX = 340
-        NW,NH = 160,44
-        DW,DH = 172,54
-        EW,EH = 126,38
+        # ── LAYOUT CONSTANTS ─────────────────────────────────────────────
+        CX   = 350        # centre x of main column
+        NW, NH  = 170, 50  # rect node
+        DW, DH  = 180, 58  # diamond node
+        EW, EH  = 140, 46  # exit node
+        LEXT = 30          # left exit x
+        REXT = W - 30 - EW # right exit x
 
-        # Row Y positions
-        Ys = {
-            "present":  20,
+        # Row Y values (top of each row's element)
+        Y = {
+            "present":  18,
             "d_test":   100,
-            "order":    195,
-            "d_result": 280,
-            "d_alarm":  375,
-            "d_preg":   465,
-            "washout":  560,
-            "treat":    640,
-            "d_erad":   730,
-            "complete": 825,
+            "order":    202,
+            "d_result": 295,
+            "d_alarm":  398,
+            "d_preg":   498,
+            "washout":  598,
+            "treat":    688,
+            "d_erad":   778,
+            "complete": 878,
         }
 
-        # 0 — Patient Presents
-        y = Ys["present"]
-        rect(CX-NW/2, y, NW, NH, nc(True), ["👤 Patient Presents"])
+        # ── DRAW NODES + ARROWS ───────────────────────────────────────────
 
-        # 1 — Testing Indication? (diamond)
-        y = Ys["d_test"]
-        v = not is_pediatric
-        arr(CX, Ys["present"]+NH, CX, y, "ag" if v else "a")
-        diamond(CX, y+DH/2, DW, DH, dc(v), ["1. Testing","Indication?"])
+        # 0. Patient Presents
+        rect_node(CX-NW/2, Y["present"], NW, NH, nc(True), "Patient Presents")
 
-        # Exit right: Pediatric
-        rect(W-20-EW, y+8, EW, EH, nc(is_pediatric,urgent=True), ["👶 Refer Peds GI"], sub="Age < 18")
-        elbow(CX+DW/2, y+DH/2, W-20-EW, y+8+EH/2, "ar" if is_pediatric else "a",
-              "Age<18", dash=not is_pediatric)
+        # 1. Testing Indication? (diamond)
+        vline(CX, Y["present"]+NH, Y["d_test"], True)
+        diamond_node(CX, Y["d_test"]+DH/2, DW, DH, dc(not is_pediatric),
+                     "1. Testing", "Indication?")
 
-        # Exit left: No indication
-        rect(20, y+8, EW, EH, nc(no_indication,is_exit=True), ["No Indication"], sub="Reassess")
-        elbow(CX-DW/2, y+DH/2, 20+EW, y+8+EH/2, "ao" if no_indication else "a",
-              "No", dash=not no_indication)
+        # Exit RIGHT: Pediatric
+        exit_node(REXT, Y["d_test"]+(DH-EH)/2, EW, EH,
+                  nc(is_pediatric, urgent=True), "Refer Peds GI", "Age < 18")
+        elbow_line(CX+DW/2, Y["d_test"]+DH/2, REXT, Y["d_test"]+(DH-EH)/2+EH/2,
+                   is_pediatric, urgent=True, label="Age<18")
 
-        # 2 — Order Test
-        y2_top = Ys["order"]
+        # Exit LEFT: No Indication
+        exit_node(LEXT, Y["d_test"]+(DH-EH)/2, EW, EH,
+                  nc(no_indication, exit_=True), "No Indication", "Reassess")
+        elbow_line(CX-DW/2, Y["d_test"]+DH/2, LEXT+EW, Y["d_test"]+(DH-EH)/2+EH/2,
+                   no_indication, exit_=True, label="No")
+
+        # 2. Order Test
         v2 = not no_indication and not is_pediatric
-        arr(CX, Ys["d_test"]+DH, CX, y2_top, "ag" if v2 else "a", "Yes", lx=6, ly=-4)
-        rect(CX-NW/2, y2_top, NW, NH, nc(v2), ["🧪 Order HpSAT", "or UBT"], sub="Pre-test washout req.")
+        vline(CX, Y["d_test"]+DH, Y["order"], v2, label="Yes")
+        rect_node(CX-NW/2, Y["order"], NW, NH, nc(v2),
+                  "Order HpSAT / UBT", sub="Pre-test washout req.")
 
-        # 3 — Test Result? (diamond)
-        y = Ys["d_result"]
+        # 3. Test Result? (diamond)
         v_res = patient.h_pylori_test_positive is not None
-        arr(CX, y2_top+NH, CX, y, "ag" if v_res else "a")
-        diamond(CX, y+DH/2, DW, DH, dc(v_res), ["3. H. pylori","Test Result?"])
+        vline(CX, Y["order"]+NH, Y["d_result"], v_res)
+        diamond_node(CX, Y["d_result"]+DH/2, DW, DH, dc(v_res),
+                     "3. H. pylori", "Test Result?")
 
-        # Exit left: Negative
-        rect(20, y+8, EW, EH, nc(test_negative,is_exit=True), ["Negative ➜","Dyspepsia Path"])
-        elbow(CX-DW/2, y+DH/2, 20+EW, y+8+EH/2, "ao" if test_negative else "a",
-              "−", dash=not test_negative)
+        # Exit LEFT: Negative
+        exit_node(LEXT, Y["d_result"]+(DH-EH)/2, EW, EH,
+                  nc(test_negative, exit_=True), "Negative", "→ Dyspepsia Path")
+        elbow_line(CX-DW/2, Y["d_result"]+DH/2, LEXT+EW, Y["d_result"]+(DH-EH)/2+EH/2,
+                   test_negative, exit_=True, label="−")
 
-        # 4 — Alarm Features? (diamond)
-        y = Ys["d_alarm"]
-        v3 = is_positive
-        arr(CX, Ys["d_result"]+DH, CX, y, "ag" if v3 else "a", "+", lx=6, ly=-4)
-        diamond(CX, y+DH/2, DW, DH, dc(v3), ["2. Alarm","Features?"])
+        # 4. Alarm Features? (diamond)
+        vline(CX, Y["d_result"]+DH, Y["d_alarm"], is_positive, label="+")
+        diamond_node(CX, Y["d_alarm"]+DH/2, DW, DH, dc(is_positive),
+                     "2. Alarm", "Features?")
 
-        # Exit right: Urgent referral
-        rect(W-20-EW, y+8, EW, EH, nc(has_alarm and is_positive, urgent=True),
-             ["⚠ Urgent Refer"], sub="GI / Endoscopy")
-        elbow(CX+DW/2, y+DH/2, W-20-EW, y+8+EH/2,
-              "ar" if (has_alarm and is_positive) else "a",
-              "Yes", dash=not (has_alarm and is_positive))
+        # Exit RIGHT: Urgent Refer
+        v_alarm = has_alarm and is_positive
+        exit_node(REXT, Y["d_alarm"]+(DH-EH)/2, EW, EH,
+                  nc(v_alarm, urgent=True), "⚠ Urgent Refer", "GI / Endoscopy")
+        elbow_line(CX+DW/2, Y["d_alarm"]+DH/2, REXT, Y["d_alarm"]+(DH-EH)/2+EH/2,
+                   v_alarm, urgent=True, label="Yes")
 
-        # 5 — Pregnancy Screen (diamond)
-        y = Ys["d_preg"]
+        # 5. Pregnancy? (diamond)
         v4 = is_positive and not has_alarm
-        arr(CX, Ys["d_alarm"]+DH, CX, y, "ag" if v4 else "a", "No", lx=6, ly=-4)
-        diamond(CX, y+DH/2, DW, DH, dc(v4), ["Pregnancy /","Nursing?"])
+        vline(CX, Y["d_alarm"]+DH, Y["d_preg"], v4, label="No")
+        diamond_node(CX, Y["d_preg"]+DH/2, DW, DH, dc(v4),
+                     "Pregnancy /", "Nursing?")
 
-        # Exit right: Pregnant
-        rect(W-20-EW, y+8, EW, EH, nc(is_pregnant and is_positive, urgent=True),
-             ["🚫 Do Not Treat"], sub="Reassess postpartum")
-        elbow(CX+DW/2, y+DH/2, W-20-EW, y+8+EH/2,
-              "ar" if (is_pregnant and is_positive) else "a",
-              "Yes", dash=not (is_pregnant and is_positive))
+        # Exit RIGHT: Pregnant
+        v_preg = is_pregnant and is_positive
+        exit_node(REXT, Y["d_preg"]+(DH-EH)/2, EW, EH,
+                  nc(v_preg, urgent=True), "Do Not Treat", "Reassess postpartum")
+        elbow_line(CX+DW/2, Y["d_preg"]+DH/2, REXT, Y["d_preg"]+(DH-EH)/2+EH/2,
+                   v_preg, urgent=True, label="Yes")
 
-        # 6 — Washout Verified
-        y = Ys["washout"]
+        # 6. Washout Verified
         v5 = v4 and not is_pregnant
-        arr(CX, Ys["d_preg"]+DH, CX, y, "ag" if v5 else "a", "No", lx=6, ly=-4)
-        rect(CX-NW/2, y, NW, NH, nc(v5), ["✅ Washout", "Verified"], sub="Abx / PPI / Bismuth")
+        vline(CX, Y["d_preg"]+DH, Y["washout"], v5, label="No")
+        rect_node(CX-NW/2, Y["washout"], NW, NH, nc(v5),
+                  "Washout Verified", sub="Abx / PPI / Bismuth")
 
-        # 7 — Treatment Selection
-        y = Ys["treat"]
-        v6 = went_to_tx
-        arr(CX, Ys["washout"]+NH, CX, y, "ag" if v6 else "a")
-        rect(CX-NW/2, y, NW, NH, nc(v6), ["4. Treatment", "Selection"], sub="1st / 2nd / 3rd / 4th Line")
+        # 7. Treatment Selection
+        vline(CX, Y["washout"]+NH, Y["treat"], went_to_tx)
+        rect_node(CX-NW/2, Y["treat"], NW, NH, nc(went_to_tx),
+                  "4. Treatment", "Selection", sub="1st/2nd/3rd/4th Line")
 
-        # 8 — Eradication Confirmed? (diamond)
-        y = Ys["d_erad"]
-        v7 = has_followup
-        arr(CX, Ys["treat"]+NH, CX, y, "ag" if v7 else "a")
-        diamond(CX, y+DH/2, DW, DH, dc(v7), ["5. Eradication","Confirmed?"])
+        # 8. Eradication Confirmed? (diamond)
+        vline(CX, Y["treat"]+NH, Y["d_erad"], has_followup)
+        diamond_node(CX, Y["d_erad"]+DH/2, DW, DH, dc(has_followup),
+                     "5. Eradication", "Confirmed?")
 
-        # Exit right: Failure / next line
-        rect(W-20-EW, y+8, EW, EH, nc(urgent_ref, urgent=urgent_ref, is_exit=not urgent_ref),
-             ["❌ Failure"], sub="→ Next Line / Refer GI")
-        elbow(CX+DW/2, y+DH/2, W-20-EW, y+8+EH/2,
-              "ar" if urgent_ref else "ao",
-              "No", dash=not urgent_ref)
+        # Exit RIGHT: Failure
+        exit_node(REXT, Y["d_erad"]+(DH-EH)/2, EW, EH,
+                  nc(urgent_ref, urgent=True, exit_=not urgent_ref),
+                  "Failure", "→ Next Line / Refer GI")
+        elbow_line(CX+DW/2, Y["d_erad"]+DH/2, REXT, Y["d_erad"]+(DH-EH)/2+EH/2,
+                   urgent_ref or has_followup, urgent=urgent_ref, exit_=not urgent_ref, label="No")
 
-        # 9 — Pathway Complete
-        y = Ys["complete"]
+        # 9. Pathway Complete
         v8 = has_followup and not urgent_ref
-        arr(CX, Ys["d_erad"]+DH, CX, y, "ag" if v8 else "a", "Yes", lx=6, ly=-4)
-        rect(CX-NW/2, y, NW, NH, nc(v8, is_exit=v8), ["✅ Pathway", "Complete"], sub="Re-infection <2%")
+        vline(CX, Y["d_erad"]+DH, Y["complete"], v8, exit_=v8, label="Yes")
+        rect_node(CX-NW/2, Y["complete"], NW, NH, nc(v8, exit_=v8),
+                  "Pathway Complete", sub="Re-infection < 2%")
 
-        # Legend
-        legend_y = H - 28
-        items = [
-            (C_MAIN,    "Visited"),
-            (C_DIAMOND, "Decision"),
-            (C_URGENT,  "Urgent"),
-            (C_EXIT,    "Exit/Off-ramp"),
-            (C_UNVISIT, "Not reached"),
-        ]
-        lx = 20
+        # Legend bar
+        ly = H - 22
+        items = [(C_MAIN,"Visited"),(C_DIAMOND,"Decision"),(C_URGENT,"Urgent"),
+                 (C_EXIT,"Exit/Off-ramp"),(C_UNVISIT,"Not reached")]
+        lx = 18
         for col, label in items:
-            svg.append(f'<rect x="{lx}" y="{legend_y}" width="12" height="12" rx="2" fill="{col}"/>')
-            svg.append(f'<text x="{lx+16}" y="{legend_y+10}" fill="#94a3b8" font-size="10">{label}</text>')
-            lx += 90
+            svg.append(f'<rect x="{lx}" y="{ly-11}" width="12" height="12" rx="2" fill="{col}"/>')
+            svgt(lx+16, ly, label, "#94a3b8", 10, anchor="start")
+            lx += 110
 
         svg.append("</svg>")
         svg_str = "\n".join(svg)
 
-        # ── RENDER FLOWCHART ───────────────────────────────────────────────
         st.subheader("🗺️ Pathway Followed")
         components.html(
-            f'<div style="background:#0f172a;padding:12px;border-radius:14px">{svg_str}</div>',
-            height=930, scrolling=True
+            f'<div style="background:{C_BG};padding:10px;border-radius:14px;overflow-x:auto">{svg_str}</div>',
+            height=980, scrolling=True
         )
 
-        # ── CLINICAL RECOMMENDATIONS ───────────────────────────────────────
+        # ── CLINICAL RECOMMENDATIONS ──────────────────────────────────────
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
-        # Patient context card
-        test_str = {None: "Not yet tested", True: "✅ Positive", False: "❌ Negative"}[patient.h_pylori_test_positive]
+        test_str = {None:"Not yet tested", True:"✅ Positive", False:"❌ Negative"}[patient.h_pylori_test_positive]
         alarm_str = ", ".join(patient.active_alarms) if patient.has_alarm_features else "None"
         line_labels = {
             TreatmentLine.NAIVE:       "Treatment Naive",
@@ -385,48 +396,34 @@ with right:
   <b>🦠 H. Pylori Test:</b> {test_str}&nbsp;&nbsp;
   <b>💊 Treatment Line:</b> {line_labels[patient.treatment_line]}<br>
   <b>⚠ Alarm Features:</b> {alarm_str}
-</div>
-""", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True)
 
-        # Action cards
-        urgency_label = {"URGENT":"urgent","ROUTINE":"routine","INFO":"info","NONE":"info"}
         cat_icon = {
-            "TREATMENT":    "💊",
-            "REFERRAL":     "📋",
-            "TESTING":      "🧪",
-            "FOLLOW_UP":    "🔁",
-            "CLINICAL_NOTE":"📝",
-            "CONTRAINDICATION": "🚫",
-            "EXCLUSION":    "🚫",
-            "ROUTING":      "↪️",
+            "TREATMENT":"💊","REFERRAL":"📋","TESTING":"🧪",
+            "FOLLOW_UP":"🔁","CLINICAL_NOTE":"📝",
+            "CONTRAINDICATION":"🚫","EXCLUSION":"🚫","ROUTING":"↪️",
         }
-        st.markdown('<div style="margin-top:4px">', unsafe_allow_html=True)
+        urgency_cls = {"URGENT":"urgent","ROUTINE":"routine","INFO":"info","NONE":"info"}
+
         for action in actions:
-            cls    = urgency_label.get(action.urgency, "info")
-            icon   = cat_icon.get(action.category, "📌")
-            badge  = f'<span class="badge {cls}">{action.urgency}</span>' if action.urgency != "INFO" else f'<span class="badge info">{action.category}</span>'
-            detail_html = ""
-            if action.details:
-                items_html = "".join(f"<li>{d}</li>" for d in action.details if d.strip())
-                detail_html = f"<ul>{items_html}</ul>"
+            cls  = urgency_cls.get(action.urgency, "info")
+            icon = cat_icon.get(action.category, "📌")
+            badge = f'<span class="badge {cls}">{action.urgency if action.urgency!="INFO" else action.category}</span>'
+            items_html = "".join(f"<li>{d}</li>" for d in action.details if d.strip()) if action.details else ""
+            detail_html = f"<ul>{items_html}</ul>" if items_html else ""
             st.markdown(f"""
 <div class="action-card {cls}">
   <h4>{badge}{icon} {action.category}: {action.description}</h4>
   {detail_html}
-</div>
-""", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True)
 
-        # Decision audit log (collapsible)
         with st.expander("📋 Decision Audit Log"):
             from datetime import datetime
             for step in engine.tracker.steps:
-                try:
-                    ts = datetime.fromisoformat(step.timestamp).strftime("%H:%M:%S")
-                except Exception:
-                    ts = "—"
-                st.markdown(f"**[{ts}] {step.rule}**  →  _{step.decision}_")
+                try:    ts = datetime.fromisoformat(step.timestamp).strftime("%H:%M:%S")
+                except: ts = "—"
+                st.markdown(f"**[{ts}] {step.rule}** → _{step.decision}_")
                 if step.inputs:
                     st.caption("  ".join(f"`{k}={v}`" for k,v in step.inputs.items()))
     else:
-        st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
+        st.info("👈 Fill in patient details on the left, then click **▶ Run Pathway**.")
