@@ -10,7 +10,7 @@ except Exception:
 
 
 # =========================================================
-# MEDICATION REFERENCE TABLES (from AHS pathway PDF)
+# MEDICATION REFERENCE TABLES
 # =========================================================
 
 REGIMEN_DETAILS = {
@@ -20,78 +20,63 @@ REGIMEN_DETAILS = {
         "approx_cost": "~$130 (generic)",
         "medications": [
             {"drug": "PPI (e.g. omeprazole/pantoprazole)", "dose": "Standard dose", "frequency": "BID"},
-            {"drug": "Amoxicillin",                         "dose": "1000 mg (2 capsules)", "frequency": "BID"},
-            {"drug": "Metronidazole",                       "dose": "500 mg (1 tablet)",   "frequency": "BID"},
-            {"drug": "Clarithromycin",                      "dose": "500 mg (1 capsule)",  "frequency": "BID"},
+            {"drug": "Amoxicillin",                        "dose": "1000 mg (2 capsules)", "frequency": "BID"},
+            {"drug": "Metronidazole",                      "dose": "500 mg (1 tablet)",    "frequency": "BID"},
+            {"drug": "Clarithromycin",                     "dose": "500 mg (1 capsule)",   "frequency": "BID"},
         ],
-        "notes": "Blister/bubble pack recommended for adherence.",
+        "notes": "Dispense in blister/bubble pack to improve adherence.",
     },
     "PBMT": {
         "name": "BMT Quad (PBMT)",
         "duration": "14 days",
         "approx_cost": "~$80 (generic)",
         "medications": [
-            {"drug": "PPI (e.g. omeprazole/pantoprazole)",         "dose": "Standard dose",          "frequency": "BID"},
+            {"drug": "PPI (e.g. omeprazole/pantoprazole)",  "dose": "Standard dose",        "frequency": "BID"},
             {"drug": "Bismuth subsalicylate (Pepto-Bismol®)", "dose": "524 mg (2 caplets)", "frequency": "QID"},
-            {"drug": "Metronidazole",                              "dose": "500 mg (1 tablet)",  "frequency": "QID"},
-            {"drug": "Tetracycline",                               "dose": "500 mg (1 capsule)", "frequency": "QID"},
+            {"drug": "Metronidazole",                        "dose": "500 mg (1 tablet)",   "frequency": "QID"},
+            {"drug": "Tetracycline",                         "dose": "500 mg (1 capsule)",  "frequency": "QID"},
         ],
-        "notes": "Blister/bubble pack recommended. Also used as first-line for penicillin-allergic patients.",
+        "notes": "Dispense in blister/bubble pack. Used as first-line for penicillin-allergic patients.",
     },
     "PAL": {
         "name": "Levo-Amox (PAL)",
         "duration": "14 days",
         "approx_cost": "~$100 (generic)",
         "medications": [
-            {"drug": "PPI (e.g. omeprazole/pantoprazole)", "dose": "Standard dose",          "frequency": "BID"},
-            {"drug": "Amoxicillin",                         "dose": "1000 mg (2 capsules)", "frequency": "BID"},
-            {"drug": "Levofloxacin",                        "dose": "500 mg (1 tablet)",    "frequency": "Once daily"},
+            {"drug": "PPI (e.g. omeprazole/pantoprazole)", "dose": "Standard dose",        "frequency": "BID"},
+            {"drug": "Amoxicillin",                        "dose": "1000 mg (2 capsules)", "frequency": "BID"},
+            {"drug": "Levofloxacin",                       "dose": "500 mg (1 tablet)",    "frequency": "Once daily"},
         ],
-        "notes": "Blister/bubble pack recommended.",
+        "notes": "Dispense in blister/bubble pack.",
     },
     "PAR": {
         "name": "Rif-Amox (PAR)",
         "duration": "10 days",
         "approx_cost": "~$170 (generic)",
         "medications": [
-            {"drug": "PPI (e.g. omeprazole/pantoprazole)", "dose": "Standard dose",          "frequency": "BID"},
-            {"drug": "Amoxicillin",                         "dose": "1000 mg (2 capsules)", "frequency": "BID"},
-            {"drug": "Rifabutin",                           "dose": "150 mg (1 tablet)",    "frequency": "BID"},
+            {"drug": "PPI (e.g. omeprazole/pantoprazole)", "dose": "Standard dose",        "frequency": "BID"},
+            {"drug": "Amoxicillin",                        "dose": "1000 mg (2 capsules)", "frequency": "BID"},
+            {"drug": "Rifabutin",                          "dose": "150 mg (1 tablet)",    "frequency": "BID"},
         ],
         "notes": (
-            "⚠️  SAFETY: Rifabutin has rarely been associated with potentially serious myelotoxicity "
-            "(low WBC or platelet count). Pros/cons must be assessed case-by-case. "
-            "May require special authorization for Alberta Blue Cross patients. "
-            "Blister/bubble pack recommended."
+            "SAFETY: Rifabutin has rarely been associated with serious myelotoxicity "
+            "(low WBC/platelet count). Pros/cons must be assessed case-by-case. "
+            "May require special authorization for Alberta Blue Cross. "
+            "Dispense in blister/bubble pack."
         ),
     },
     "PCM": {
-        "name": "Modified Triple (PCM) — Penicillin-Allergic",
+        "name": "Modified Triple (PCM)",
         "duration": "14 days",
         "approx_cost": "~$100 (generic)",
         "medications": [
-            {"drug": "Pantoprazole",    "dose": "40 mg",            "frequency": "BID"},
-            {"drug": "Clarithromycin", "dose": "500 mg (1 capsule)", "frequency": "BID"},
-            {"drug": "Metronidazole",  "dose": "500 mg (1 tablet)",  "frequency": "BID"},
+            {"drug": "Pantoprazole",    "dose": "40 mg",             "frequency": "BID"},
+            {"drug": "Clarithromycin",  "dose": "500 mg (1 capsule)", "frequency": "BID"},
+            {"drug": "Metronidazole",   "dose": "500 mg (1 tablet)",  "frequency": "BID"},
         ],
-        "notes": "Second-line for penicillin-allergic patients only. Consider referral for allergy testing.",
+        "notes": "Penicillin-allergic patients only. Consider referral for allergy testing.",
     },
 }
-
-
-def _format_regimen(key: str) -> str:
-    """Returns a nurse-friendly multiline summary of a regimen."""
-    r = REGIMEN_DETAILS[key]
-    lines = [
-        f"📋 Regimen: {r['name']}",
-        f"⏱  Duration: {r['duration']}   |   💊 Approx. cost: {r['approx_cost']}",
-        "Medications:",
-    ]
-    for m in r["medications"]:
-        lines.append(f"  • {m['drug']} — {m['dose']} — {m['frequency']}")
-    if r.get("notes"):
-        lines.append(f"📝 Note: {r['notes']}")
-    return "\n".join(lines)
 
 
 # =========================================================
@@ -173,14 +158,10 @@ class Context:
         return value
 
     def log(self, node, decision, inputs, outputs):
-        self.logs.append(
-            DecisionLog(
-                node=node,
-                decision=decision,
-                used_inputs=inputs,
-                outputs=[{"type": type(o).__name__} for o in outputs],
-            )
-        )
+        self.logs.append(DecisionLog(
+            node=node, decision=decision, used_inputs=inputs,
+            outputs=[{"type": type(o).__name__} for o in outputs],
+        ))
 
 
 # =========================================================
@@ -211,282 +192,197 @@ class PathwayEngine:
         outputs: List[Output] = []
         current = self.start_node
         guard = 0
-
         while current:
             guard += 1
             if guard > 250:
                 outputs.append(Stop(reason="Safety stop: possible infinite loop"))
                 break
-
             result = self.nodes[current].fn(ctx)
             outputs.extend(result.outputs)
-
             if any(isinstance(o, (Stop, DataRequest)) for o in result.outputs):
                 break
-
             current = result.next_node
-
         return outputs
 
 
 # =========================================================
-# OUTPUT FORMATTER  (nurse-facing display)
+# HELPER: clean Action factory
 # =========================================================
 
-_URGENCY_BADGE = {
-    "urgent": "🔴 URGENT",
-    "semi-urgent": "🟡 SEMI-URGENT",
-    None: "",
-}
-
-_ROLE_ICON = {
-    "primary_decision": "➡️ ",
-    "advisory": "⚠️  ",
-    "support": "ℹ️  ",
-}
-
-
-def format_outputs_for_nurse(outputs: List[Output]) -> str:
+def _action(
+    code: str,
+    label: str,
+    *,
+    urgency: Optional[str] = None,
+    bullets: Optional[List[str]] = None,
+    notes: Optional[List[str]] = None,
+    regimen_key: Optional[str] = None,
+    supported_by: Optional[List[str]] = None,
+    override_options: Optional[Dict[str, Any]] = None,
+    role: str = "support",
+    sort_priority: int = 50,
+    badge: str = "info",
+) -> Action:
     """
-    Renders pathway outputs as a readable, structured clinical summary
-    suitable for display on a nurse-facing UI or printed handout.
+    Structured action factory.
+    - label   : short card title (shown as <h4>)
+    - bullets : key clinical points shown as bullet list
+    - notes   : advisory notes shown below bullets
+    - regimen_key : triggers inline medication table
+    - supported_by: evidence / source notes
     """
-    sections: List[str] = []
-    sections.append("=" * 60)
-    sections.append("  H. PYLORI PATHWAY — CLINICAL DECISION SUMMARY")
-    sections.append(f"  Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    sections.append("=" * 60)
+    details: Dict[str, Any] = {}
+    if bullets:
+        details["bullets"] = bullets
+    if notes:
+        details["notes"] = notes
+    if regimen_key:
+        details["regimen_key"] = regimen_key
+    if supported_by:
+        details["supported_by"] = supported_by
 
-    for o in outputs:
-
-        # ---- Stop ----
-        if isinstance(o, Stop):
-            badge = _URGENCY_BADGE.get(o.urgency, "")
-            sections.append("")
-            if badge:
-                sections.append(f"┌─ {badge} ──────────────────────────────────────")
-            else:
-                sections.append("┌─ PATHWAY STOP ──────────────────────────────────────")
-            sections.append(f"│  {o.reason}")
-            sections.append("└─────────────────────────────────────────────────────────")
-            for a in o.actions:
-                sections.append(_render_action(a))
-
-        # ---- DataRequest ----
-        elif isinstance(o, DataRequest):
-            sections.append("")
-            sections.append("┌─ 📥 DATA NEEDED ──────────────────────────────────────")
-            sections.append(f"│  Node     : {o.blocking_node}")
-            sections.append(f"│  Missing  : {', '.join(o.missing_fields)}")
-            sections.append(f"│  Message  : {o.message}")
-            if o.urgency_context:
-                sections.append(f"│  Context  : {o.urgency_context}")
-            sections.append("└─────────────────────────────────────────────────────────")
-            for a in o.suggested_actions:
-                sections.append(_render_action(a))
-
-        # ---- Action ----
-        elif isinstance(o, Action):
-            sections.append(_render_action(o))
-
-    sections.append("")
-    sections.append("=" * 60)
-    sections.append("  END OF PATHWAY OUTPUT")
-    sections.append("=" * 60)
-    return "\n".join(sections)
-
-
-def _render_action(a: Action) -> str:
-    role = a.display.get("role", "support")
-    icon = _ROLE_ICON.get(role, "   ")
-    badge = _URGENCY_BADGE.get(a.urgency, "")
-    header = f"{icon}[{a.code}]"
-    if badge:
-        header += f"  {badge}"
-
-    lines = ["", header, f"   {a.label}"]
-
-    # Inline medication table when details contain a regimen_key
-    if "regimen_key" in a.details:
-        lines.append("")
-        for med_line in _format_regimen(a.details["regimen_key"]).split("\n"):
-            lines.append(f"   {med_line}")
-
-    # Generic extra details (non-regimen)
-    if a.details and "regimen_key" not in a.details:
-        for k, v in a.details.items():
-            if k not in ("supported_by",):
-                lines.append(f"   • {k}: {v}")
-        if "supported_by" in a.details:
-            for note in a.details["supported_by"]:
-                lines.append(f"   📌 {note}")
-
-    if a.override_options:
-        lines.append(f"   🔒 Override allowed — reason required")
-
-    return "\n".join(lines)
+    return Action(
+        code=code,
+        label=label,
+        urgency=urgency,
+        details=details,
+        override_options=override_options,
+        display={"role": role, "badge": badge,
+                 "show_as_standalone": True, "sort_priority": sort_priority},
+    )
 
 
 # =========================================================
-# H. PYLORI PATHWAY IMPLEMENTATION
+# H. PYLORI PATHWAY NODES
 # =========================================================
 
 def h_pylori_build_engine() -> PathwayEngine:
     nodes: Dict[str, Node] = {}
 
-    # ------------------------------------------------------------------
-    # Helper
-    # ------------------------------------------------------------------
-
-    def _entry_indication(ctx: Context) -> Dict[str, Any]:
-        dyspepsia                       = bool(ctx.get("dyspepsia_symptoms"))
-        ulcer_or_upper_gi_bleed         = bool(ctx.get("current_or_past_gastric_or_duodenal_ulcer_or_upper_gi_bleed"))
-        fh_gastric_cancer               = bool(ctx.get("personal_or_first_degree_relative_history_gastric_cancer"))
-        first_gen_immigrant             = bool(ctx.get("first_generation_immigrant_high_prevalence_region"))
-
-        indicated = any([dyspepsia, ulcer_or_upper_gi_bleed, fh_gastric_cancer, first_gen_immigrant])
-        return {
-            "indicated": indicated,
-            "dyspepsia_symptoms": dyspepsia,
-            "current_or_past_gastric_or_duodenal_ulcer_or_upper_gi_bleed": ulcer_or_upper_gi_bleed,
-            "personal_or_first_degree_relative_history_gastric_cancer": fh_gastric_cancer,
-            "first_generation_immigrant_high_prevalence_region": first_gen_immigrant,
-        }
-
-    # ------------------------------------------------------------------
-    # Node 1 – Who should be tested
-    # ------------------------------------------------------------------
+    # ----------------------------------------------------------
+    # Node 1 – Who Should Be Tested
+    # ----------------------------------------------------------
 
     def node_entry(ctx: Context):
         node_id = "Who_Should_Be_Tested"
-        info = _entry_indication(ctx)
-        indicated = ctx.apply_override(node_id, "testing_indicated", info["indicated"])
+
+        dyspepsia      = bool(ctx.get("dyspepsia_symptoms"))
+        ulcer_gi_bleed = bool(ctx.get("current_or_past_gastric_or_duodenal_ulcer_or_upper_gi_bleed"))
+        fh_gastric     = bool(ctx.get("personal_or_first_degree_relative_history_gastric_cancer"))
+        immigrant      = bool(ctx.get("first_generation_immigrant_high_prevalence_region"))
+        indicated      = any([dyspepsia, ulcer_gi_bleed, fh_gastric, immigrant])
+        indicated      = ctx.apply_override(node_id, "testing_indicated", indicated)
         ctx.set("testing_indicated", indicated)
 
         if not indicated:
-            actions = [Action(
-                code="TESTING_NOT_INDICATED_WARNING",
-                label=(
-                    "H. pylori testing is not clearly indicated based on pathway entry criteria.\n"
-                    "   Indications: dyspepsia; current/past gastric or duodenal ulcer or upper GI bleed;\n"
-                    "   personal or 1st-degree relative history of gastric cancer;\n"
-                    "   first-generation immigrant from Asia, Africa, Central/South America."
-                ),
-                details=info,
+            a = _action(
+                "TESTING_NOT_INDICATED",
+                "No Indication for H. pylori Testing Found",
+                bullets=[
+                    "Testing is indicated for:",
+                    "• Patients with dyspepsia symptoms (epigastric pain/discomfort, bloating, early satiety, loss of appetite).",
+                    "• Current or past gastric/duodenal ulcers or upper GI bleed.",
+                    "• Personal or first-degree relative with history of gastric cancer (test once in adulthood).",
+                    "• First-generation immigrants from high-prevalence areas (Asia, Africa, Central and South America).",
+                    "NOTE: Many H. pylori infected patients are asymptomatic.",
+                ],
+                role="advisory", badge="warning", sort_priority=10,
                 override_options={"node": node_id, "field": "testing_indicated",
                                   "allowed": [True, False], "reason_required": True},
-                display={"role": "advisory", "badge": "warning",
-                         "show_as_standalone": True, "sort_priority": 10},
-            )]
+            )
         else:
-            actions = [Action(
-                code="TESTING_INDICATED",
-                label="H. pylori testing is indicated.",
-                details=info,
+            active = []
+            if dyspepsia:      active.append("Dyspepsia symptoms")
+            if ulcer_gi_bleed: active.append("History of gastric/duodenal ulcer or upper GI bleed")
+            if fh_gastric:     active.append("Personal or family history of gastric cancer")
+            if immigrant:      active.append("First-generation immigrant from high-prevalence region")
+            a = _action(
+                "TESTING_INDICATED",
+                "H. pylori Testing Indicated",
+                bullets=["Testing indicated based on:"] + [f"• {i}" for i in active],
+                role="support", badge="info", sort_priority=10,
                 override_options={"node": node_id, "field": "testing_indicated",
                                   "allowed": [True, False], "reason_required": True},
-                display={"role": "support", "badge": "info",
-                         "show_as_standalone": True, "sort_priority": 10},
-            )]
+            )
 
-        ctx.log(node_id, "ENTRY_ASSESSED", info, actions)
-        return NodeResult(actions, next_node="Alarm_Features")
+        ctx.log(node_id, "ENTRY_ASSESSED", {}, [a])
+        return NodeResult([a], next_node="Alarm_Features")
 
     nodes["Who_Should_Be_Tested"] = Node("Who_Should_Be_Tested", node_entry)
 
-    # ------------------------------------------------------------------
-    # Node 2 – Alarm features
-    # ------------------------------------------------------------------
+    # ----------------------------------------------------------
+    # Node 2 – Alarm Features
+    # ----------------------------------------------------------
 
     def node_alarm(ctx: Context):
         node_id = "Alarm_Features"
 
-        fh_esophageal_or_gastric_cancer     = bool(ctx.get("family_history_esophageal_or_gastric_cancer_first_degree"))
-        personal_history_peptic_ulcer       = bool(ctx.get("personal_history_peptic_ulcer_disease"))
-        age_over_60_new_persistent          = bool(ctx.get("age_over_60_new_persistent_symptoms_over_3_months"))
-        unintended_weight_loss              = bool(ctx.get("unintended_weight_loss"))          # >5% over 6-12 months
-        progressive_dysphagia               = bool(ctx.get("progressive_dysphagia"))
-        persistent_vomiting                 = bool(ctx.get("persistent_vomiting_not_cannabis_related"))
-        black_stool_or_blood_in_vomit       = bool(ctx.get("black_stool_or_blood_in_vomit"))
-        iron_deficiency_anemia              = bool(ctx.get("iron_deficiency_anemia_present"))
-        clinician_concern                   = bool(ctx.get("clinician_concern_serious_pathology"))
-
-        alarm_present = any([
-            fh_esophageal_or_gastric_cancer, personal_history_peptic_ulcer,
-            age_over_60_new_persistent, unintended_weight_loss, progressive_dysphagia,
-            persistent_vomiting, black_stool_or_blood_in_vomit,
-            iron_deficiency_anemia, clinician_concern,
-        ])
+        checks = {
+            "Family history (1st-degree) of esophageal or gastric cancer":
+                bool(ctx.get("family_history_esophageal_or_gastric_cancer_first_degree")),
+            "Personal history of peptic ulcer disease":
+                bool(ctx.get("personal_history_peptic_ulcer_disease")),
+            "Age >60 with new and persistent symptoms (>3 months)":
+                bool(ctx.get("age_over_60_new_persistent_symptoms_over_3_months")),
+            "Unintended weight loss (>5% over 6–12 months)":
+                bool(ctx.get("unintended_weight_loss")),
+            "Progressive dysphagia":
+                bool(ctx.get("progressive_dysphagia")),
+            "Persistent vomiting (not associated with cannabis use)":
+                bool(ctx.get("persistent_vomiting_not_cannabis_related")),
+            "Black stool or blood in vomit":
+                bool(ctx.get("black_stool_or_blood_in_vomit")),
+            "Iron deficiency anemia":
+                bool(ctx.get("iron_deficiency_anemia_present")),
+            "Clinician concern — serious pathology":
+                bool(ctx.get("clinician_concern_serious_pathology")),
+        }
+        gi_bleed = checks["Black stool or blood in vomit"]
+        alarm_present = any(checks.values())
         alarm_present = ctx.apply_override(node_id, "alarm_features_present", alarm_present)
         ctx.set("alarm_features_present", alarm_present)
 
         if alarm_present:
-            triggered = []
-            if fh_esophageal_or_gastric_cancer:
-                triggered.append("Family history (1st-degree) esophageal/gastric cancer — note: may still test/treat H. pylori while awaiting endoscopy")
-            if personal_history_peptic_ulcer:
-                triggered.append("Personal history of peptic ulcer disease")
-            if age_over_60_new_persistent:
-                triggered.append("Age >60 with new persistent symptoms (>3 months)")
-            if unintended_weight_loss:
-                triggered.append("Unintended weight loss (>5% over 6–12 months)")
-            if progressive_dysphagia:
-                triggered.append("Progressive dysphagia")
-            if persistent_vomiting:
-                triggered.append("Persistent vomiting (not cannabis-related)")
-            if black_stool_or_blood_in_vomit:
-                triggered.append("Black stool or blood in vomit")
-            if iron_deficiency_anemia:
-                triggered.append("Iron deficiency anemia")
-            if clinician_concern:
-                triggered.append('Clinician concern re: serious pathology (gut feeling)')
+            triggered = [f"• {k}" for k, v in checks.items() if v]
+            bullets = (
+                ["One or more alarm features identified:"]
+                + triggered
+                + ["Refer for consultation and/or endoscopy. Include ALL alarm features in the referral to ensure appropriate triage."]
+            )
+            if gi_bleed:
+                bullets.append("⚠ URGENT LABS: Order CBC, INR, and BUN as part of the referral (indicated by black stool and/or blood in vomit).")
 
-            actions = [Action(
-                code="URGENT_ENDOSCOPY_REFERRAL",
-                label=(
-                    "Refer urgently for specialist consultation / endoscopy.\n"
-                    "   Include ALL identified alarm features in the referral for appropriate triage."
-                ),
+            referral = _action(
+                "URGENT_ENDOSCOPY_REFERRAL",
+                "Urgent Referral: Gastroenterology / Endoscopy",
                 urgency="urgent",
-                details={"alarm_features_triggered": triggered},
+                bullets=bullets,
+                role="primary_decision", sort_priority=20,
                 override_options={"node": node_id, "field": "alarm_features_present",
                                   "allowed": [True, False], "reason_required": True},
-                display={"role": "primary_decision", "show_as_standalone": True, "sort_priority": 20},
-            )]
-
-            if black_stool_or_blood_in_vomit:
-                actions.append(Action(
-                    code="BLEEDING_REFERRAL_LABS",
-                    label=(
-                        "Black stool / blood in vomit present → ORDER: CBC, INR, and BUN as part of referral.\n"
-                        "   If patient is actively bleeding, consider calling GI on call and/or ED."
-                    ),
-                    display={"role": "advisory", "badge": "warning",
-                             "show_as_standalone": True, "sort_priority": 21},
-                ))
-
-            stop = Stop(
-                reason="⛔ Alarm feature(s) present — urgent referral required.",
-                urgency="urgent",
-                actions=actions,
             )
-            ctx.log(node_id, "ALARM_FEATURES_PRESENT", {"triggered": triggered}, [stop])
+            stop = Stop(
+                reason="Alarm feature(s) present — urgent referral required.",
+                urgency="urgent",
+                actions=[referral],
+            )
+            ctx.log(node_id, "ALARM_FEATURES_PRESENT", {}, [stop])
             return NodeResult([stop])
 
-        out = [Action(
-            code="NO_ALARM_FEATURES",
-            label="No alarm features identified. Proceeding to diagnosis.",
-            display={"role": "support", "badge": "info",
-                     "show_as_standalone": True, "sort_priority": 22},
-        )]
-        ctx.log(node_id, "NO_ALARM_FEATURES", {}, out)
-        return NodeResult(out, next_node="Diagnosis")
+        a = _action(
+            "NO_ALARM_FEATURES",
+            "No Alarm Features Identified",
+            bullets=["Proceed to H. pylori testing and diagnosis."],
+            role="support", badge="info", sort_priority=22,
+        )
+        ctx.log(node_id, "NO_ALARM_FEATURES", {}, [a])
+        return NodeResult([a], next_node="Diagnosis")
 
     nodes["Alarm_Features"] = Node("Alarm_Features", node_alarm)
 
-    # ------------------------------------------------------------------
+    # ----------------------------------------------------------
     # Node 3 – Diagnosis
-    # ------------------------------------------------------------------
+    # ----------------------------------------------------------
 
     def node_diagnosis(ctx: Context):
         node_id = "Diagnosis"
@@ -495,79 +391,58 @@ def h_pylori_build_engine() -> PathwayEngine:
         test_result = ctx.get("hp_test_result")
 
         missing = []
-        if test_type is None:
-            missing.append("hp_test_type")
-        if test_result is None:
-            missing.append("hp_test_result")
+        if test_type is None:   missing.append("hp_test_type")
+        if test_result is None: missing.append("hp_test_result")
 
         if missing:
-            dr = DataRequest(
+            return NodeResult([DataRequest(
                 blocking_node=node_id,
                 missing_fields=missing,
-                message=(
-                    "Enter H. pylori test type (HpSAT or UBT) and result (positive/negative).\n"
-                    "   HpSAT is primary test in Edmonton, Calgary, and South Zones."
+                message="H. pylori Test Required",
+                urgency_context=(
+                    "Order HpSAT (primary in Edmonton, Calgary, South Zone) or UBT. Ensure patient washout: off antibiotics ≥4 weeks, off PPIs ≥2 weeks, off bismuth ≥2 weeks."
                 ),
-                suggested_actions=[Action(
-                    code="CAPTURE_HP_TEST",
-                    label="Capture HpSAT or UBT result",
-                    display={"role": "support", "badge": "info",
-                             "show_as_standalone": True, "sort_priority": 30},
+                suggested_actions=[_action(
+                    "CAPTURE_HP_TEST", "Enter test type and result to proceed.",
+                    role="support", badge="info", sort_priority=30,
                 )],
-            )
-            ctx.log(node_id, "BLOCKED_MISSING_DATA", {"missing": missing}, [dr])
-            return NodeResult([dr])
+            )])
 
         actions: List[Output] = []
 
-        # Test-type advisory
-        if test_type not in ["HpSAT", "UBT"]:
-            actions.append(Action(
-                code="HP_TEST_TYPE_WARNING",
-                label=(
-                    f"Test type '{test_type}' is not a preferred H. pylori test.\n"
-                    "   Preferred tests: HpSAT (primary in Edmonton/Calgary/South Zone) or UBT."
-                ),
-                details={"hp_test_type": test_type},
-                display={"role": "advisory", "badge": "warning",
-                         "show_as_standalone": True, "sort_priority": 31},
-            ))
-
-        # Pre-test prep warnings
+        # Washout warnings
+        prep_issues = []
         if ctx.get("off_antibiotics_4_weeks_before_test") is False:
-            actions.append(Action(
-                code="TEST_PREP_ANTIBIOTIC_WARNING",
-                label="⚠️  Patient must be OFF antibiotics ≥4 weeks before testing to avoid false negatives.",
-                display={"role": "advisory", "badge": "warning",
-                         "show_as_standalone": True, "sort_priority": 31},
-            ))
-
+            prep_issues.append("• Patient has NOT been off antibiotics ≥4 weeks — false negative risk.")
         if ctx.get("off_ppi_2_weeks_before_test") is False:
-            actions.append(Action(
-                code="TEST_PREP_PPI_WARNING",
-                label="⚠️  Patient must be OFF PPIs ≥2 weeks before testing to avoid false negatives.",
-                display={"role": "advisory", "badge": "warning",
-                         "show_as_standalone": True, "sort_priority": 31},
-            ))
-
+            prep_issues.append("• Patient has NOT been off PPIs ≥2 weeks — false negative risk.")
         if ctx.get("off_bismuth_2_weeks_before_test") is False:
-            actions.append(Action(
-                code="TEST_PREP_BISMUTH_WARNING",
-                label="⚠️  Patient must avoid bismuth preparations (e.g. Pepto-Bismol®) ≥2 weeks before testing.",
-                display={"role": "advisory", "badge": "warning",
-                         "show_as_standalone": True, "sort_priority": 31},
+            prep_issues.append("• Patient has NOT avoided bismuth preparations ≥2 weeks — false negative risk.")
+        if test_type not in ["HpSAT", "UBT"]:
+            prep_issues.append(f"• Test type '{test_type}' is non-standard. Preferred: HpSAT or UBT.")
+
+        if prep_issues:
+            actions.append(_action(
+                "TEST_PREP_WARNING",
+                "Test Preparation Warning",
+                bullets=["Review the following before accepting the test result:"] + prep_issues,
+                role="advisory", badge="warning", sort_priority=31,
             ))
 
-        # ---- NEGATIVE result ----
         if test_result == "negative":
-            actions.append(Action(
-                code="HP_NEGATIVE",
-                label="H. pylori test is NEGATIVE.",
-                display={"role": "support", "badge": "info",
-                         "show_as_standalone": True, "sort_priority": 32},
+            neg_bullets = [
+                f"H. pylori test ({test_type}) is NEGATIVE.",
+                "False negatives may occur with recent antibiotic or PPI use.",
+            ]
+            if ctx.get("dyspepsia_symptoms"):
+                neg_bullets.append("Patient has dyspepsia symptoms — follow the Dyspepsia Pathway for further management.")
+            actions.append(_action(
+                "HP_NEGATIVE", "H. pylori Test: Negative",
+                bullets=neg_bullets,
+                role="support", badge="info", sort_priority=32,
             ))
 
-            # Dyspepsia chaining
+            # Dyspepsia engine chaining (unchanged logic)
             if DYSPEPSIA_ENGINE_AVAILABLE and isinstance(ctx.get("dyspepsia_patient_data"), dict):
                 try:
                     dys_outputs, _, _ = run_dyspepsia_pathway(ctx.get("dyspepsia_patient_data"))
@@ -580,240 +455,240 @@ def h_pylori_build_engine() -> PathwayEngine:
                                 display={"role": "support", "badge": "info",
                                          "show_as_standalone": True, "sort_priority": 33},
                             ))
-                        elif hasattr(o, "reason") and hasattr(o, "actions"):
-                            actions.append(Action(
-                                code="DYSP_STOP", label=f"Dyspepsia stop: {o.reason}",
-                                urgency=getattr(o, "urgency", None),
-                                display={"role": "support", "badge": "info",
-                                         "show_as_standalone": True, "sort_priority": 33},
-                            ))
-                            for a in getattr(o, "actions", []):
-                                if hasattr(a, "code") and hasattr(a, "label"):
-                                    actions.append(Action(
-                                        code=f"DYSP_{a.code}", label=f"Dyspepsia: {a.label}",
-                                        urgency=getattr(a, "urgency", None),
-                                        details=getattr(a, "details", {}),
-                                        display={"role": "support", "badge": "info",
-                                                 "show_as_standalone": True, "sort_priority": 33},
-                                    ))
-                        elif hasattr(o, "blocking_node") and hasattr(o, "missing_fields"):
-                            actions.append(Action(
-                                code="DYSP_DATA_REQUEST",
-                                label=f"Dyspepsia pathway needs more data at node: {o.blocking_node}",
-                                details={"blocking_node": o.blocking_node,
-                                         "missing_fields": o.missing_fields},
-                                display={"role": "advisory", "badge": "warning",
-                                         "show_as_standalone": True, "sort_priority": 33},
-                            ))
                 except Exception as e:
-                    actions.append(Action(
-                        code="DYSPEPSIA_CHAIN_FAILED",
-                        label="Dyspepsia engine chaining failed — review Dyspepsia pathway separately.",
-                        details={"error": str(e)},
-                        display={"role": "advisory", "badge": "warning",
-                                 "show_as_standalone": True, "sort_priority": 33},
+                    actions.append(_action(
+                        "DYSPEPSIA_CHAIN_FAILED",
+                        "Dyspepsia Engine Unavailable",
+                        bullets=["Review Dyspepsia pathway separately.", f"Error: {e}"],
+                        role="advisory", badge="warning", sort_priority=33,
                     ))
-                else:
-                    actions.append(Action(
-                        code="ROUTE_DYSPEPSIA_PATHWAY",
-                        label="Follow Dyspepsia pathway.",
-                        display={"role": "primary_decision",
-                                 "show_as_standalone": True, "sort_priority": 33},
-                    ))
-            elif ctx.get("dyspepsia_symptoms"):
-                actions.append(Action(
-                    code="ROUTE_DYSPEPSIA_PATHWAY",
-                    label="H. pylori negative but dyspepsia symptoms present — follow Dyspepsia pathway.",
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 33},
-                ))
 
-            stop = Stop(
-                reason="H. pylori test is negative — pathway ends here.",
-                actions=actions,
-            )
+            stop = Stop(reason="H. pylori test negative — pathway ends here.", actions=actions)
             ctx.log(node_id, "HP_NEGATIVE", {"hp_test_type": test_type}, [stop])
             return NodeResult([stop])
 
-        # ---- POSITIVE result ----
-        actions.append(Action(
-            code="HP_POSITIVE",
-            label="H. pylori test is POSITIVE — proceed to treatment.",
-            display={"role": "support", "badge": "info",
-                     "show_as_standalone": True, "sort_priority": 34},
+        # Positive
+        actions.append(_action(
+            "HP_POSITIVE", "H. pylori Test: Positive",
+            bullets=[
+                f"H. pylori test ({test_type}) is POSITIVE.",
+                "Proceed to treatment selection below.",
+                "Standard triple therapy (PAC/PMC/PAM) is no longer recommended due to antibiotic resistance.",
+            ],
+            role="support", badge="info", sort_priority=34,
         ))
         ctx.log(node_id, "HP_POSITIVE", {"hp_test_type": test_type}, actions)
         return NodeResult(actions, next_node="Treatment")
 
     nodes["Diagnosis"] = Node("Diagnosis", node_diagnosis)
 
-    # ------------------------------------------------------------------
+    # ----------------------------------------------------------
     # Node 4 – Treatment
-    # ------------------------------------------------------------------
+    # ----------------------------------------------------------
 
     def node_treatment(ctx: Context):
         node_id = "Treatment"
 
-        # Pregnancy / breastfeeding — hard stop
+        # Pregnancy / breastfeeding
         if bool(ctx.get("pregnant")) or bool(ctx.get("breastfeeding")):
             stop = Stop(
-                reason="⛔ Pregnant / breastfeeding — H. pylori treatment is contraindicated.",
-                actions=[Action(
-                    code="DO_NOT_TREAT_PREGNANCY_BREASTFEEDING",
-                    label=(
-                        "Do NOT treat H. pylori during pregnancy or breastfeeding.\n"
-                        "   All treatment regimens (PAMC, PBMT, PAL, PAR, PCM) are contraindicated."
-                    ),
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 40},
+                reason="Pregnancy / breastfeeding — H. pylori treatment contraindicated.",
+                actions=[_action(
+                    "DO_NOT_TREAT_PREGNANCY",
+                    "Do Not Treat: Pregnancy or Breastfeeding",
+                    bullets=[
+                        "All H. pylori treatment regimens are contraindicated during pregnancy and breastfeeding.",
+                        "Reassess and initiate treatment postpartum when safe to do so.",
+                    ],
+                    role="primary_decision", sort_priority=40,
                 )],
             )
-            ctx.log(node_id, "PREGNANCY_BREASTFEEDING_STOP",
-                    {"pregnant": ctx.get("pregnant"), "breastfeeding": ctx.get("breastfeeding")}, [stop])
+            ctx.log(node_id, "PREGNANCY_STOP", {}, [stop])
             return NodeResult([stop])
 
         treatment_line = ctx.get("treatment_line")
         if treatment_line is None:
-            dr = DataRequest(
+            return NodeResult([DataRequest(
                 blocking_node=node_id,
                 missing_fields=["treatment_line"],
-                message="Enter current H. pylori treatment line (1, 2, 3, or 4).",
-                suggested_actions=[Action(
-                    code="CAPTURE_TREATMENT_LINE",
-                    label="Capture current treatment line (1–4)",
-                    display={"role": "support", "badge": "info",
-                             "show_as_standalone": True, "sort_priority": 41},
+                message="Select Treatment Line",
+                urgency_context="Enter current treatment line (1–4) to select the appropriate regimen.",
+                suggested_actions=[_action(
+                    "CAPTURE_TREATMENT_LINE", "Enter treatment line (1, 2, 3, or 4) to proceed.",
+                    role="support", badge="info", sort_priority=41,
                 )],
-            )
-            ctx.log(node_id, "BLOCKED_MISSING_DATA", {"missing": ["treatment_line"]}, [dr])
-            return NodeResult([dr])
+            )])
 
         penicillin_allergy = bool(ctx.get("penicillin_allergy"))
         actions: List[Output] = []
 
+        # General treatment note (always shown)
+        actions.append(_action(
+            "GENERAL_TREATMENT_NOTES",
+            "General Treatment Notes",
+            bullets=[
+                "Treatment failure may be due to antibiotic resistance; however, explore non-adherence and intolerance with the patient.",
+                "Do NOT retry the same treatment regimen after failure.",
+            ],
+            role="support", badge="info", sort_priority=41,
+        ))
+
         if treatment_line == 1:
             if penicillin_allergy:
-                actions.append(Action(
-                    code="TREAT_LINE_1_PBMT",
-                    label="First line (penicillin-allergic): Bismuth Quadruple Regimen (PBMT) — 14 days",
-                    details={"regimen_key": "PBMT"},
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 42},
+                actions.append(_action(
+                    "TREAT_LINE_1_PBMT",
+                    "First-Line Treatment (Penicillin Allergy): Bismuth Quadruple Regimen (PBMT)",
+                    bullets=[
+                        f"Regimen: Bismuth Quadruple Regimen (PBMT) for 14 days (approx. $80 with generics).",
+                        "Components:",
+                        "• PPI (standard dose) 1 pill BID",
+                        "• Bismuth subsalicylate 524 mg QID",
+                        "• Metronidazole 500 mg QID",
+                        "• Tetracycline 500 mg QID",
+                        "Note: First-line for penicillin-allergic patients. Recommend blister pack.",
+                    ],
+                    regimen_key="PBMT",
+                    role="primary_decision", sort_priority=42,
                 ))
             else:
-                actions.append(Action(
-                    code="TREAT_LINE_1_PAMC",
-                    label="First line – Option A: CLAMET Quad (PAMC) — 14 days",
-                    details={"regimen_key": "PAMC"},
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 42},
+                actions.append(_action(
+                    "TREAT_LINE_1_PAMC",
+                    "First-Line Treatment — Option A: CLAMET Quad (PAMC)",
+                    bullets=[
+                        "Regimen: CLAMET Quad (PAMC) for 14 days (approx. $130 with generics).",
+                        "Components:",
+                        "• PPI (standard dose) 1 pill BID",
+                        "• Amoxicillin 1000 mg BID",
+                        "• Metronidazole 500 mg BID",
+                        "• Clarithromycin 500 mg BID",
+                        "Recommend dispensing in blister/bubble pack.",
+                    ],
+                    regimen_key="PAMC",
+                    role="primary_decision", sort_priority=42,
                 ))
-                actions.append(Action(
-                    code="TREAT_LINE_1_PBMT",
-                    label="First line – Option B: BMT Quad (PBMT) — 14 days",
-                    details={"regimen_key": "PBMT"},
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 42},
+                actions.append(_action(
+                    "TREAT_LINE_1_PBMT",
+                    "First-Line Treatment — Option B: BMT Quad (PBMT)",
+                    bullets=[
+                        "Regimen: BMT Quad (PBMT) for 14 days (approx. $80 with generics).",
+                        "Components:",
+                        "• PPI (standard dose) 1 pill BID",
+                        "• Bismuth subsalicylate 524 mg QID",
+                        "• Metronidazole 500 mg QID",
+                        "• Tetracycline 500 mg QID",
+                        "Recommend dispensing in blister/bubble pack.",
+                    ],
+                    regimen_key="PBMT",
+                    role="primary_decision", sort_priority=43,
                 ))
 
         elif treatment_line == 2:
             if penicillin_allergy:
-                actions.append(Action(
-                    code="TREAT_LINE_2_PCM",
-                    label="Second line (penicillin-allergic): Modified Triple (PCM) — 14 days",
-                    details={"regimen_key": "PCM"},
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 43},
-                ))
-                actions.append(Action(
-                    code="TREAT_LINE_2_ALLERGY_REFERRAL_OPTION",
-                    label="Alternative: consider referral for formal allergy testing before proceeding.",
-                    display={"role": "advisory", "badge": "info",
-                             "show_as_standalone": True, "sort_priority": 43},
+                actions.append(_action(
+                    "TREAT_LINE_2_PCM",
+                    "Second-Line Treatment (Penicillin Allergy): Modified Triple (PCM)",
+                    bullets=[
+                        "Regimen: Modified Triple (PCM) for 14 days (approx. $100 with generics).",
+                        "Components:",
+                        "• Pantoprazole 40 mg BID",
+                        "• Clarithromycin 500 mg BID",
+                        "• Metronidazole 500 mg BID",
+                        "Consider referral for formal allergy testing before proceeding.",
+                    ],
+                    regimen_key="PCM",
+                    role="primary_decision", sort_priority=43,
                 ))
             else:
-                actions.append(Action(
-                    code="TREAT_LINE_2_SWITCH",
-                    label=(
-                        "Second line: switch to the regimen NOT used in first line.\n"
-                        "   If PAMC was used → use PBMT.\n"
-                        "   If PBMT was used → use PAMC, or consider PAL (Levo-Amox)."
-                    ),
-                    details={
-                        "PAMC_details": _format_regimen("PAMC"),
-                        "PBMT_details": _format_regimen("PBMT"),
-                    },
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 43},
+                actions.append(_action(
+                    "TREAT_LINE_2_SWITCH",
+                    "Second-Line Treatment: Switch Regimen",
+                    bullets=[
+                        "Use the regimen NOT used in the first line:",
+                        "• If CLAMET Quad (PAMC) was used → switch to BMT Quad (PBMT).",
+                        "• If BMT Quad (PBMT) was used → switch to CLAMET Quad (PAMC), or consider Levo-Amox (PAL).",
+                        "Do NOT repeat the same regimen that failed.",
+                    ],
+                    role="primary_decision", sort_priority=43,
                 ))
 
         elif treatment_line == 3:
             if penicillin_allergy:
-                actions.append(Action(
-                    code="TREAT_LINE_3_GI_REFERRAL",
-                    label="Third line (penicillin-allergic): consider GI referral after two allergy-regimen failures.",
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 44},
+                actions.append(_action(
+                    "TREAT_LINE_3_GI_REFERRAL",
+                    "Third-Line (Penicillin Allergy): Consider GI Referral",
+                    bullets=[
+                        "After two failed allergy-appropriate regimens, consider referral to Gastroenterology.",
+                        "Outline all testing and treatments provided to date in the referral.",
+                    ],
+                    role="primary_decision", sort_priority=44,
                 ))
             else:
-                actions.append(Action(
-                    code="TREAT_LINE_3_PAL",
-                    label="Third line: Levo-Amox (PAL) — 14 days",
-                    details={"regimen_key": "PAL"},
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 44},
+                actions.append(_action(
+                    "TREAT_LINE_3_PAL",
+                    "Third-Line Treatment: Levo-Amox (PAL)",
+                    bullets=[
+                        "Regimen: Levo-Amox (PAL) for 14 days (approx. $100 with generics).",
+                        "Components:",
+                        "• PPI (standard dose) 1 pill BID",
+                        "• Amoxicillin 1000 mg BID",
+                        "• Levofloxacin 500 mg once daily",
+                        "Recommend dispensing in blister/bubble pack.",
+                    ],
+                    regimen_key="PAL",
+                    role="primary_decision", sort_priority=44,
                 ))
 
         elif treatment_line == 4:
             if penicillin_allergy:
-                actions.append(Action(
-                    code="TREAT_LINE_4_GI_REFERRAL",
-                    label="Fourth line (penicillin-allergic): refer to GI / allergy for specialist management.",
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 45},
+                actions.append(_action(
+                    "TREAT_LINE_4_GI_REFERRAL",
+                    "Fourth-Line (Penicillin Allergy): GI / Allergy Referral",
+                    bullets=[
+                        "Refer to Gastroenterology and/or Allergy for specialist management.",
+                        "Outline all testing and treatment history in the referral.",
+                        "Options: eReferral Advice Request | Specialist LINK (Calgary) | ConnectMD (Edmonton/North).",
+                    ],
+                    role="primary_decision", sort_priority=45,
                 ))
             else:
-                actions.append(Action(
-                    code="TREAT_LINE_4_PAR_OR_REFER",
-                    label=(
-                        "Fourth line options (physician discretion):\n"
-                        "   A) Prescribe Rif-Amox (PAR) — 10 days (see medication details below)\n"
-                        "   B) Consult GI via Specialist LINK / ConnectMD / eReferral Advice Request\n"
-                        "   C) Refer to GI"
-                    ),
-                    details={
-                        "regimen_key": "PAR",
-                        "supported_by": [
-                            "Rifabutin may rarely cause serious myelotoxicity — assess case-by-case.",
-                            "Rifabutin may require special authorization for Alberta Blue Cross.",
-                        ],
-                    },
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 45},
+                actions.append(_action(
+                    "TREAT_LINE_4_PAR",
+                    "Fourth-Line Treatment: Rif-Amox (PAR) or Refer to GI",
+                    bullets=[
+                        "Regimen: Rif-Amox (PAR) for 10 days (approx. $170 with generics).",
+                        "Components:",
+                        "• PPI (standard dose) 1 pill BID",
+                        "• Amoxicillin 1000 mg BID",
+                        "• Rifabutin 150 mg BID",
+                        "⚠ SAFETY: Rifabutin rarely associated with serious myelotoxicity (low WBC/platelet). Assess case-by-case.",
+                        "⚠ May require special authorization for Alberta Blue Cross patients.",
+                        "Alternative: Consult GI via Specialist LINK / ConnectMD / eReferral Advice Request, or refer directly.",
+                    ],
+                    regimen_key="PAR",
+                    supported_by=["Rifabutin myelotoxicity risk — pros/cons must be assessed individually."],
+                    role="primary_decision", sort_priority=45,
                 ))
         else:
             stop = Stop(
-                reason="Invalid treatment line value.",
-                actions=[Action(
-                    code="INVALID_TREATMENT_LINE",
-                    label="Treatment line must be 1, 2, 3, or 4.",
-                    display={"role": "support", "badge": "warning",
-                             "show_as_standalone": True, "sort_priority": 46},
+                reason="Invalid treatment line.",
+                actions=[_action(
+                    "INVALID_TREATMENT_LINE", "Treatment Line Must Be 1, 2, 3, or 4.",
+                    bullets=["Please re-enter a valid treatment line value (1–4)."],
+                    role="support", sort_priority=46,
                 )],
             )
             ctx.log(node_id, "INVALID_TREATMENT_LINE", {"treatment_line": treatment_line}, [stop])
             return NodeResult([stop])
 
-        # Adherence note
         if ctx.get("bubble_pack_used") is False:
-            actions.append(Action(
-                code="BUBBLE_PACK_ADHERENCE_NOTE",
-                label=(
-                    "📦 Bubble/blister pack NOT in use — recommend asking pharmacist to dispense in a blister pack.\n"
-                    "   All H. pylori regimens are recommended to be dispensed in a blister pack to improve adherence."
-                ),
-                display={"role": "advisory", "badge": "warning",
-                         "show_as_standalone": True, "sort_priority": 47},
+            actions.append(_action(
+                "BUBBLE_PACK_REMINDER",
+                "Adherence Reminder: Blister Pack Not in Use",
+                bullets=[
+                    "All H. pylori treatment regimens should be dispensed in a blister/bubble pack.",
+                    "Ask the pharmacist to package the prescription in a bubble pack to improve adherence.",
+                ],
+                role="advisory", badge="warning", sort_priority=47,
             ))
 
         ctx.log(node_id, "TREATMENT_RECOMMENDED",
@@ -822,114 +697,109 @@ def h_pylori_build_engine() -> PathwayEngine:
 
     nodes["Treatment"] = Node("Treatment", node_treatment)
 
-    # ------------------------------------------------------------------
-    # Node 5 – Confirm eradication
-    # ------------------------------------------------------------------
+    # ----------------------------------------------------------
+    # Node 5 – Confirm Eradication
+    # ----------------------------------------------------------
 
     def node_confirm_eradication(ctx: Context):
         node_id = "Confirm_Eradication"
 
-        actions: List[Output] = [Action(
-            code="RETEST_FOR_ERADICATION",
-            label=(
-                "Retest with HpSAT or UBT — no sooner than 4 weeks after completing treatment.\n"
-                "   Retesting too early risks a false negative result.\n"
-                "   Patient must be: OFF antibiotics ≥4 weeks AND off PPIs ≥2 weeks before retest.\n"
-                "   Note: once cured, H. pylori re-infection rate is <2%."
-            ),
-            display={"role": "support", "badge": "info",
-                     "show_as_standalone": True, "sort_priority": 50},
-        )]
+        retest = _action(
+            "RETEST_FOR_ERADICATION",
+            "Mandatory Eradication Confirmation",
+            bullets=[
+                "Retest with HpSAT or UBT NO SOONER than 4 weeks after completing treatment. Retesting too soon risks a false negative.",
+                "⚠ Washout before eradication test:",
+                "• Off ALL antibiotics (including H. pylori treatment) ≥4 weeks.",
+                "• Off PPIs ≥2 weeks.",
+                "Once eradicated, re-infection rate is <2%.",
+                "If symptoms persist after confirmed eradication, refer to the Dyspepsia Pathway.",
+                "If test remains POSITIVE → proceed to next treatment line.",
+            ],
+            role="support", badge="info", sort_priority=50,
+        )
 
+        prep_warnings = []
         if ctx.get("off_antibiotics_4_weeks_before_retest") is False:
-            actions.append(Action(
-                code="RETEST_PREP_ANTIBIOTIC_WARNING",
-                label="⚠️  Patient has not been off antibiotics ≥4 weeks — retesting now may give a false negative.",
-                display={"role": "advisory", "badge": "warning",
-                         "show_as_standalone": True, "sort_priority": 51},
-            ))
-
+            prep_warnings.append("Patient NOT off antibiotics ≥4 weeks — retesting now risks a false negative result.")
         if ctx.get("off_ppi_2_weeks_before_retest") is False:
-            actions.append(Action(
-                code="RETEST_PREP_PPI_WARNING",
-                label="⚠️  Patient has not been off PPIs ≥2 weeks — retesting now may give a false negative.",
-                display={"role": "advisory", "badge": "warning",
-                         "show_as_standalone": True, "sort_priority": 51},
+            prep_warnings.append("Patient NOT off PPIs ≥2 weeks — retesting now risks a false negative result.")
+
+        actions: List[Output] = [retest]
+
+        if prep_warnings:
+            actions.append(_action(
+                "RETEST_PREP_WARNING",
+                "Eradication Retest — Washout Not Complete",
+                bullets=["Address the following before retesting:"] + [f"• {w}" for w in prep_warnings],
+                role="advisory", badge="warning", sort_priority=51,
             ))
 
-        eradication_test_result = ctx.get("eradication_test_result")
-        symptoms_persist        = ctx.get("symptoms_persist")
+        eradication_result = ctx.get("eradication_test_result")
+        symptoms_persist   = ctx.get("symptoms_persist")
 
         missing = []
-        if eradication_test_result is None:
-            missing.append("eradication_test_result")
-        if symptoms_persist is None:
-            missing.append("symptoms_persist")
+        if eradication_result is None: missing.append("eradication_test_result")
+        if symptoms_persist is None:   missing.append("symptoms_persist")
 
         if missing:
             dr = DataRequest(
                 blocking_node=node_id,
                 missing_fields=missing,
-                message=(
-                    "Enter eradication test result (positive/negative) and whether symptoms persist (True/False)."
-                ),
-                suggested_actions=[Action(
-                    code="CAPTURE_ERADICATION_STATUS",
-                    label="Capture eradication result and current symptom status",
-                    display={"role": "support", "badge": "info",
-                             "show_as_standalone": True, "sort_priority": 52},
+                message="Enter Eradication Test Result",
+                urgency_context="Enter eradication test result (positive/negative) and whether symptoms persist (Yes/No).",
+                suggested_actions=[_action(
+                    "CAPTURE_ERADICATION_STATUS",
+                    "Enter eradication test result and current symptom status.",
+                    role="support", badge="info", sort_priority=52,
                 )],
             )
             ctx.log(node_id, "BLOCKED_MISSING_DATA", {"missing": missing}, actions + [dr])
             return NodeResult(actions + [dr])
 
-        # ✅ Eradication confirmed, no symptoms
-        if eradication_test_result == "negative" and not symptoms_persist:
+        if eradication_result == "negative" and not symptoms_persist:
             stop = Stop(
-                reason="✅ Eradication confirmed. Symptoms resolved. Pathway care complete.",
-                actions=actions + [Action(
-                    code="PATHWAY_COMPLETE",
-                    label="H. pylori pathway care is complete. No further action required.",
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 53},
+                reason="Eradication confirmed. Symptoms resolved. Pathway care complete.",
+                actions=actions + [_action(
+                    "PATHWAY_COMPLETE",
+                    "Pathway Care Complete",
+                    bullets=[
+                        "H. pylori has been successfully eradicated.",
+                        "Symptoms have resolved — no further action required.",
+                        "Re-infection rate is <2%. No routine follow-up testing needed.",
+                    ],
+                    role="primary_decision", sort_priority=53,
                 )],
             )
-            ctx.log(node_id, "ERADICATION_CONFIRMED_PATHWAY_COMPLETE",
-                    {"eradication_test_result": eradication_test_result,
-                     "symptoms_persist": symptoms_persist}, [stop])
+            ctx.log(node_id, "ERADICATION_CONFIRMED_COMPLETE", {}, [stop])
             return NodeResult([stop])
 
-        # ✅ Eradication confirmed, but symptoms persist
-        if eradication_test_result == "negative" and symptoms_persist:
-            actions.append(Action(
-                code="POST_ERADICATION_SYMPTOMS_ROUTE_DYSPEPSIA",
-                label=(
-                    "H. pylori eradicated, but symptoms persist.\n"
-                    "   → Follow Dyspepsia pathway and/or reassess diagnosis."
-                ),
-                display={"role": "primary_decision",
-                         "show_as_standalone": True, "sort_priority": 54},
-            ))
+        if eradication_result == "negative" and symptoms_persist:
             stop = Stop(
-                reason="Eradication confirmed but symptoms persist — further assessment needed.",
-                actions=actions,
+                reason="Eradication confirmed, but symptoms persist.",
+                actions=actions + [_action(
+                    "POST_ERADICATION_SYMPTOMS",
+                    "Eradication Confirmed — Symptoms Persist",
+                    bullets=[
+                        "H. pylori has been eradicated, but symptoms continue.",
+                        "Follow the Dyspepsia Pathway for further management.",
+                        "Reassess diagnosis — consider other causes of symptoms.",
+                    ],
+                    role="primary_decision", sort_priority=54,
+                )],
             )
-            ctx.log(node_id, "ERADICATION_CONFIRMED_SYMPTOMS_PERSIST",
-                    {"eradication_test_result": eradication_test_result,
-                     "symptoms_persist": symptoms_persist}, [stop])
+            ctx.log(node_id, "ERADICATION_CONFIRMED_SYMPTOMS_PERSIST", {}, [stop])
             return NodeResult([stop])
 
-        # ❌ Eradication failed (test still positive)
         ctx.log(node_id, "ERADICATION_FAILED",
-                {"eradication_test_result": eradication_test_result,
-                 "symptoms_persist": symptoms_persist}, actions)
+                {"eradication_test_result": eradication_result, "symptoms_persist": symptoms_persist}, actions)
         return NodeResult(actions, next_node="Treatment_Failure")
 
     nodes["Confirm_Eradication"] = Node("Confirm_Eradication", node_confirm_eradication)
 
-    # ------------------------------------------------------------------
-    # Node 6 – Treatment failure
-    # ------------------------------------------------------------------
+    # ----------------------------------------------------------
+    # Node 6 – Treatment Failure
+    # ----------------------------------------------------------
 
     def node_treatment_failure(ctx: Context):
         node_id = "Treatment_Failure"
@@ -938,65 +808,65 @@ def h_pylori_build_engine() -> PathwayEngine:
         actions: List[Output] = []
 
         if bool(ctx.get("nonadherence_suspected")):
-            actions.append(Action(
-                code="EXPLORE_NONADHERENCE",
-                label=(
-                    "Non-adherence or intolerance suspected — explore with patient before escalating.\n"
-                    "   Treatment failure may be due to antibiotic resistance, intolerance, or non-adherence.\n"
-                    "   Consider blister pack if not already used."
-                ),
-                display={"role": "advisory", "badge": "warning",
-                         "show_as_standalone": True, "sort_priority": 60},
+            actions.append(_action(
+                "EXPLORE_NONADHERENCE",
+                "Explore Non-Adherence Before Escalating",
+                bullets=[
+                    "Treatment failure may be due to antibiotic resistance, but also explore:",
+                    "• Non-adherence — was the full course completed?",
+                    "• Intolerance — did the patient experience side effects that led to stopping?",
+                    "Consider dispensing next regimen in blister pack if not already done.",
+                ],
+                role="advisory", badge="warning", sort_priority=60,
             ))
 
         if treatment_line is None:
-            dr = DataRequest(
+            return NodeResult(actions + [DataRequest(
                 blocking_node=node_id,
                 missing_fields=["treatment_line"],
-                message="Enter the treatment line that just failed (1, 2, or 3) to determine next steps.",
-                suggested_actions=[Action(
-                    code="CAPTURE_TREATMENT_LINE",
-                    label="Capture failed treatment line",
-                    display={"role": "support", "badge": "info",
-                             "show_as_standalone": True, "sort_priority": 60},
+                message="Enter Failed Treatment Line",
+                urgency_context="Enter the treatment line that just failed (1, 2, or 3) to determine next steps.",
+                suggested_actions=[_action(
+                    "CAPTURE_TREATMENT_LINE", "Enter failed treatment line (1–3).",
+                    role="support", badge="info", sort_priority=60,
                 )],
-            )
-            ctx.log(node_id, "BLOCKED_MISSING_DATA", {"missing": ["treatment_line"]}, actions + [dr])
-            return NodeResult(actions + [dr])
+            )])
 
-        failed_three_rounds = treatment_line >= 3
-        failed_three_rounds = ctx.apply_override(node_id, "failed_three_rounds", failed_three_rounds)
-        ctx.set("failed_three_rounds", failed_three_rounds)
+        failed_three = treatment_line >= 3
+        failed_three = ctx.apply_override(node_id, "failed_three_rounds", failed_three)
+        ctx.set("failed_three_rounds", failed_three)
 
-        if failed_three_rounds:
+        if failed_three:
             stop = Stop(
-                reason="H. pylori not eradicated after ≥3 treatment attempts.",
-                actions=actions + [Action(
-                    code="REFER_AFTER_THREE_FAILURES",
-                    label=(
-                        "Three failed treatment attempts — refer to GI specialist.\n"
-                        "   Include full testing and treatment history in the referral.\n"
-                        "   Options: eReferral Advice Request | Specialist LINK (Calgary) | ConnectMD (Edmonton/North)"
-                    ),
+                reason="H. pylori not eradicated after 3 or more treatment attempts.",
+                actions=actions + [_action(
+                    "REFER_AFTER_THREE_FAILURES",
+                    "Refer to Gastroenterology After 3 Failed Attempts",
+                    bullets=[
+                        "H. pylori has not been eradicated after three rounds of treatment.",
+                        "Refer to GI or seek specialist advice before proceeding.",
+                        "Include full testing and treatment history in the referral.",
+                        "Options: eReferral Advice Request | Specialist LINK (Calgary: 403-910-2551) | ConnectMD (Edmonton/North: 1-844-633-2263).",
+                    ],
                     override_options={"node": node_id, "field": "failed_three_rounds",
                                       "allowed": [True, False], "reason_required": True},
-                    display={"role": "primary_decision",
-                             "show_as_standalone": True, "sort_priority": 61},
+                    role="primary_decision", sort_priority=61,
                 )],
             )
             ctx.log(node_id, "REFER_AFTER_THREE_FAILURES", {"treatment_line": treatment_line}, [stop])
             return NodeResult([stop])
 
         next_line = treatment_line + 1
-        actions.append(Action(
-            code="PROCEED_TO_NEXT_TREATMENT_LINE",
-            label=(
-                f"Proceed to Line {next_line} of treatment — do NOT repeat the same regimen.\n"
-                "   Return to Treatment node with updated treatment_line."
-            ),
-            details={"supported_by": [f"Failed treatment line: {treatment_line}"]},
-            display={"role": "primary_decision",
-                     "show_as_standalone": True, "sort_priority": 62},
+        actions.append(_action(
+            "NEXT_TREATMENT_LINE",
+            f"Proceed to Line {next_line} Treatment",
+            bullets=[
+                f"Current treatment line {treatment_line} has failed.",
+                f"Proceed to Line {next_line} — do NOT repeat the same regimen.",
+                "Return to the Treatment step and select the next line.",
+            ],
+            supported_by=[f"Failed treatment line: {treatment_line}"],
+            role="primary_decision", sort_priority=62,
         ))
         ctx.log(node_id, "NEXT_TREATMENT_LINE", {"treatment_line": treatment_line}, actions)
         return NodeResult(actions)
