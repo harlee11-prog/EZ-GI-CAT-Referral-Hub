@@ -184,64 +184,91 @@ with right:
             visited_nodes.add("washout")
 
         # ── BUILD ANIMATED DIAGRAM ──────────────────────────────────────
-        all_nodes = [
-            ("start",       "Patient\nPresents"),
-            ("testing",     "Testing\nIndication?"),
-            ("test_result", "H. Pylori\nTest Result"),
-            ("alarm",       "Alarm\nFeatures?"),
-            ("pregnancy",   "Pregnancy\nScreen"),
-            ("washout",     "Washout\nReady?"),
-            ("treatment",   "Treatment\nSelection"),
-            ("followup",    "Eradication\nConfirm"),
-        ]
+        # -- BUILD ANIMATED DIAGRAM (AHS PATHWAY STYLE) --
+# Define nodes with (ID, Label, X, Y)
+# Coordinates are mapped to a 500x550 SVG space
+all_nodes = [
+    ("box1", "1. Who to test?", 190, 20),
+    ("box2", "2. Alarm\nFeatures?", 190, 110),
+    ("box7", "7. Refer for\nConsultation", 20, 110),
+    ("box3", "3. Diagnosis\n(HpSAT/UBT)", 190, 200),
+    ("dysp", "Follow\nDyspepsia Path", 360, 200),
+    ("box4", "4. Treatment\n(Quad Therapy)", 190, 290),
+    ("box5", "5. Confirm\nEradication", 190, 380),
+    ("box6", "6. Treatment\nFailure", 190, 470),
+]
 
-        edges = [
-            ("start","testing"), ("testing","test_result"),
-            ("test_result","alarm"), ("alarm","pregnancy"),
-            ("pregnancy","washout"), ("washout","treatment"),
-            ("treatment","followup"),
-        ]
+# Define edges with (From, To, Label)
+edges = [
+    ("box1", "box2", ""),
+    ("box2", "box7", "Yes"),
+    ("box2", "box3", "No"),
+    ("box3", "box4", "Positive"),
+    ("box3", "dysp", "Negative"),
+    ("box4", "box5", ""),
+    ("box5", "box6", "No"),
+    ("box6", "box4", "Retry"),
+    ("box6", "box7", "Fail x3")
+]
 
-        n       = len(all_nodes)
-        node_w  = 100
-        node_h  = 60
-        gap     = 30
-        pad     = 40
-        total_w = pad + n * node_w + (n-1) * gap + pad
+# Mapping engine rules to specific PDF Boxes
+rule_to_node = {
+    "Box 1 – Testing Indications":               "box1",
+    "Box 2 – Alarm Features":                    "box2",
+    "Urgent Referral Triggered":                 "box7",
+    "Test Result":                               "box3", # Reached during diagnostic step
+    "Route to Dyspepsia Pathway":                "dysp",
+    "Box 4 – First Line":                        "box4",
+    "Box 4 – Second Line":                       "box4",
+    "Box 4 – Third Line":                        "box4",
+    "Eradication Confirmation":                  "box5",
+    "Box 6 – Treatment Failure / Fourth Line":   "box6",
+}
 
-        positions = {}
-        for i, (nid, _) in enumerate(all_nodes):
-            positions[nid] = (pad + i * (node_w + gap), 30)
+visited_nodes = {"box1"}
+for step in engine.tracker.steps:
+    node = rule_to_node.get(step.rule)
+    if node: visited_nodes.add(node)
+    # Special logic for referral
+    if "Referral" in step.rule or "Urgent" in step.decision:
+        visited_nodes.add("box7")
+    if "Dyspepsia" in step.decision:
+        visited_nodes.add("dysp")
 
-        svg = [
-            f'<svg id="pathway-svg" width="100%" viewBox="0 0 {total_w} 160" '
-            f'xmlns="http://www.w3.org/2000/svg" '
-            f'style="background:#0e0e0e; border-radius:14px;">',
-            '<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" '
-            'markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
-            '<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" '
-            'stroke-width="1.5" stroke-linecap="round"/></marker></defs>',
-        ]
+# SVG Generation
+node_w, node_h = 120, 60
+svg = [
+    f'<svg width="100%" viewBox="0 0 500 550" xmlns="http://www.w3.org/2000/svg" style="background:#0e0e0e; border-radius:14px;">',
+    '<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
+    '<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round"/></marker></defs>'
+]
 
-        for a, b in edges:
-            ax, ay = positions[a]
-            bx, by = positions[b]
-            svg.append(
-                f'<line class="edge" data-from="{a}" data-to="{b}" '
-                f'x1="{ax+node_w}" y1="{ay+node_h//2}" '
-                f'x2="{bx}" y2="{by+node_h//2}" '
-                f'stroke="#333333" stroke-width="2" marker-end="url(#arr)" '
-                f'style="transition: stroke 0.5s"/>'
-            )
+# Draw Edges
+for a, b, label in edges:
+    ax, ay = next(n[2:] for n in all_nodes if n[0] == a)
+    bx, by = next(n[2:] for n in all_nodes if n[0] == b)
+    
+    # Calculate center points for connection
+    x1, y1 = ax + node_w/2, ay + node_h/2
+    x2, y2 = bx + node_w/2, by + node_h/2
+    
+    # Simple line logic (can be upgraded to paths for elbows)
+    svg.append(f'<line class="edge" data-from="{a}" data-to="{b}" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
+               f'stroke="#333333" stroke-width="2" marker-end="url(#arr)" style="transition: stroke 0.5s"/>')
+    if label:
+        lx, ly = (x1 + x2)/2, (y1 + y2)/2 - 5
+        svg.append(f'<text x="{lx}" y="{ly}" fill="#888888" font-size="10" text-anchor="middle" font-family="Arial">{label}</text>')
 
-        for nid, title in all_nodes:
-            x, y = positions[nid]
-            lines = title.split("\n")
-            svg.append(
-                f'<rect data-node="{nid}" x="{x}" y="{y}" '
-                f'width="{node_w}" height="{node_h}" rx="8" '
-                f'fill="#1e1e1e" stroke="#3a3a3a" stroke-width="1.5" '
-                f'style="transition: fill 0.5s, stroke 0.5s"/>'
+# Draw Nodes
+for nid, title, x, y in all_nodes:
+    lines = title.split("\n")
+    svg.append(f'<rect data-node="{nid}" x="{x}" y="{y}" width="{node_w}" height="{node_h}" rx="8" '
+               f'fill="#1e1e1e" stroke="#00A3A3" stroke-width="2" style="transition: all 0.5s"/>')
+    for i, line in enumerate(lines):
+        svg.append(f'<text x="{x+node_w/2}" y="{y+25+(i*15)}" text-anchor="middle" font-size="11" font-weight="700" '
+                   f'fill="#666666" font-family="Arial" data-label="{nid}" style="transition: fill 0.5s">{line}</text>')
+
+svg.append("</svg>")
             )
             for li, line in enumerate(lines):
                 ty = y + 22 + li * 16
