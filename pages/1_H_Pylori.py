@@ -634,11 +634,11 @@ with right:
         st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
         st.markdown(
             '<div class="ctx-card">'
-            f'<span>🧑 <b>Age / Sex:</b> {age} / {sex.capitalize()}</span><br>'
-            f'<span>🦠 <b>H. Pylori Test:</b> {test_str} &nbsp;|&nbsp; <b>Test Type:</b> {hp_test_type}</span><br>'
-            f'<span>💊 <b>Treatment Line:</b> {tx_labels.get(tx_map[tx_line_sel], "—")}</span><br>'
-            f'<span>🧬 <b>Penicillin Allergy:</b> {pen_str}</span><br>'
-            f'<span>⚠️ <b>Alarm Features:</b> {alarm_str}</span>'
+            f'<span><b>Age / Sex:</b> {age} / {sex.capitalize()}</span><br>'
+            f'<span><b>H. Pylori Test:</b> {test_str} &nbsp;|&nbsp; <b>Test Type:</b> {hp_test_type}</span><br>'
+            f'<span><b>Treatment Line:</b> {tx_labels.get(tx_map[tx_line_sel], "—")}</span><br>'
+            f'<span><b>Penicillin Allergy:</b> {pen_str}</span><br>'
+            f'<span><b>Alarm Features:</b> {alarm_str}</span>'
             "</div>",
             unsafe_allow_html=True,
         )
