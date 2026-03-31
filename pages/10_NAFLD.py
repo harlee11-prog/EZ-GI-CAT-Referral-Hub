@@ -11,7 +11,7 @@ from nafld_engine import (
     run_nafld_pathway, Action, DataRequest, Stop, Override
 )
 
-st.set_page_config(page_title="NAFLD Pathway", page_icon="🩸", layout="wide")
+st.set_page_config(page_title="NAFLD Pathway", layout="wide")
 
 # ── MARKDOWN / PDF HELPERS ──────────────────────────────────────────────────
 def _safe_text(text) -> str:
@@ -135,7 +135,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🩸 NAFLD Pathway")
+st.title("NAFLD Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
