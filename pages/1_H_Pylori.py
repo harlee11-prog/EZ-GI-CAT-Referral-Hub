@@ -837,6 +837,8 @@ with right:
                 )
             except Exception as e:
                 st.warning(f"PDF conversion unavailable: {e}")
+        else:
+        st.info("PDF export is unavailable because markdown2/xhtml2pdf is not installed yet.")
 
         def _pretty(s: str) -> str:
             return s.replace("_", " ").title()
