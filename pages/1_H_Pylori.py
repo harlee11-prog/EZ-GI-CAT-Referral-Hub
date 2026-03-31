@@ -14,7 +14,6 @@ from h_pylori_engine_v2 import (
 
 try:
     import markdown2
-    from xhtml2pdf import pisa
     PDF_EXPORT_AVAILABLE = True
 except ModuleNotFoundError:
     markdown2 = None
