@@ -9,7 +9,7 @@ from gastric_cancer_engine import (
     run_gastric_cancer_pathway, Action, DataRequest, Stop, Override
 )
 
-st.set_page_config(page_title="Gastric Cancer", page_icon="🎗️", layout="wide")
+st.set_page_config(page_title="Gastric Cancer", layout="wide")
 
 # ── MARKDOWN HELPERS ────────────────────────────────────────────────────────
 def _safe_text(text) -> str:
