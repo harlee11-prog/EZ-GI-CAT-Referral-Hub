@@ -584,10 +584,9 @@ with right:
                 for a in output.actions:
                     render_action(a)
 
-        # ── CLINICIAN NOTES (simple textbox) ─────────────────────────────
+        # ── CLINICIAN NOTES ─────────────────────────────
         st.markdown('<p class="section-label">CLINICIAN NOTES</p>', unsafe_allow_html=True)
         with st.container():
-            st.markdown('<div class="custom-text-card">', unsafe_allow_html=True)
             st.caption("Optional free-text notes to be attached to the clinical recommendations.")
             st.session_state.hp_notes = st.text_area(
                 "Notes to attach to the saved output:",
