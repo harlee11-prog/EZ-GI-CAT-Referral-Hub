@@ -14,6 +14,39 @@ from fpdf import FPDF
 st.set_page_config(page_title="H. Pylori", page_icon="🦠", layout="wide")
 
 # ── PDF HELPER ───────────────────────────────────────────────────────────────
+def _pdf_safe(text) -> str:
+    if text is None:
+        return ""
+    text = str(text)
+
+    replacements = {
+        "→": "->",
+        "•": "-",
+        "⚠️": "[WARNING]",
+        "⚠": "[WARNING]",
+        "✅": "[OK]",
+        "❌": "[X]",
+        "🛑": "[STOP]",
+        "🦠": "",
+        "🧑": "",
+        "💊": "",
+        "🧬": "",
+        "⏱": "",
+        "📋": "",
+        "—": "-",
+        "–": "-",
+        "“": '"',
+        "”": '"',
+        "’": "'",
+        "\u00a0": " ",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+
+    text = " ".join(text.split())
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
 def build_h_pylori_pdf(patient_data, outputs, overrides, notes: str) -> bytes:
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -23,7 +56,7 @@ def build_h_pylori_pdf(patient_data, outputs, overrides, notes: str) -> bytes:
     pdf.cell(0, 10, "H. Pylori Pathway - Clinical Summary", new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 6, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, _pdf_safe(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"), new_x="LMARGIN", new_y="NEXT")
 
     pdf.ln(3)
     pdf.set_font("Helvetica", "B", 13)
@@ -42,7 +75,7 @@ def build_h_pylori_pdf(patient_data, outputs, overrides, notes: str) -> bytes:
         f"Eradication test result: {patient_data.get('eradication_test_result')}",
     ]
     for line in context_lines:
-        pdf.multi_cell(0, 6, line)
+        pdf.multi_cell(0, 6, _pdf_safe(line))
 
     pdf.ln(3)
     pdf.set_font("Helvetica", "B", 13)
@@ -51,34 +84,35 @@ def build_h_pylori_pdf(patient_data, outputs, overrides, notes: str) -> bytes:
 
     for o in outputs:
         if isinstance(o, Action):
-            label = " ".join(str(o.label).split())
-            urgency = (o.urgency or "info").upper()
+            label = _pdf_safe(" ".join(str(o.label).split()))
+            urgency = _pdf_safe((o.urgency or "info").upper())
             pdf.multi_cell(0, 6, f"- [{urgency}] {label}")
+
             if isinstance(o.details, dict):
                 bullets = o.details.get("bullets", [])
                 notes_list = o.details.get("notes", [])
                 for b in bullets:
-                    pdf.multi_cell(0, 6, f"    • {b}")
+                    pdf.multi_cell(0, 6, f"   - {_pdf_safe(b)}")
                 for n in notes_list:
-                    pdf.multi_cell(0, 6, f"    • Note: {n}")
+                    pdf.multi_cell(0, 6, f"   - Note: {_pdf_safe(n)}")
             pdf.ln(1)
 
         elif isinstance(o, Stop):
-            reason = " ".join(str(o.reason).split())
+            reason = _pdf_safe(" ".join(str(o.reason).split()))
             pdf.multi_cell(0, 6, f"- [STOP] {reason}")
             if getattr(o, "actions", None):
                 for a in o.actions:
-                    pdf.multi_cell(0, 6, f"    • Follow-up: {' '.join(str(a.label).split())}")
+                    pdf.multi_cell(0, 6, f"   - Follow-up: {_pdf_safe(' '.join(str(a.label).split()))}")
             pdf.ln(1)
 
         elif isinstance(o, DataRequest):
-            msg = " ".join(str(o.message).split())
-            missing = ", ".join(o.missing_fields)
+            msg = _pdf_safe(" ".join(str(o.message).split()))
+            missing = _pdf_safe(", ".join(o.missing_fields))
             pdf.multi_cell(0, 6, f"- [DATA NEEDED] {msg}")
-            pdf.multi_cell(0, 6, f"    • Missing fields: {missing}")
+            pdf.multi_cell(0, 6, f"   - Missing fields: {missing}")
             if getattr(o, "suggested_actions", None):
                 for a in o.suggested_actions:
-                    pdf.multi_cell(0, 6, f"    • Suggested action: {' '.join(str(a.label).split())}")
+                    pdf.multi_cell(0, 6, f"   - Suggested action: {_pdf_safe(' '.join(str(a.label).split()))}")
             pdf.ln(1)
 
     if overrides:
@@ -88,11 +122,8 @@ def build_h_pylori_pdf(patient_data, outputs, overrides, notes: str) -> bytes:
         pdf.set_font("Helvetica", "", 11)
 
         for ov in overrides:
-            pdf.multi_cell(
-                0,
-                6,
-                f"- {ov.target_node}.{ov.field} -> {ov.new_value} (Reason: {ov.reason})"
-            )
+            line = f"- {ov.target_node}.{ov.field} -> {ov.new_value} (Reason: {ov.reason})"
+            pdf.multi_cell(0, 6, _pdf_safe(line))
             pdf.ln(1)
 
     pdf.ln(3)
@@ -100,7 +131,7 @@ def build_h_pylori_pdf(patient_data, outputs, overrides, notes: str) -> bytes:
     pdf.cell(0, 8, "Clinician Notes", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 11)
     if notes.strip():
-        pdf.multi_cell(0, 6, notes.strip())
+        pdf.multi_cell(0, 6, _pdf_safe(notes.strip()))
     else:
         pdf.multi_cell(0, 6, "No clinician notes entered.")
 
@@ -108,7 +139,7 @@ def build_h_pylori_pdf(patient_data, outputs, overrides, notes: str) -> bytes:
     if isinstance(pdf_bytes, bytearray):
         pdf_bytes = bytes(pdf_bytes)
     elif isinstance(pdf_bytes, str):
-        pdf_bytes = pdf_bytes.encode("latin-1")
+        pdf_bytes = pdf_bytes.encode("latin-1", "replace")
     return pdf_bytes
 
 # ── GLOBAL CSS ───────────────────────────────────────────────────────────────
