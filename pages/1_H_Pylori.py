@@ -60,10 +60,7 @@ st.markdown("""
     border-radius:8px; padding:10px 14px; margin-top:8px;
     font-size:13px; color:#c7d2fe;
 }
-.custom-text-card {
-    background:#020617; border:1px solid #1f2937;
-    border-radius:10px; padding:14px 18px; margin-top:16px;
-}
+
 </style>
 """, unsafe_allow_html=True)
 
