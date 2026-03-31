@@ -8,7 +8,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from hcv_engine import run_hcv_pathway, Action, DataRequest, Stop, Override
 
-st.set_page_config(page_title="HCV Pathway", page_icon="🩸", layout="wide")
+st.set_page_config(page_title="HCV Pathway", layout="wide")
 
 # ── MARKDOWN HELPERS ────────────────────────────────────────────────────────
 def _safe_text(text) -> str:
@@ -134,7 +134,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🩸 Hepatitis C (HCV) Pathway")
+st.title(" Hepatitis C Virus (HCV) Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
