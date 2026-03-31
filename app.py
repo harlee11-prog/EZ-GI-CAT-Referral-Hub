@@ -8,7 +8,7 @@ st.set_page_config(
 
 PATHWAYS = [
     {"title": "Helicobacter Pylori (H. pylori)", "page": "pages/1_H._Pylori.py", "pdf": "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-dh-pathway-hpylori.pdf", "group": "Upper GI", "desc": "Testing, treatment, and eradication follow-up."},
-    {"title": "Gastroesophageal Reflux Disease (GERD).", "page": "pages/2_GERD.py", "pdf": "https://www.albertahealthservices.ca/assets/info/aph/if-aph-scn-dh-pathway-gerd.pdf", "group": "Upper GI", "desc": "Assessment and management of reflux symptoms."},
+    {"title": "Gastroesophageal Reflux Disease (GERD)", "page": "pages/2_GERD.py", "pdf": "https://www.albertahealthservices.ca/assets/info/aph/if-aph-scn-dh-pathway-gerd.pdf", "group": "Upper GI", "desc": "Assessment and management of reflux symptoms."},
     {"title": "Dyspepsia", "page": "pages/3_Dyspepsia.py", "pdf": "https://www.albertahealthservices.ca/assets/info/aph/if-aph-scn-dh-pathway-dyspepsia.pdf", "group": "Upper GI", "desc": "Initial workup, alarm features, and referral triggers."},
     {"title": "Gastric Cancer", "page": "pages/4_Gastric_Cancer_draft.py", "pdf": "https://www.albertahealthservices.ca/assets/info/aph/if-aph-prov-gastric-cancer-prevention-screening-and-diagnosis-primary-care-pathway.pdf", "group": "Upper GI", "desc": "Prevention, screening, diagnosis, and referral."},
 
