@@ -77,7 +77,6 @@ if "hp_overrides" not in st.session_state:
 if "hp_has_run" not in st.session_state:
     st.session_state.hp_has_run = False
 
-# editable export text
 if "hp_custom_text" not in st.session_state:
     st.session_state.hp_custom_text = ""
 
@@ -466,7 +465,6 @@ with right:
         )
 
         # ── RENDER HELPERS ────────────────────────────────────────────────
-        global override_candidates
         override_candidates: list = []
 
         def _med_table_html(key: str) -> str:
@@ -557,10 +555,8 @@ with right:
         st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
 
         for output in outputs:
-
             if isinstance(output, Action):
                 render_action(output)
-
             elif isinstance(output, DataRequest):
                 missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
                 msg_html    = output.message.replace("\n", "<br>")
@@ -574,7 +570,6 @@ with right:
                 )
                 for sa in output.suggested_actions:
                     render_action(sa, extra_cls="info")
-
             elif isinstance(output, Stop):
                 reason_html = (
                     output.reason
@@ -591,105 +586,99 @@ with right:
                 for a in output.actions:
                     render_action(a)
 
-        # ── CUSTOM EDITABLE TEXT BLOCK ────────────────────────────────────
-     st.markdown('<p class="section-label">EDITABLE SUMMARY</p>', unsafe_allow_html=True)
-st.markdown('<div class="custom-text-card">', unsafe_allow_html=True)
-st.caption("Auto-generated summary you can edit before saving the output.")
+        # ── EDITABLE SUMMARY (form-based) ─────────────────────────────────
+        st.markdown('<p class="section-label">EDITABLE SUMMARY</p>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-text-card">', unsafe_allow_html=True)
+        st.caption("Auto-generated summary you can edit before saving the output.")
 
-# 1. Build an auto-generated draft summary from current data
-summary_lines = [
-    f"Patient {age}-year-old {sex}, H. pylori test: {test_str.lower()}.",
-    f"Alarm features: {alarm_str}.",
-]
+        # Build an auto-generated draft summary
+        summary_lines = [
+            f"Patient {age}-year-old {sex}, H. pylori test: {test_str.lower()}.",
+            f"Alarm features: {alarm_str}.",
+        ]
 
-action_lines = []
-for o in outputs:
-    if isinstance(o, Action):
-        # one-line version of the label (strip newlines)
-        label_clean = " ".join(o.label.split())
-        action_lines.append(f"- {label_clean}")
+        action_lines = []
+        for o in outputs:
+            if isinstance(o, Action):
+                label_clean = " ".join(o.label.split())
+                action_lines.append(f"- {label_clean}")
 
-if action_lines:
-    summary_lines.append("Recommended actions:")
-    summary_lines.extend(action_lines)
+        if action_lines:
+            summary_lines.append("Recommended actions:")
+            summary_lines.extend(action_lines)
 
-auto_summary = "\n".join(summary_lines)
+        auto_summary = "\n".join(summary_lines)
 
-# 2. Initialize session_state once per pathway run
-if "hp_custom_text" not in st.session_state or not st.session_state.hp_custom_text:
-    st.session_state.hp_custom_text = auto_summary
+        # Initialize once if empty
+        if not st.session_state.hp_custom_text:
+            st.session_state.hp_custom_text = auto_summary
 
-# 3. Use a form so edits only apply when user clicks a button
-with st.form("hp_summary_form"):
-    edited_text = st.text_area(
-        "Summary to attach to the saved output:",
-        value=st.session_state.hp_custom_text,
-        height=200,
-    )
+        with st.form("hp_summary_form"):
+            edited_text = st.text_area(
+                "Summary to attach to the saved output:",
+                value=st.session_state.hp_custom_text,
+                height=200,
+            )
+            col1, col2 = st.columns(2)
+            with col1:
+                reset_clicked = st.form_submit_button("↩ Reset to auto-generated")
+            with col2:
+                save_clicked = st.form_submit_button("✅ Update summary")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        reset_clicked = st.form_submit_button("↩ Reset to auto-generated")
-    with col2:
-        save_clicked = st.form_submit_button("✅ Update summary")
+        if reset_clicked:
+            st.session_state.hp_custom_text = auto_summary
+            st.success("Summary reset to auto-generated text.")
+        elif save_clicked:
+            st.session_state.hp_custom_text = edited_text.strip()
+            st.success("Summary updated.")
 
-# 4. Apply actions *after* the form
-if reset_clicked:
-    st.session_state.hp_custom_text = auto_summary
-    st.success("Summary reset to auto-generated text.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-elif save_clicked:
-    st.session_state.hp_custom_text = edited_text.strip()
-    st.success("Summary updated.")
+        # Build a single object that represents the whole output
+        def _serialize_output(o):
+            if isinstance(o, Action):
+                return {
+                    "type": "action",
+                    "code": o.code,
+                    "label": o.label,
+                    "urgency": o.urgency,
+                }
+            if isinstance(o, Stop):
+                return {
+                    "type": "stop",
+                    "reason": o.reason,
+                    "urgency": getattr(o, "urgency", None),
+                }
+            if isinstance(o, DataRequest):
+                return {
+                    "type": "data_request",
+                    "message": o.message,
+                    "missing_fields": o.missing_fields,
+                }
+            return {"type": "other", "repr": repr(o)}
 
-st.markdown("</div>", unsafe_allow_html=True)
-
-# Build a single object that represents the whole output
-def _serialize_output(o):
-    if isinstance(o, Action):
-        return {
-            "type": "action",
-            "code": o.code,
-            "label": o.label,
-            "urgency": o.urgency,
+        full_output = {
+            "patient": patient_data,
+            "engine_outputs": [_serialize_output(o) for o in outputs],
+            "overrides": [
+                {
+                    "node": o.target_node,
+                    "field": o.field,
+                    "new_value": o.new_value,
+                    "reason": o.reason,
+                    "created_at": o.created_at.isoformat(),
+                }
+                for o in st.session_state.hp_overrides
+            ],
+            "editable_summary": st.session_state.hp_custom_text,
         }
-    if isinstance(o, Stop):
-        return {
-            "type": "stop",
-            "reason": o.reason,
-            "urgency": getattr(o, "urgency", None),
-        }
-    if isinstance(o, DataRequest):
-        return {
-            "type": "data_request",
-            "message": o.message,
-            "missing_fields": o.missing_fields,
-        }
-    return {"type": "other", "repr": repr(o)}
 
-full_output = {
-    "patient": patient_data,
-    "engine_outputs": [_serialize_output(o) for o in outputs],
-    "overrides": [
-        {
-            "node": o.target_node,
-            "field": o.field,
-            "new_value": o.new_value,
-            "reason": o.reason,
-            "created_at": o.created_at.isoformat(),
-        }
-        for o in st.session_state.hp_overrides
-    ],
-    "editable_summary": st.session_state.hp_custom_text,
-}
-
-if st.button("💾 Save this output", key="hp_save_output"):
-    # Persist for the rest of the session (or for another page to read)
-    st.session_state.hp_saved_output = {
-        "saved_at": datetime.now().isoformat(),
-        "payload": full_output,
-    }
-    st.success("Output saved for this session.")
+        if st.button("💾 Save this output", key="hp_save_output"):
+            st.session_state.hp_saved_output = {
+                "saved_at": datetime.now().isoformat(),
+                "payload": full_output,
+            }
+            st.success("Output saved for this session.")
 
         # ── CLINICIAN OVERRIDE PANEL (rendered in left column placeholder) ─
         def _pretty(s: str) -> str:
