@@ -27,7 +27,7 @@ with col1:
         st.markdown("### 🦠 H. Pylori")
         nav1, pdf1 = st.columns([2, 1])
         with nav1:
-            st.page_link("pages/1_H_Pylori.py", label="Open →", use_container_width=True)
+            st.page_link("pages/3_H_Pylori_v2.py", label="Open →", use_container_width=True)
         with pdf1:
             st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-dh-pathway-hpylori.pdf", use_container_width=True)
 
