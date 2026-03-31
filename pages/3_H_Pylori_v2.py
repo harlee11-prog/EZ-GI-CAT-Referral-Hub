@@ -9,7 +9,7 @@ from h_pylori_engine_v2 import (
 )
 from datetime import datetime
 
-st.set_page_config(page_title="H. Pylori", page_icon="\U0001f9a0", layout="wide")
+st.set_page_config(page_title="H. Pylori", page_icon="🦠", layout="wide")
 
 # ── GLOBAL CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
@@ -63,12 +63,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("\U0001f9a0 H. Pylori Pathway")
+st.title("🦠 H. Pylori Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
 if "hp_overrides" not in st.session_state:
     st.session_state.hp_overrides = []
+
+# Remember if the pathway has been run at least once
+if "hp_has_run" not in st.session_state:
+    st.session_state.hp_has_run = False
 
 left, right = st.columns([1, 1.5])
 
@@ -94,9 +98,9 @@ with left:
     hp_test_type  = st.selectbox("Test type", ["HpSAT", "UBT", "Other"])
 
     st.markdown("**Washout Status**")
-    off_abx     = st.checkbox("Off antibiotics \u22654 weeks", value=True)
-    off_ppi     = st.checkbox("Off PPIs \u22652 weeks",        value=True)
-    off_bismuth = st.checkbox("Off bismuth \u22652 weeks",     value=True)
+    off_abx     = st.checkbox("Off antibiotics ≥4 weeks", value=True)
+    off_ppi     = st.checkbox("Off PPIs ≥2 weeks",        value=True)
+    off_bismuth = st.checkbox("Off bismuth ≥2 weeks",     value=True)
 
     st.markdown("**Alarm Features**")
     al_family_cancer = st.checkbox("Family hx esophageal/gastric cancer")
@@ -107,24 +111,24 @@ with left:
     al_vomiting      = st.checkbox("Persistent vomiting")
     al_gi_bleed      = st.checkbox("Black stool or blood in vomit")
     al_ida           = st.checkbox("Iron deficiency anemia")
-    al_concern       = st.checkbox("Clinician concern \u2014 serious pathology")
+    al_concern       = st.checkbox("Clinician concern — serious pathology")
 
     st.markdown("**Treatment History**")
     penicillin_allergy = st.checkbox("Penicillin allergy")
     tx_line_sel = st.selectbox(
         "Treatment line",
         [
-            "1 \u2013 Naive (no prior treatment)",
-            "2 \u2013 Second line (1 prior failure)",
-            "3 \u2013 Third line (2 prior failures)",
-            "4 \u2013 Fourth line (3 prior failures)",
+            "1 – Naive (no prior treatment)",
+            "2 – Second line (1 prior failure)",
+            "3 – Third line (2 prior failures)",
+            "4 – Fourth line (3 prior failures)",
         ],
     )
     tx_map = {
-        "1 \u2013 Naive (no prior treatment)":     1,
-        "2 \u2013 Second line (1 prior failure)":  2,
-        "3 \u2013 Third line (2 prior failures)":  3,
-        "4 \u2013 Fourth line (3 prior failures)": 4,
+        "1 – Naive (no prior treatment)":     1,
+        "2 – Second line (1 prior failure)":  2,
+        "3 – Third line (2 prior failures)":  3,
+        "4 – Fourth line (3 prior failures)": 4,
     }
     bubble_pack  = st.checkbox("Bubble/blister pack NOT being used", value=False)
     nonadherence = st.checkbox("Non-adherence suspected")
@@ -148,14 +152,18 @@ with left:
         sp_map           = {"Unknown": None}
         symptoms_persist = "Unknown"
 
-    run = st.button("\u25b6 Run Pathway", type="primary", use_container_width=True)
-    if st.button("\U0001f504 Clear Overrides", use_container_width=True):
+    run_clicked = st.button("▶ Run Pathway", type="primary", use_container_width=True)
+    if run_clicked:
+        st.session_state.hp_has_run = True
+
+    if st.button("🔄 Clear Overrides", use_container_width=True):
         st.session_state.hp_overrides = []
+        # keep hp_has_run so results panel still shows
         st.rerun()
 
 # ── RIGHT PANEL ──────────────────────────────────────────────────────────────
 with right:
-    if run:
+    if st.session_state.hp_has_run:
         patient_data = {
             "age":          age,
             "sex":          sex,
@@ -204,8 +212,16 @@ with right:
         is_pregnant  = bool(pregnant or breastfeeding)
         went_to_tx   = any(isinstance(o, Action) and "TREAT" in o.code for o in outputs)
         has_followup = any(isinstance(o, Action) and "RETEST" in o.code for o in outputs)
-        urgent_ref   = any(isinstance(o, Stop) and getattr(o, "urgency", "") == "urgent" for o in outputs)
         is_pediatric = age < 18
+
+        # True only when eradication has actually failed
+        eradication_failed = any(
+            isinstance(o, Action) and o.code == "PROCEED_TO_NEXT_TREATMENT_LINE"
+            for o in outputs
+        ) or any(
+            isinstance(o, Stop) and "not been eradicated after three" in o.reason.lower()
+            for o in outputs
+        )
 
         # ── SVG FLOWCHART ─────────────────────────────────────────────────
         C_MAIN    = "#16a34a"; C_UNVISIT = "#475569"; C_DIAMOND = "#1d4ed8"
@@ -317,9 +333,12 @@ with right:
 
         CX = 350; NW, NH = 170, 50; DW, DH = 180, 58; EW, EH = 140, 46
         LEXT = 30; REXT = W - 30 - EW
+
+        # Note: Alarm (Box 2) now sits ABOVE H. pylori test result (Box 3)
         Y = {
-            "present": 18,  "d_test": 100,  "order": 202, "d_result": 295,
-            "d_alarm": 398, "d_preg": 498,  "washout": 598, "treat": 688,
+            "present": 18,  "d_test": 100,  "order": 202,
+            "d_alarm": 295, "d_result": 398,
+            "d_preg": 498,  "washout": 598, "treat": 688,
             "d_erad": 778,  "complete": 878,
         }
 
@@ -335,37 +354,58 @@ with right:
         vline(CX, Y["d_test"]+DH, Y["order"], v2, label="Yes")
         rect_node(CX-NW/2, Y["order"], NW, NH, nc(v2), "Order HpSAT / UBT", sub="Pre-test washout req.")
 
+        # Box 2 – Alarm features
+        alarm_step_visited = v2
+        vline(CX, Y["order"]+NH, Y["d_alarm"], alarm_step_visited)
+        diamond_node(CX, Y["d_alarm"]+DH/2, DW, DH, dc(alarm_step_visited), "2. Alarm", "Features?")
+
+        urgent_alarm = has_alarm and alarm_step_visited
+        exit_node(REXT, Y["d_alarm"]+(DH-EH)/2, EW, EH,
+                  nc(urgent_alarm, urgent=True), "⚠ Urgent Refer", "GI / Endoscopy")
+        elbow_line(CX+DW/2, Y["d_alarm"]+DH/2, REXT, Y["d_alarm"]+(DH-EH)/2+EH/2,
+                   urgent_alarm, urgent=True, label="Yes")
+
+        # Box 3 – H. pylori test result, only if no alarm features
         v_res = patient_data.get("hp_test_result") is not None
-        vline(CX, Y["order"]+NH, Y["d_result"], v_res)
-        diamond_node(CX, Y["d_result"]+DH/2, DW, DH, dc(v_res), "3. H. pylori", "Test Result?")
-        exit_node(LEXT, Y["d_result"]+(DH-EH)/2, EW, EH, nc(test_negative, exit_=True), "Negative", "\u2192 Dyspepsia Path")
-        elbow_line(CX-DW/2, Y["d_result"]+DH/2, LEXT+EW, Y["d_result"]+(DH-EH)/2+EH/2, test_negative, exit_=True, label="\u2212")
+        v3    = alarm_step_visited and not has_alarm and v_res
+        vline(CX, Y["d_alarm"]+DH, Y["d_result"], v3, label="No")
+        diamond_node(CX, Y["d_result"]+DH/2, DW, DH, dc(v3), "3. H. pylori", "Test Result?")
 
-        vline(CX, Y["d_result"]+DH, Y["d_alarm"], is_positive, label="+")
-        diamond_node(CX, Y["d_alarm"]+DH/2, DW, DH, dc(is_positive), "2. Alarm", "Features?")
-        exit_node(REXT, Y["d_alarm"]+(DH-EH)/2, EW, EH, nc(has_alarm and is_positive, urgent=True), "\u26a0 Urgent Refer", "GI / Endoscopy")
-        elbow_line(CX+DW/2, Y["d_alarm"]+DH/2, REXT, Y["d_alarm"]+(DH-EH)/2+EH/2, has_alarm and is_positive, urgent=True, label="Yes")
+        # Negative → Dyspepsia pathway
+        v_neg = v3 and test_negative
+        exit_node(LEXT, Y["d_result"]+(DH-EH)/2, EW, EH,
+                  nc(v_neg, exit_=True), "Negative", "→ Dyspepsia Path")
+        elbow_line(CX-DW/2, Y["d_result"]+DH/2, LEXT+EW, Y["d_result"]+(DH-EH)/2+EH/2,
+                   v_neg, exit_=True, label="−")
 
-        v4 = is_positive and not has_alarm
-        vline(CX, Y["d_alarm"]+DH, Y["d_preg"], v4, label="No")
+        # Positive and no alarm → pregnancy / nursing
+        v4 = v3 and is_positive and not has_alarm
+        vline(CX, Y["d_result"]+DH, Y["d_preg"], v4, label="+")
         diamond_node(CX, Y["d_preg"]+DH/2, DW, DH, dc(v4), "Pregnancy /", "Nursing?")
-        v_preg = is_pregnant and is_positive
-        exit_node(REXT, Y["d_preg"]+(DH-EH)/2, EW, EH, nc(v_preg, urgent=True), "Do Not Treat", "Reassess postpartum")
-        elbow_line(CX+DW/2, Y["d_preg"]+DH/2, REXT, Y["d_preg"]+(DH-EH)/2+EH/2, v_preg, urgent=True, label="Yes")
+        v_preg = is_pregnant and is_positive and not has_alarm
+        exit_node(REXT, Y["d_preg"]+(DH-EH)/2, EW, EH,
+                  nc(v_preg, urgent=True), "Do Not Treat", "Reassess postpartum")
+        elbow_line(CX+DW/2, Y["d_preg"]+DH/2, REXT, Y["d_preg"]+(DH-EH)/2+EH/2,
+                   v_preg, urgent=True, label="Yes")
 
         v5 = v4 and not is_pregnant
         vline(CX, Y["d_preg"]+DH, Y["washout"], v5, label="No")
         rect_node(CX-NW/2, Y["washout"], NW, NH, nc(v5), "Washout Verified", sub="Abx / PPI / Bismuth")
+
         vline(CX, Y["washout"]+NH, Y["treat"], went_to_tx)
         rect_node(CX-NW/2, Y["treat"], NW, NH, nc(went_to_tx), "4. Treatment", "Selection", sub="1st/2nd/3rd/4th Line")
+
         vline(CX, Y["treat"]+NH, Y["d_erad"], has_followup)
         diamond_node(CX, Y["d_erad"]+DH/2, DW, DH, dc(has_followup), "5. Eradication", "Confirmed?")
+
+        # Failure branch – only highlight if eradication actually failed
         exit_node(REXT, Y["d_erad"]+(DH-EH)/2, EW, EH,
-                  nc(urgent_ref, urgent=True, exit_=not urgent_ref),
-                  "Failure", "\u2192 Next Line / Refer")
+                  nc(eradication_failed, urgent=eradication_failed, exit_=eradication_failed),
+                  "Failure", "→ Next Line / Refer")
         elbow_line(CX+DW/2, Y["d_erad"]+DH/2, REXT, Y["d_erad"]+(DH-EH)/2+EH/2,
-                   urgent_ref or has_followup, urgent=urgent_ref, exit_=not urgent_ref, label="No")
-        v8 = has_followup and not urgent_ref
+                   eradication_failed, urgent=eradication_failed, exit_=eradication_failed, label="No")
+
+        v8 = has_followup and not eradication_failed
         vline(CX, Y["d_erad"]+DH, Y["complete"], v8, exit_=v8, label="Yes")
         rect_node(CX-NW/2, Y["complete"], NW, NH, nc(v8, exit_=v8), "Pathway Complete", sub="Re-infection < 2%")
 
@@ -381,7 +421,7 @@ with right:
             lx += 110
         svg.append("</svg>")
 
-        st.subheader("\U0001f5fa\ufe0f Pathway Followed")
+        st.subheader("🗺️ Pathway Followed")
         components.html(
             '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
             + "".join(svg) + "</div>",
@@ -392,8 +432,8 @@ with right:
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
-        hp_disp  = {"positive": "\u2705 Positive", "negative": "\u274c Negative", None: "Not yet tested"}
-        test_str = hp_disp.get(patient_data.get("hp_test_result"), "\u2014")
+        hp_disp  = {"positive": "✅ Positive", "negative": "❌ Negative", None: "Not yet tested"}
+        test_str = hp_disp.get(patient_data.get("hp_test_result"), "—")
         tx_labels = {1: "Treatment Naive", 2: "Second Line", 3: "Third Line", 4: "Fourth Line"}
         alarm_fields = [
             ("family_history_esophageal_or_gastric_cancer_first_degree", "Family hx cancer"),
@@ -408,16 +448,16 @@ with right:
         ]
         active_alarms = [label for key, label in alarm_fields if patient_data.get(key)]
         alarm_str = ", ".join(active_alarms) if active_alarms else "None"
-        pen_str   = "\u26a0\ufe0f Yes \u2014 penicillin-allergic regimens apply" if penicillin_allergy else "No"
+        pen_str   = "⚠️ Yes — penicillin-allergic regimens apply" if penicillin_allergy else "No"
 
         st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
         st.markdown(
             '<div class="ctx-card">'
-            f'<span>\U0001f9d1 <b>Age / Sex:</b> {age} / {sex.capitalize()}</span><br>'
-            f'<span>\U0001f9a0 <b>H. Pylori Test:</b> {test_str} &nbsp;|&nbsp; <b>Test Type:</b> {hp_test_type}</span><br>'
-            f'<span>\U0001f48a <b>Treatment Line:</b> {tx_labels.get(tx_map[tx_line_sel], "\u2014")}</span><br>'
-            f'<span>\U0001f9ec <b>Penicillin Allergy:</b> {pen_str}</span><br>'
-            f'<span>\u26a0\ufe0f <b>Alarm Features:</b> {alarm_str}</span>'
+            f'<span>🧑 <b>Age / Sex:</b> {age} / {sex.capitalize()}</span><br>'
+            f'<span>🦠 <b>H. Pylori Test:</b> {test_str} &nbsp;|&nbsp; <b>Test Type:</b> {hp_test_type}</span><br>'
+            f'<span>💊 <b>Treatment Line:</b> {tx_labels.get(tx_map[tx_line_sel], "—")}</span><br>'
+            f'<span>🧬 <b>Penicillin Allergy:</b> {pen_str}</span><br>'
+            f'<span>⚠️ <b>Alarm Features:</b> {alarm_str}</span>'
             "</div>",
             unsafe_allow_html=True,
         )
@@ -438,14 +478,14 @@ with right:
                 for m in r["medications"]
             )
             notes_html = (
-                f'<p class="med-note">\U0001f4dd {r["notes"]}</p>'
+                f'<p class="med-note">📝 {r["notes"]}</p>'
                 if r.get("notes") else ""
             )
             return (
                 '<div class="med-table-wrap">'
                 '<div class="med-table-header">'
-                f'\U0001f4cb {r["name"]} &nbsp;|&nbsp; \u23f1 {r["duration"]}'
-                f' &nbsp;|&nbsp; \U0001f48a {r["approx_cost"]}'
+                f'📋 {r["name"]} &nbsp;|&nbsp; ⏱ {r["duration"]}'
+                f' &nbsp;|&nbsp; 💊 {r["approx_cost"]}'
                 "</div>"
                 f'<table style="border-collapse:collapse;width:100%">{rows}</table>'
                 f"{notes_html}"
@@ -457,16 +497,12 @@ with right:
                 return ""
             items = ""
             if isinstance(details, dict):
-                # Primary bullet list
                 for bullet in details.get("bullets", []):
                     items += f"<li>{bullet}</li>"
-                # Advisory notes shown after bullets
                 for note in details.get("notes", []):
-                    items += f'<li style="color:#fde68a">\u26a0\ufe0f {note}</li>'
-                # Evidence / source notes
+                    items += f'<li style="color:#fde68a">⚠️ {note}</li>'
                 for src in details.get("supported_by", []):
-                    items += f"<li>\U0001f4cc {src}</li>"
-                # Fallback: any other keys except reserved ones
+                    items += f"<li>📌 {src}</li>"
                 skip = {"bullets", "notes", "supported_by", "regimen_key"}
                 for k, v in details.items():
                     if k in skip:
@@ -499,7 +535,7 @@ with right:
             detail_html = _detail_html(a.details)
             override_html = (
                 '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
-                "\U0001f512 Override available \u2014 reason required</p>"
+                "🔒 Override available — reason required</p>"
                 if a.override_options else ""
             )
 
@@ -527,7 +563,7 @@ with right:
                 st.markdown(
                     '<div class="action-card warning">'
                     f'<h4><span class="badge warning">DATA NEEDED</span>'
-                    f' \u23f3 {msg_html}</h4>'
+                    f' ⏳ {msg_html}</h4>'
                     f'<ul><li>Missing fields: {missing_str}</li></ul>'
                     "</div>",
                     unsafe_allow_html=True,
@@ -544,7 +580,7 @@ with right:
                 st.markdown(
                     '<div class="action-card stop">'
                     f'<h4><span class="badge stop">STOP</span>'
-                    f' \U0001f6d1 {reason_html}</h4>'
+                    f' 🛑 {reason_html}</h4>'
                     "</div>",
                     unsafe_allow_html=True,
                 )
@@ -566,8 +602,8 @@ with right:
                 field   = opt["field"]
                 allowed = opt.get("allowed", [True, False])
 
-                with st.expander(f"\u2699\ufe0f Override: **{node}** \u2192 `{field}`"):
-                    preview = a.label[:120] + ("\u2026" if len(a.label) > 120 else "")
+                with st.expander(f"⚙️ Override: **{node}** → `{field}`"):
+                    preview = a.label[:120] + ("…" if len(a.label) > 120 else "")
                     st.markdown(
                         f'<div class="override-card">Engine decision based on: <b>{preview}</b></div>',
                         unsafe_allow_html=True,
@@ -593,7 +629,7 @@ with right:
                     )
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("\u2705 Apply Override", key=f"ov_apply_{node}_{field}"):
+                        if st.button("✅ Apply Override", key=f"ov_apply_{node}_{field}"):
                             if not reason.strip():
                                 st.error("A reason is required to apply an override.")
                             else:
@@ -610,9 +646,9 @@ with right:
                                         reason=reason.strip(),
                                     )
                                 )
-                                st.success("Override applied. Click **\u25b6 Run Pathway** to re-evaluate.")
+                                st.success("Override applied. Click **▶ Run Pathway** to re-evaluate.")
                     with col2:
-                        if existing and st.button("\U0001f5d1 Remove Override", key=f"ov_remove_{node}_{field}"):
+                        if existing and st.button("🗑 Remove Override", key=f"ov_remove_{node}_{field}"):
                             st.session_state.hp_overrides = [
                                 o for o in st.session_state.hp_overrides
                                 if not (o.target_node == node and o.field == field)
@@ -624,7 +660,7 @@ with right:
                 for o in st.session_state.hp_overrides:
                     st.markdown(
                         '<div class="override-card">'
-                        f'\U0001f527 <b>{o.target_node}</b> \u2192 <code>{o.field}</code>'
+                        f'🛠 <b>{o.target_node}</b> → <code>{o.field}</code>'
                         f' set to <b>{o.new_value}</b><br>'
                         f'<span style="color:#a5b4fc">Reason: {o.reason}</span><br>'
                         f'<span style="color:#64748b;font-size:11px">'
@@ -634,13 +670,13 @@ with right:
                     )
 
         # ── DECISION AUDIT LOG ────────────────────────────────────────────
-        with st.expander("\U0001f4cb Decision Audit Log"):
+        with st.expander("📋 Decision Audit Log"):
             for log in logs:
                 try:
                     ts = datetime.fromisoformat(log.timestamp).strftime("%H:%M:%S")
                 except Exception:
-                    ts = "\u2014"
-                st.markdown(f"**[{ts}] {log.node}** \u2192 _{log.decision}_")
+                    ts = "—"
+                st.markdown(f"**[{ts}] {log.node}** → _{log.decision}_")
                 if log.used_inputs:
                     st.caption(
                         "  ".join(
@@ -652,5 +688,5 @@ with right:
 
     else:
         st.info(
-            "Fill in patient details on the left, then click **\u25b6 Run Pathway**."
+            "Fill in patient details on the left, then click **▶ Run Pathway**."
         )
