@@ -12,6 +12,31 @@ st.markdown("""
     [data-testid="stStatusWidget"] {display: none !important;}
     .stAppDeployButton {display: none !important;}
     div[class*="viewerBadge"] {display: none !important;}
+    
+    /* Card Shading and Hover Effects */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        background-color: #ffffff;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:hover {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        transform: translateY(-3px);
+    }
+    
+    /* Dark mode support for the background color */
+    @media (prefers-color-scheme: dark) {
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            background-color: #1e1e1e;
+            border: 1px solid #333333 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"]:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.7);
+        }
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -79,7 +104,6 @@ with r2c3:
             st.page_link("pages/6_HRRB.py", label="Open →", use_container_width=True)
         with pdf:
             st.link_button("PDF", "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-cancer-high-risk-rectal-bleeding-pathway.pdf", use_container_width=True)
-
 
 # ── ROW 3 ──
 st.markdown("<br>", unsafe_allow_html=True)
