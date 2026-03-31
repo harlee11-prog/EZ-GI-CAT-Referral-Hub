@@ -8,69 +8,194 @@ from h_pylori_engine_v2 import (
     REGIMEN_DETAILS,
 )
 from datetime import datetime
-from io import BytesIO
-from fpdf import FPDF
+import io
+import html
+import markdown2
+from xhtml2pdf import pisa
 
 st.set_page_config(page_title="H. Pylori", page_icon="🦠", layout="wide")
 
-# ── PDF HELPER ───────────────────────────────────────────────────────────────
-def build_h_pylori_report_text(patient_data, outputs, overrides, notes: str) -> str:
+# ── MARKDOWN / PDF HELPERS ──────────────────────────────────────────────────
+def _safe_text(text) -> str:
+    if text is None:
+        return ""
+    return " ".join(str(text).replace("\u00a0", " ").split())
+
+
+def build_h_pylori_markdown(patient_data, outputs, overrides, notes: str) -> str:
     lines = []
-    lines.append("H. Pylori Pathway - Clinical Summary")
-    lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    lines.append("# H. Pylori Pathway - Clinical Summary")
     lines.append("")
-    lines.append("PATIENT CONTEXT")
-    lines.append(f"- Age / Sex: {patient_data.get('age')} / {str(patient_data.get('sex')).capitalize()}")
-    lines.append(f"- H. pylori test result: {patient_data.get('hp_test_result')}")
-    lines.append(f"- Test type: {patient_data.get('hp_test_type')}")
-    lines.append(f"- Treatment line: {patient_data.get('treatment_line')}")
-    lines.append(f"- Penicillin allergy: {patient_data.get('penicillin_allergy')}")
-    lines.append(f"- Pregnant: {patient_data.get('pregnant')}")
-    lines.append(f"- Breastfeeding: {patient_data.get('breastfeeding')}")
-    lines.append(f"- Symptoms persist: {patient_data.get('symptoms_persist')}")
-    lines.append(f"- Eradication test result: {patient_data.get('eradication_test_result')}")
+    lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    lines.append("")
+    lines.append("## Patient Context")
+    lines.append(f"- **Age / Sex:** {patient_data.get('age')} / {str(patient_data.get('sex')).capitalize()}")
+    lines.append(f"- **H. pylori test result:** {_safe_text(patient_data.get('hp_test_result')) or 'Not tested'}")
+    lines.append(f"- **Test type:** {_safe_text(patient_data.get('hp_test_type')) or 'N/A'}")
+    lines.append(f"- **Treatment line:** {_safe_text(patient_data.get('treatment_line')) or 'N/A'}")
+    lines.append(f"- **Penicillin allergy:** {_safe_text(patient_data.get('penicillin_allergy')) or 'No / not documented'}")
+    lines.append(f"- **Pregnant:** {_safe_text(patient_data.get('pregnant')) or 'No / not documented'}")
+    lines.append(f"- **Breastfeeding:** {_safe_text(patient_data.get('breastfeeding')) or 'No / not documented'}")
+    lines.append(f"- **Symptoms persist:** {_safe_text(patient_data.get('symptoms_persist')) or 'Unknown'}")
+    lines.append(f"- **Eradication test result:** {_safe_text(patient_data.get('eradication_test_result')) or 'Not done'}")
     lines.append("")
 
-    lines.append("CLINICAL RECOMMENDATIONS")
-    for o in outputs:
-        if isinstance(o, Action):
-            urgency = (o.urgency or "info").upper()
-            label = " ".join(str(o.label).split())
-            lines.append(f"- [{urgency}] {label}")
-            if isinstance(o.details, dict):
-                for b in o.details.get("bullets", []):
-                    lines.append(f"  - {b}")
-                for n in o.details.get("notes", []):
-                    lines.append(f"  - Note: {n}")
+    lines.append("## Clinical Recommendations")
+    if not outputs:
+        lines.append("- No recommendations generated.")
+    else:
+        for o in outputs:
+            if isinstance(o, Action):
+                urgency = (o.urgency or "info").upper()
+                label = _safe_text(o.label)
+                lines.append(f"- **[{urgency}]** {label}")
 
-        elif isinstance(o, Stop):
-            reason = " ".join(str(o.reason).split())
-            lines.append(f"- [STOP] {reason}")
-            if getattr(o, "actions", None):
-                for a in o.actions:
-                    lines.append(f"  - Follow-up: {' '.join(str(a.label).split())}")
+                if isinstance(o.details, dict):
+                    regimen_key = o.details.get("regimen_key")
+                    if regimen_key and regimen_key in REGIMEN_DETAILS:
+                        r = REGIMEN_DETAILS[regimen_key]
+                        lines.append(f"  - Regimen: **{_safe_text(r.get('name'))}**")
+                        lines.append(f"  - Duration: {_safe_text(r.get('duration'))}")
+                        lines.append(f"  - Approx cost: {_safe_text(r.get('approx_cost'))}")
+                        meds = r.get("medications", [])
+                        if meds:
+                            lines.append("  - Medications:")
+                            for m in meds:
+                                drug = _safe_text(m.get("drug"))
+                                dose = _safe_text(m.get("dose"))
+                                freq = _safe_text(m.get("frequency"))
+                                lines.append(f"    - {drug}: {dose}, {freq}")
+                        if r.get("notes"):
+                            lines.append(f"  - Regimen note: {_safe_text(r.get('notes'))}")
 
-        elif isinstance(o, DataRequest):
-            msg = " ".join(str(o.message).split())
-            missing = ", ".join(o.missing_fields)
-            lines.append(f"- [DATA NEEDED] {msg}")
-            lines.append(f"  - Missing fields: {missing}")
-            if getattr(o, "suggested_actions", None):
-                for a in o.suggested_actions:
-                    lines.append(f"  - Suggested action: {' '.join(str(a.label).split())}")
+                    for b in o.details.get("bullets", []):
+                        lines.append(f"  - {_safe_text(b)}")
+                    for n in o.details.get("notes", []):
+                        lines.append(f"  - Note: {_safe_text(n)}")
+                    for s in o.details.get("supported_by", []):
+                        lines.append(f"  - Support: {_safe_text(s)}")
+
+                    skip = {"bullets", "notes", "supported_by", "regimen_key"}
+                    for k, v in o.details.items():
+                        if k in skip:
+                            continue
+                        if isinstance(v, list):
+                            for item in v:
+                                lines.append(f"  - {_safe_text(k).replace('_', ' ').title()}: {_safe_text(item)}")
+                        elif v not in (None, False, "", []):
+                            lines.append(f"  - {_safe_text(k).replace('_', ' ').title()}: {_safe_text(v)}")
+
+            elif isinstance(o, Stop):
+                reason = _safe_text(o.reason)
+                lines.append(f"- **[STOP]** {reason}")
+                if getattr(o, "actions", None):
+                    for a in o.actions:
+                        lines.append(f"  - Follow-up: {_safe_text(a.label)}")
+
+            elif isinstance(o, DataRequest):
+                msg = _safe_text(o.message)
+                missing = ", ".join(output_field for output_field in o.missing_fields)
+                lines.append(f"- **[DATA NEEDED]** {msg}")
+                lines.append(f"  - Missing fields: {missing}")
+                if getattr(o, "suggested_actions", None):
+                    for a in o.suggested_actions:
+                        lines.append(f"  - Suggested action: {_safe_text(a.label)}")
 
     lines.append("")
+    lines.append("## Active Overrides")
     if overrides:
-        lines.append("ACTIVE OVERRIDES")
         for ov in overrides:
-            lines.append(f"- {ov.target_node}.{ov.field} -> {ov.new_value} (Reason: {ov.reason})")
-        lines.append("")
+            lines.append(
+                f"- **{_safe_text(ov.target_node)}.{_safe_text(ov.field)}** -> "
+                f"`{_safe_text(ov.new_value)}` (Reason: {_safe_text(ov.reason)})"
+            )
+    else:
+        lines.append("- No active overrides.")
+    lines.append("")
 
-    lines.append("CLINICIAN NOTES")
-    lines.append(notes.strip() if notes.strip() else "No clinician notes entered.")
+    lines.append("## Clinician Notes")
+    lines.append(notes.strip() if notes and notes.strip() else "No clinician notes entered.")
     lines.append("")
 
     return "\n".join(lines)
+
+
+def markdown_to_pdf_bytes(md_text: str) -> bytes:
+    body_html = markdown2.markdown(
+        md_text,
+        extras=["tables", "fenced-code-blocks", "break-on-newline"]
+    )
+
+    full_html = f"""
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        @page {{
+          size: A4;
+          margin: 20mm 16mm 20mm 16mm;
+        }}
+        body {{
+          font-family: Helvetica, Arial, sans-serif;
+          font-size: 11pt;
+          line-height: 1.45;
+          color: #111111;
+        }}
+        h1 {{
+          font-size: 20pt;
+          margin: 0 0 12pt 0;
+          padding: 0 0 6pt 0;
+          border-bottom: 1px solid #cccccc;
+        }}
+        h2 {{
+          font-size: 14pt;
+          margin: 16pt 0 8pt 0;
+        }}
+        h3 {{
+          font-size: 12pt;
+          margin: 12pt 0 6pt 0;
+        }}
+        p {{
+          margin: 0 0 8pt 0;
+        }}
+        ul {{
+          margin: 0 0 8pt 18pt;
+        }}
+        li {{
+          margin: 0 0 4pt 0;
+        }}
+        code {{
+          font-family: Courier, monospace;
+          background: #f3f4f6;
+          padding: 1pt 3pt;
+        }}
+        table {{
+          width: 100%;
+          border-collapse: collapse;
+          margin: 8pt 0 10pt 0;
+        }}
+        th, td {{
+          border: 1px solid #d1d5db;
+          padding: 6pt;
+          vertical-align: top;
+          text-align: left;
+        }}
+        th {{
+          background: #f3f4f6;
+        }}
+      </style>
+    </head>
+    <body>
+      {body_html}
+    </body>
+    </html>
+    """
+
+    pdf_buffer = io.BytesIO()
+    result = pisa.CreatePDF(full_html, dest=pdf_buffer, encoding="utf-8")
+    if result.err:
+        raise ValueError("Markdown-to-PDF conversion failed.")
+    return pdf_buffer.getvalue()
 
 # ── GLOBAL CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
@@ -221,6 +346,8 @@ with left:
 
     if st.button("🔄 Clear Overrides", use_container_width=True):
         st.session_state.hp_overrides = []
+        if "hp_saved_output" in st.session_state:
+            del st.session_state["hp_saved_output"]
         st.rerun()
 
     override_panel = st.container()
@@ -290,18 +417,24 @@ with right:
         C_TEXT = "#ffffff"; C_DIM = "#94a3b8"; C_BG = "#0f172a"
 
         def nc(vis, urgent=False, exit_=False):
-            if not vis: return C_UNVISIT
-            if urgent: return C_URGENT
-            if exit_: return C_EXIT
+            if not vis:
+                return C_UNVISIT
+            if urgent:
+                return C_URGENT
+            if exit_:
+                return C_EXIT
             return C_MAIN
 
         def dc(vis):
             return C_DIAMOND if vis else C_UNVISIT
 
         def mid(vis, urgent=False, exit_=False):
-            if not vis: return "ma"
-            if urgent: return "mr"
-            if exit_: return "mo"
+            if not vis:
+                return "ma"
+            if urgent:
+                return "mr"
+            if exit_:
+                return "mo"
             return "mg"
 
         svg = []
@@ -328,7 +461,7 @@ with right:
             w = "bold" if bold else "normal"
             svg.append(
                 f'<text x="{x}" y="{y}" text-anchor="{anchor}" '
-                f'fill="{fill}" font-size="{size}" font-weight="{w}">{text}</text>'
+                f'fill="{fill}" font-size="{size}" font-weight="{w}">{html.escape(str(text))}</text>'
             )
 
         def rect_node(x, y, w, h, color, line1, line2="", sub="", rx=8):
@@ -418,10 +551,8 @@ with right:
         diamond_node(CX, Y["d_alarm"]+DH/2, DW, DH, dc(alarm_step_visited), "2. Alarm", "Features?")
 
         urgent_alarm = has_alarm and alarm_step_visited
-        exit_node(REXT, Y["d_alarm"]+(DH-EH)/2, EW, EH,
-                  nc(urgent_alarm, urgent=True), "⚠ Urgent Refer", "GI / Endoscopy")
-        elbow_line(CX+DW/2, Y["d_alarm"]+DH/2, REXT, Y["d_alarm"]+(DH-EH)/2+EH/2,
-                   urgent_alarm, urgent=True, label="Yes")
+        exit_node(REXT, Y["d_alarm"]+(DH-EH)/2, EW, EH, nc(urgent_alarm, urgent=True), "⚠ Urgent Refer", "GI / Endoscopy")
+        elbow_line(CX+DW/2, Y["d_alarm"]+DH/2, REXT, Y["d_alarm"]+(DH-EH)/2+EH/2, urgent_alarm, urgent=True, label="Yes")
 
         v_res = patient_data.get("hp_test_result") is not None
         v3 = alarm_step_visited and not has_alarm and v_res
@@ -429,19 +560,15 @@ with right:
         diamond_node(CX, Y["d_result"]+DH/2, DW, DH, dc(v3), "3. H. pylori", "Test Result?")
 
         v_neg = v3 and test_negative
-        exit_node(LEXT, Y["d_result"]+(DH-EH)/2, EW, EH,
-                  nc(v_neg, exit_=True), "Negative", "→ Dyspepsia Path")
-        elbow_line(CX-DW/2, Y["d_result"]+DH/2, LEXT+EW, Y["d_result"]+(DH-EH)/2+EH/2,
-                   v_neg, exit_=True, label="-")
+        exit_node(LEXT, Y["d_result"]+(DH-EH)/2, EW, EH, nc(v_neg, exit_=True), "Negative", "→ Dyspepsia Path")
+        elbow_line(CX-DW/2, Y["d_result"]+DH/2, LEXT+EW, Y["d_result"]+(DH-EH)/2+EH/2, v_neg, exit_=True, label="-")
 
         v4 = v3 and is_positive and not has_alarm
         vline(CX, Y["d_result"]+DH, Y["d_preg"], v4, label="+")
         diamond_node(CX, Y["d_preg"]+DH/2, DW, DH, dc(v4), "Pregnancy /", "Nursing?")
         v_preg = is_pregnant and is_positive and not has_alarm
-        exit_node(REXT, Y["d_preg"]+(DH-EH)/2, EW, EH,
-                  nc(v_preg, urgent=True), "Do Not Treat", "Reassess postpartum")
-        elbow_line(CX+DW/2, Y["d_preg"]+DH/2, REXT, Y["d_preg"]+(DH-EH)/2+EH/2,
-                   v_preg, urgent=True, label="Yes")
+        exit_node(REXT, Y["d_preg"]+(DH-EH)/2, EW, EH, nc(v_preg, urgent=True), "Do Not Treat", "Reassess postpartum")
+        elbow_line(CX+DW/2, Y["d_preg"]+DH/2, REXT, Y["d_preg"]+(DH-EH)/2+EH/2, v_preg, urgent=True, label="Yes")
 
         v5 = v4 and not is_pregnant
         vline(CX, Y["d_preg"]+DH, Y["washout"], v5, label="No")
@@ -521,18 +648,18 @@ with right:
                 return ""
             rows = "".join(
                 f'<tr>'
-                f'<td style="color:#93c5fd;padding:3px 12px 3px 0;min-width:200px">{m["drug"]}</td>'
-                f'<td style="padding:3px 12px 3px 0;color:#e2e8f0">{m["dose"]}</td>'
-                f'<td style="padding:3px 0;color:#a5f3fc">{m["frequency"]}</td>'
+                f'<td style="color:#93c5fd;padding:3px 12px 3px 0;min-width:200px">{html.escape(str(m["drug"]))}</td>'
+                f'<td style="padding:3px 12px 3px 0;color:#e2e8f0">{html.escape(str(m["dose"]))}</td>'
+                f'<td style="padding:3px 0;color:#a5f3fc">{html.escape(str(m["frequency"]))}</td>'
                 f'</tr>'
                 for m in r["medications"]
             )
-            notes_html = f'<p class="med-note">📝 {r["notes"]}</p>' if r.get("notes") else ""
+            notes_html = f'<p class="med-note">📝 {html.escape(str(r["notes"]))}</p>' if r.get("notes") else ""
             return (
                 '<div class="med-table-wrap">'
                 '<div class="med-table-header">'
-                f'📋 {r["name"]} &nbsp;|&nbsp; ⏱ {r["duration"]}'
-                f' &nbsp;|&nbsp; 💊 {r["approx_cost"]}'
+                f'📋 {html.escape(str(r["name"]))} &nbsp;|&nbsp; ⏱ {html.escape(str(r["duration"]))}'
+                f' &nbsp;|&nbsp; 💊 {html.escape(str(r["approx_cost"]))}'
                 "</div>"
                 f'<table style="border-collapse:collapse;width:100%">{rows}</table>'
                 f"{notes_html}"
@@ -545,21 +672,21 @@ with right:
             items = ""
             if isinstance(details, dict):
                 for bullet in details.get("bullets", []):
-                    items += f"<li>{bullet}</li>"
+                    items += f"<li>{html.escape(str(bullet))}</li>"
                 for note in details.get("notes", []):
-                    items += f'<li style="color:#fde68a">⚠️ {note}</li>'
+                    items += f'<li style="color:#fde68a">⚠️ {html.escape(str(note))}</li>'
                 for src in details.get("supported_by", []):
-                    items += f"<li>📌 {src}</li>"
+                    items += f"<li>📌 {html.escape(str(src))}</li>"
                 skip = {"bullets", "notes", "supported_by", "regimen_key"}
                 for k, v in details.items():
                     if k in skip:
                         continue
                     if isinstance(v, list) and v:
-                        items += "".join(f"<li>{i}</li>" for i in v)
+                        items += "".join(f"<li>{html.escape(str(i))}</li>" for i in v)
                     elif v not in (None, False, "", []):
-                        items += f"<li><b>{k}:</b> {v}</li>"
+                        items += f"<li><b>{html.escape(str(k))}:</b> {html.escape(str(v))}</li>"
             elif isinstance(details, list):
-                items = "".join(f"<li>{d}</li>" for d in details if str(d).strip())
+                items = "".join(f"<li>{html.escape(str(d))}</li>" for d in details if str(d).strip())
             return f'<ul style="margin:6px 0 0 16px;padding:0">{items}</ul>' if items else ""
 
         def render_action(a: Action, extra_cls: str = "") -> None:
@@ -572,7 +699,7 @@ with right:
                 cls = extra_cls
 
             badge_label = (a.urgency or "info").upper()
-            label_html = a.label.replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
+            label_html = html.escape(a.label).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
             med_html = _med_table_html(a.details.get("regimen_key")) if isinstance(a.details, dict) else ""
             detail_html = _detail_html(a.details)
             override_html = (
@@ -598,7 +725,7 @@ with right:
                 render_action(output)
             elif isinstance(output, DataRequest):
                 missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
-                msg_html = output.message.replace("\n", "<br>")
+                msg_html = html.escape(output.message).replace("\n", "<br>")
                 st.markdown(
                     '<div class="action-card warning">'
                     f'<h4><span class="badge warning">DATA NEEDED</span>'
@@ -610,7 +737,7 @@ with right:
                 for sa in output.suggested_actions:
                     render_action(sa, extra_cls="info")
             elif isinstance(output, Stop):
-                reason_html = output.reason.replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
+                reason_html = html.escape(output.reason).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
                 st.markdown(
                     '<div class="action-card stop">'
                     f'<h4><span class="badge stop">STOP</span>'
@@ -621,7 +748,6 @@ with right:
                 for a in output.actions:
                     render_action(a)
 
-        # ── CLINICIAN NOTES (no black bar) ───────────────────────────────
         st.markdown('<p class="section-label">CLINICIAN NOTES</p>', unsafe_allow_html=True)
         st.caption("Optional free-text notes to be attached to the clinical recommendations.")
         st.session_state.hp_notes = st.text_area(
@@ -678,20 +804,32 @@ with right:
             st.success("Output saved for this session.")
 
         if "hp_saved_output" in st.session_state:
-    report_text = build_h_pylori_report_text(
-        patient_data=patient_data,
-        outputs=outputs,
-        overrides=st.session_state.hp_overrides,
-        notes=st.session_state.hp_notes,
-    )
+            md_text = build_h_pylori_markdown(
+                patient_data=patient_data,
+                outputs=outputs,
+                overrides=st.session_state.hp_overrides,
+                notes=st.session_state.hp_notes,
+            )
 
-    st.download_button(
-        label="⬇️ Download clinical summary",
-        data=report_text,
-        file_name="h_pylori_summary.txt",
-        mime="text/plain",
-        key="hp_download_txt",
-    )
+            st.download_button(
+                label="⬇️ Download Markdown summary",
+                data=md_text.encode("utf-8"),
+                file_name="h_pylori_summary.md",
+                mime="text/markdown",
+                key="hp_download_md",
+            )
+
+            try:
+                pdf_bytes = markdown_to_pdf_bytes(md_text)
+                st.download_button(
+                    label="⬇️ Download PDF summary",
+                    data=pdf_bytes,
+                    file_name="h_pylori_summary.pdf",
+                    mime="application/pdf",
+                    key="hp_download_pdf",
+                )
+            except Exception as e:
+                st.warning(f"PDF conversion unavailable: {e}")
 
         def _pretty(s: str) -> str:
             return s.replace("_", " ").title()
@@ -716,7 +854,7 @@ with right:
                     with st.expander(f"⚙️ Override: **{node}** → `{field}`"):
                         preview = a.label[:120] + ("…" if len(a.label) > 120 else "")
                         st.markdown(
-                            f'<div class="override-card">Engine decision based on: <b>{preview}</b></div>',
+                            f'<div class="override-card">Engine decision based on: <b>{html.escape(preview)}</b></div>',
                             unsafe_allow_html=True,
                         )
                         existing = next(
@@ -771,9 +909,9 @@ with right:
                     for o in st.session_state.hp_overrides:
                         st.markdown(
                             '<div class="override-card">'
-                            f'🛠 <b>{_pretty(o.target_node)}</b> → <code>{_pretty(o.field)}</code>'
-                            f' set to <b>{o.new_value}</b><br>'
-                            f'<span style="color:#a5b4fc">Reason: {o.reason}</span><br>'
+                            f'🛠 <b>{html.escape(_pretty(o.target_node))}</b> → <code>{html.escape(_pretty(o.field))}</code>'
+                            f' set to <b>{html.escape(str(o.new_value))}</b><br>'
+                            f'<span style="color:#a5b4fc">Reason: {html.escape(o.reason)}</span><br>'
                             f'<span style="color:#64748b;font-size:11px">'
                             f'Applied: {o.created_at.strftime("%H:%M:%S")}</span>'
                             "</div>",
@@ -793,5 +931,6 @@ with right:
                             f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None
                         )
                     )
+
     else:
         st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
