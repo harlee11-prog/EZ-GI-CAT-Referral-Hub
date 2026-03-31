@@ -169,7 +169,7 @@ with r4c3:
         st.markdown("### 🎗️ Gastric Cancer")
         nav, pdf = st.columns([2, 1])
         with nav:
-            st.page_link("pages/12_Gastric_Cancer.py", label="Open →", use_container_width=True)
+            st.page_link("pages/12_Gastric_Cancer_draft.py", label="Open →", use_container_width=True)
         with pdf:
             st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/info/aph/if-aph-prov-gastric-cancer-prevention-screening-and-diagnosis-primary-care-pathway.pdf", use_container_width=True)", use_container_width=True)
 
