@@ -81,9 +81,6 @@ if "hp_has_run" not in st.session_state:
 if "hp_custom_text" not in st.session_state:
     st.session_state.hp_custom_text = ""
 
-# global list of override-able actions for the current evaluation
-override_candidates = []
-
 left, right = st.columns([1, 1.5])
 
 # ── LEFT PANEL ───────────────────────────────────────────────────────────────
@@ -470,7 +467,7 @@ with right:
 
         # ── RENDER HELPERS ────────────────────────────────────────────────
         global override_candidates
-        override_candidates = []
+        override_candidates: list = []
 
         def _med_table_html(key: str) -> str:
             r = REGIMEN_DETAILS.get(key)
