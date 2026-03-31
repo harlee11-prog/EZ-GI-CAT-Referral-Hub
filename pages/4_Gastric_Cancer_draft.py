@@ -130,7 +130,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🎗️ Gastric Cancer Pathway")
+st.title("Gastric Cancer Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
