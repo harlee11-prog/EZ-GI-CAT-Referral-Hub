@@ -47,20 +47,28 @@ def _pdf_safe(text) -> str:
     return text.encode("latin-1", "replace").decode("latin-1")
 
 
+def _mc(pdf, text, h=6):
+    safe_width = pdf.w - pdf.l_margin - pdf.r_margin
+    pdf.multi_cell(safe_width, h, _pdf_safe(text))
+
+
 def build_h_pylori_pdf(patient_data, outputs, overrides, notes: str) -> bytes:
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
+    pdf.set_margins(15, 15, 15)
 
+    # Title
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "H. Pylori Pathway - Clinical Summary", new_x="LMARGIN", new_y="NEXT")
+    _mc(pdf, "H. Pylori Pathway - Clinical Summary", h=8)
 
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 6, _pdf_safe(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"), new_x="LMARGIN", new_y="NEXT")
+    _mc(pdf, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
-    pdf.ln(3)
+    # Patient context
+    pdf.ln(2)
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 8, "Patient Context", new_x="LMARGIN", new_y="NEXT")
+    _mc(pdf, "Patient Context", h=7)
 
     pdf.set_font("Helvetica", "", 11)
     context_lines = [
@@ -75,65 +83,65 @@ def build_h_pylori_pdf(patient_data, outputs, overrides, notes: str) -> bytes:
         f"Eradication test result: {patient_data.get('eradication_test_result')}",
     ]
     for line in context_lines:
-        pdf.multi_cell(0, 6, _pdf_safe(line))
+        _mc(pdf, line)
 
-    pdf.ln(3)
+    # Recommendations
+    pdf.ln(2)
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 8, "Clinical Recommendations", new_x="LMARGIN", new_y="NEXT")
+    _mc(pdf, "Clinical Recommendations", h=7)
     pdf.set_font("Helvetica", "", 11)
 
     for o in outputs:
         if isinstance(o, Action):
-            label = _pdf_safe(" ".join(str(o.label).split()))
-            urgency = _pdf_safe((o.urgency or "info").upper())
-            pdf.multi_cell(0, 6, f"- [{urgency}] {label}")
+            label = " ".join(str(o.label).split())
+            urgency = (o.urgency or "info").upper()
+            _mc(pdf, f"- [{urgency}] {label}")
 
             if isinstance(o.details, dict):
-                bullets = o.details.get("bullets", [])
-                notes_list = o.details.get("notes", [])
-                for b in bullets:
-                    pdf.multi_cell(0, 6, f"   - {_pdf_safe(b)}")
-                for n in notes_list:
-                    pdf.multi_cell(0, 6, f"   - Note: {_pdf_safe(n)}")
+                for b in o.details.get("bullets", []):
+                    _mc(pdf, f"   - {b}")
+                for n in o.details.get("notes", []):
+                    _mc(pdf, f"   - Note: {n}")
             pdf.ln(1)
 
         elif isinstance(o, Stop):
-            reason = _pdf_safe(" ".join(str(o.reason).split()))
-            pdf.multi_cell(0, 6, f"- [STOP] {reason}")
+            reason = " ".join(str(o.reason).split())
+            _mc(pdf, f"- [STOP] {reason}")
             if getattr(o, "actions", None):
                 for a in o.actions:
-                    pdf.multi_cell(0, 6, f"   - Follow-up: {_pdf_safe(' '.join(str(a.label).split()))}")
+                    _mc(pdf, f"   - Follow-up: {' '.join(str(a.label).split())}")
             pdf.ln(1)
 
         elif isinstance(o, DataRequest):
-            msg = _pdf_safe(" ".join(str(o.message).split()))
-            missing = _pdf_safe(", ".join(o.missing_fields))
-            pdf.multi_cell(0, 6, f"- [DATA NEEDED] {msg}")
-            pdf.multi_cell(0, 6, f"   - Missing fields: {missing}")
+            msg = " ".join(str(o.message).split())
+            missing = ", ".join(o.missing_fields)
+            _mc(pdf, f"- [DATA NEEDED] {msg}")
+            _mc(pdf, f"   - Missing fields: {missing}")
             if getattr(o, "suggested_actions", None):
                 for a in o.suggested_actions:
-                    pdf.multi_cell(0, 6, f"   - Suggested action: {_pdf_safe(' '.join(str(a.label).split()))}")
+                    _mc(pdf, f"   - Suggested action: {' '.join(str(a.label).split())}")
             pdf.ln(1)
 
+    # Overrides
     if overrides:
-        pdf.ln(3)
+        pdf.ln(2)
         pdf.set_font("Helvetica", "B", 13)
-        pdf.cell(0, 8, "Active Overrides", new_x="LMARGIN", new_y="NEXT")
+        _mc(pdf, "Active Overrides", h=7)
         pdf.set_font("Helvetica", "", 11)
 
         for ov in overrides:
-            line = f"- {ov.target_node}.{ov.field} -> {ov.new_value} (Reason: {ov.reason})"
-            pdf.multi_cell(0, 6, _pdf_safe(line))
-            pdf.ln(1)
+            _mc(pdf, f"- {ov.target_node}.{ov.field} -> {ov.new_value} (Reason: {ov.reason})")
 
-    pdf.ln(3)
+    # Notes
+    pdf.ln(2)
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 8, "Clinician Notes", new_x="LMARGIN", new_y="NEXT")
+    _mc(pdf, "Clinician Notes", h=7)
     pdf.set_font("Helvetica", "", 11)
-    if notes.strip():
-        pdf.multi_cell(0, 6, _pdf_safe(notes.strip()))
+
+    if notes and notes.strip():
+        _mc(pdf, notes.strip())
     else:
-        pdf.multi_cell(0, 6, "No clinician notes entered.")
+        _mc(pdf, "No clinician notes entered.")
 
     pdf_bytes = pdf.output(dest="S")
     if isinstance(pdf_bytes, bytearray):
