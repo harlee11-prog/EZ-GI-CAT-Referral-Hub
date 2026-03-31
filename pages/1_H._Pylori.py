@@ -10,7 +10,7 @@ from h_pylori_engine_v2 import (
     REGIMEN_DETAILS,
 )
 
-st.set_page_config(page_title="H. Pylori", page_icon="🦠", layout="wide")
+st.set_page_config(page_title="H. Pylori", page_icon="", layout="wide")
 
 # ── MARKDOWN / PDF HELPERS ──────────────────────────────────────────────────
 def _safe_text(text) -> str:
