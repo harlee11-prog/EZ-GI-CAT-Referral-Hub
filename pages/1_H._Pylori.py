@@ -248,7 +248,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🦠 H. Pylori Pathway")
+st.title(" H. Pylori Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
