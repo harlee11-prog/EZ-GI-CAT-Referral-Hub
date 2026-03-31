@@ -12,6 +12,12 @@ import io
 import html
 import markdown2
 from xhtml2pdf import pisa
+PDF_EXPORT_AVAILABLE = True
+except ModuleNotFoundError:
+    markdown2 = None
+    pisa = None
+    PDF_EXPORT_AVAILABLE = False
+
 
 st.set_page_config(page_title="H. Pylori", page_icon="🦠", layout="wide")
 
@@ -818,7 +824,8 @@ with right:
                 mime="text/markdown",
                 key="hp_download_md",
             )
-
+            
+        if PDF_EXPORT_AVAILABLE:
             try:
                 pdf_bytes = markdown_to_pdf_bytes(md_text)
                 st.download_button(
