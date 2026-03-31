@@ -470,8 +470,8 @@ with right:
         vline(CX, Y["n3"]+DH, Y["n4"], v_med, label="No")
         diamond_node(CX, Y["n4"]+DH/2, DW, DH, dc(v_med), "4. Med/Lifestyle Review", "Symptoms improve?")
         exit_node(REXT, Y["n4"]+(DH-EH)/2, EW, EH, nc(exit_med, success=True), "No Further Action", "Symptoms Resolved")
-        elbow_line(CX+DW/2, Y["n4"]+DH/2, REXT, Y["n4"]+(DH-EH)/2+EH/2, exit_med, success=True, label="Yes")
-
+        elbow_line(CX+DW/2, Y["n4"]+DH/2, REXT, Y["n4"]+(DH-EH)/2+EH/2, exit_med, label="Yes")
+        
         # 5. Baseline Investigations
         vline(CX, Y["n4"]+DH, Y["n5"], v_base, label="No")
         diamond_node(CX, Y["n5"]+DH/2, DW, DH, dc(v_base), "5. Baseline Labs", "Abnormal?")
