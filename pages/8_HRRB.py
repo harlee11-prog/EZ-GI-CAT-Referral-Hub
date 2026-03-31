@@ -8,7 +8,7 @@ import io
 # Import the HRRB engine. Adjust the module name if the file is named differently.
 from hrrb_engine import run_hrrb_pathway, Action, DataRequest, Stop, Override
 
-st.set_page_config(page_title="High Risk Rectal Bleeding", page_icon="🩸", layout="wide")
+st.set_page_config(page_title="High Risk Rectal Bleeding", layout="wide")
 
 # ── MARKDOWN HELPERS ────────────────────────────────────────────────────────
 def _safe_text(text) -> str:
@@ -119,7 +119,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🩸 High Risk Rectal Bleeding Pathway")
+st.title("High Risk Rectal Bleeding Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
