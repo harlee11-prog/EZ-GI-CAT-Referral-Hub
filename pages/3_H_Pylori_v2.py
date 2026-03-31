@@ -81,6 +81,9 @@ if "hp_has_run" not in st.session_state:
 if "hp_custom_text" not in st.session_state:
     st.session_state.hp_custom_text = ""
 
+# global list of override-able actions for the current evaluation
+override_candidates = []
+
 left, right = st.columns([1, 1.5])
 
 # ── LEFT PANEL ───────────────────────────────────────────────────────────────
@@ -231,134 +234,182 @@ with right:
             for o in outputs
         )
 
-        # ── SVG FLOWCHART (unchanged from previous fixed version) ─────────
-        # [flowchart code omitted here for brevity – keep exactly as in the previous
-        # working version you liked, including Alarm as box 2 and correct Failure flag]
-        # --------------------------------------------------------------
+        # ── SVG FLOWCHART ─────────────────────────────────────────────────
+        C_MAIN    = "#16a34a"; C_UNVISIT = "#475569"; C_DIAMOND = "#1d4ed8"
+        C_URGENT  = "#dc2626"; C_EXIT    = "#d97706"
+        C_TEXT    = "#ffffff"; C_DIM     = "#94a3b8"; C_BG      = "#0f172a"
 
-        # (Paste the same flowchart section from the last version here.)
+        def nc(vis, urgent=False, exit_=False):
+            if not vis:  return C_UNVISIT
+            if urgent:   return C_URGENT
+            if exit_:    return C_EXIT
+            return C_MAIN
 
-        # ── PATIENT CONTEXT CARD & ACTION RENDERING ───────────────────────
-        # [unchanged from previous version, until after render_action loop]
+        def dc(vis):
+            return C_DIAMOND if vis else C_UNVISIT
 
-        # ... keep the same PATIENT CONTEXT and render_action / outputs loop ...
-        # after finishing rendering all outputs, add the custom text block:
+        def mid(vis, urgent=False, exit_=False):
+            if not vis: return "ma"
+            if urgent:  return "mr"
+            if exit_:   return "mo"
+            return "mg"
 
-        # ── CUSTOM EDITABLE TEXT BLOCK ────────────────────────────────────
-        st.markdown('<p class="section-label">EDITABLE SUMMARY</p>', unsafe_allow_html=True)
-        with st.container():
-            st.markdown('<div class="custom-text-card">', unsafe_allow_html=True)
-            st.caption("Clinician-edited summary for exporting into other systems.")
-            st.session_state.hp_custom_text = st.text_area(
-                "",
-                value=st.session_state.hp_custom_text,
-                height=140,
-                label_visibility="collapsed",
+        svg = []
+        W, H = 700, 950
+        svg.append(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="' + str(H) + '" '
+            'viewBox="0 0 ' + str(W) + ' ' + str(H) + '" '
+            'style="background:' + C_BG + ';border-radius:12px;font-family:Arial,sans-serif">'
+        )
+        svg.append(
+            "<defs>"
+            '<marker id="ma" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
+            '<path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>'
+            '<marker id="mg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
+            '<path d="M0,0 L0,6 L9,3 z" fill="#16a34a"/></marker>'
+            '<marker id="mr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
+            '<path d="M0,0 L0,6 L9,3 z" fill="#dc2626"/></marker>'
+            '<marker id="mo" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
+            '<path d="M0,0 L0,6 L9,3 z" fill="#d97706"/></marker>'
+            "</defs>"
+        )
+
+        def svgt(x, y, text, fill, size=11, bold=False, anchor="middle"):
+            w = "bold" if bold else "normal"
+            svg.append(
+                f'<text x="{x}" y="{y}" text-anchor="{anchor}" '
+                f'fill="{fill}" font-size="{size}" font-weight="{w}">{text}</text>'
             )
-            st.markdown("</div>", unsafe_allow_html=True)
 
-        # ── CLINICIAN OVERRIDE PANEL (rendered in left column placeholder) ─
-        def _pretty(s: str) -> str:
-            return s.replace("_", " ").title()
+        def rect_node(x, y, w, h, color, line1, line2="", sub="", rx=8):
+            tc = C_TEXT if color != C_UNVISIT else C_DIM
+            svg.append(
+                f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
+                f'fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
+            )
+            if line2:
+                svgt(x+w/2, y+h/2-8, line1, tc, 11, True)
+                svgt(x+w/2, y+h/2+7, line2, tc, 11, True)
+            else:
+                svgt(x+w/2, y+h/2+4, line1, tc, 11, True)
+            if sub:
+                svgt(x+w/2, y+h-8, sub, tc+"99", 9)
 
-        with override_panel:
-            if override_candidates:
-                st.markdown("---")
-                st.markdown('<p class="section-label">CLINICIAN OVERRIDES</p>', unsafe_allow_html=True)
-                st.caption(
-                    "Override engine decisions where clinical judgement differs. "
-                    "A documented reason is required for each override."
-                )
+        def diamond_node(cx, cy, w, h, color, line1, line2=""):
+            tc = C_TEXT if color != C_UNVISIT else C_DIM
+            hw, hh = w/2, h/2
+            pts = f"{cx},{cy-hh} {cx+hw},{cy} {cx},{cy+hh} {cx-hw},{cy}"
+            svg.append(
+                f'<polygon points="{pts}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
+            )
+            if line2:
+                svgt(cx, cy-7, line1, tc, 10, True)
+                svgt(cx, cy+8, line2, tc, 10, True)
+            else:
+                svgt(cx, cy+4, line1, tc, 10, True)
 
-                for a in override_candidates:
-                    opt     = a.override_options
-                    raw_node  = opt["node"]
-                    raw_field = opt["field"]
-                    node  = _pretty(raw_node)
-                    field = _pretty(raw_field)
-                    allowed = opt.get("allowed", [True, False])
+        def exit_node(x, y, w, h, color, line1, line2="", rx=7):
+            tc = C_TEXT if color != C_UNVISIT else C_DIM
+            svg.append(
+                f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
+                f'fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
+            )
+            if line2:
+                svgt(x+w/2, y+h/2-7, line1, tc, 10, True)
+                svgt(x+w/2, y+h/2+7, line2, tc, 9)
+            else:
+                svgt(x+w/2, y+h/2+4, line1, tc, 10, True)
 
-                    with st.expander(f"⚙️ Override: **{node}** → `{field}`"):
-                        preview = a.label[:120] + ("…" if len(a.label) > 120 else "")
-                        st.markdown(
-                            f'<div class="override-card">Engine decision based on: <b>{preview}</b></div>',
-                            unsafe_allow_html=True,
-                        )
-                        existing = next(
-                            (o for o in st.session_state.hp_overrides
-                             if o.target_node == raw_node and o.field == raw_field),
-                            None,
-                        )
-                        current_val = existing.new_value if existing else None
-                        new_val = st.radio(
-                            f"Set `{field}` to:",
-                            options=allowed,
-                            index=allowed.index(current_val) if current_val in allowed else 0,
-                            key=f"ov_val_{raw_node}_{raw_field}",
-                            horizontal=True,
-                        )
-                        reason = st.text_input(
-                            "Reason (required):",
-                            value=existing.reason if existing else "",
-                            key=f"ov_reason_{raw_node}_{raw_field}",
-                            placeholder="Document clinical rationale...",
-                        )
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("✅ Apply Override", key=f"ov_apply_{raw_node}_{raw_field}"):
-                                if not reason.strip():
-                                    st.error("A reason is required to apply an override.")
-                                else:
-                                    st.session_state.hp_overrides = [
-                                        o for o in st.session_state.hp_overrides
-                                        if not (o.target_node == raw_node and o.field == raw_field)
-                                    ]
-                                    st.session_state.hp_overrides.append(
-                                        Override(
-                                            target_node=raw_node,
-                                            field=raw_field,
-                                            old_value=None,
-                                            new_value=new_val,
-                                            reason=reason.strip(),
-                                        )
-                                    )
-                                    st.success("Override applied. Click **▶ Run Pathway** to re-evaluate.")
-                        with col2:
-                            if existing and st.button("🗑 Remove Override", key=f"ov_remove_{raw_node}_{raw_field}"):
-                                st.session_state.hp_overrides = [
-                                    o for o in st.session_state.hp_overrides
-                                    if not (o.target_node == raw_node and o.field == raw_field)
-                                ]
-                                st.success("Override removed.")
+        def vline(x, y1, y2, vis, urgent=False, exit_=False, label=""):
+            m = mid(vis, urgent, exit_)
+            stroke = {"mg": "#16a34a", "mr": "#dc2626", "mo": "#d97706"}.get(m, "#64748b")
+            dash = "" if vis else 'stroke-dasharray="5,3"'
+            svg.append(
+                f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" '
+                f'stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>'
+            )
+            if label:
+                svgt(x+6, (y1+y2)/2-3, label, stroke, 10, True, "start")
 
-                if st.session_state.hp_overrides:
-                    st.markdown('<p class="section-label">ACTIVE OVERRIDES</p>', unsafe_allow_html=True)
-                    for o in st.session_state.hp_overrides:
-                        st.markdown(
-                            '<div class="override-card">'
-                            f'🛠 <b>{_pretty(o.target_node)}</b> → <code>{_pretty(o.field)}</code>'
-                            f' set to <b>{o.new_value}</b><br>'
-                            f'<span style="color:#a5b4fc">Reason: {o.reason}</span><br>'
-                            f'<span style="color:#64748b;font-size:11px">'
-                            f'Applied: {o.created_at.strftime("%H:%M:%S")}</span>'
-                            "</div>",
-                            unsafe_allow_html=True,
-                        )
+        def elbow_line(x1, y1, x2, y2, vis, urgent=False, exit_=False, label=""):
+            m = mid(vis, urgent, exit_)
+            stroke = {"mg": "#16a34a", "mr": "#dc2626", "mo": "#d97706"}.get(m, "#64748b")
+            dash = "" if vis else 'stroke-dasharray="5,3"'
+            svg.append(
+                f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" '
+                f'fill="none" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>'
+            )
+            if label:
+                svgt((x1+x2)/2, y1-5, label, stroke, 10, True)
 
-        # ── DECISION AUDIT LOG ────────────────────────────────────────────
-        with st.expander("📋 Decision Audit Log"):
-            for log in logs:
-                try:
-                    ts = datetime.fromisoformat(log.timestamp).strftime("%H:%M:%S")
-                except Exception:
-                    ts = "—"
-                st.markdown(f"**[{ts}] {log.node}** → _{log.decision}_")
-                if log.used_inputs:
-                    st.caption(
-                        "  ".join(
-                            f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None
-                        )
-                    )
+        CX = 350; NW, NH = 170, 50; DW, DH = 180, 58; EW, EH = 140, 46
+        LEXT = 30; REXT = W - 30 - EW
+        Y = {
+            "present": 18,  "d_test": 100,  "order": 202,
+            "d_alarm": 295, "d_result": 398,
+            "d_preg": 498,  "washout": 598, "treat": 688,
+            "d_erad": 778,  "complete": 878,
+        }
 
-    else:
-        st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
+        rect_node(CX-NW/2, Y["present"], NW, NH, nc(True), "Patient Presents")
+        vline(CX, Y["present"]+NH, Y["d_test"], True)
+        diamond_node(CX, Y["d_test"]+DH/2, DW, DH, dc(not is_pediatric), "1. Testing", "Indication?")
+        exit_node(REXT, Y["d_test"]+(DH-EH)/2, EW, EH, nc(is_pediatric, urgent=True), "Refer Peds GI", "Age < 18")
+        elbow_line(CX+DW/2, Y["d_test"]+DH/2, REXT, Y["d_test"]+(DH-EH)/2+EH/2, is_pediatric, urgent=True, label="Age<18")
+        exit_node(LEXT, Y["d_test"]+(DH-EH)/2, EW, EH, nc(no_indication, exit_=True), "No Indication", "Reassess")
+        elbow_line(CX-DW/2, Y["d_test"]+DH/2, LEXT+EW, Y["d_test"]+(DH-EH)/2+EH/2, no_indication, exit_=True, label="No")
+
+        v2 = not no_indication and not is_pediatric
+        vline(CX, Y["d_test"]+DH, Y["order"], v2, label="Yes")
+        rect_node(CX-NW/2, Y["order"], NW, NH, nc(v2), "Order HpSAT / UBT", sub="Pre-test washout req.")
+
+        # Box 2 – Alarm features
+        alarm_step_visited = v2
+        vline(CX, Y["order"]+NH, Y["d_alarm"], alarm_step_visited)
+        diamond_node(CX, Y["d_alarm"]+DH/2, DW, DH, dc(alarm_step_visited), "2. Alarm", "Features?")
+
+        urgent_alarm = has_alarm and alarm_step_visited
+        exit_node(REXT, Y["d_alarm"]+(DH-EH)/2, EW, EH,
+                  nc(urgent_alarm, urgent=True), "⚠ Urgent Refer", "GI / Endoscopy")
+        elbow_line(CX+DW/2, Y["d_alarm"]+DH/2, REXT, Y["d_alarm"]+(DH-EH)/2+EH/2,
+                   urgent_alarm, urgent=True, label="Yes")
+
+        # Box 3 – H. pylori test result (only if no alarm)
+        v_res = patient_data.get("hp_test_result") is not None
+        v3    = alarm_step_visited and not has_alarm and v_res
+        vline(CX, Y["d_alarm"]+DH, Y["d_result"], v3, label="No")
+        diamond_node(CX, Y["d_result"]+DH/2, DW, DH, dc(v3), "3. H. pylori", "Test Result?")
+
+        v_neg = v3 and test_negative
+        exit_node(LEXT, Y["d_result"]+(DH-EH)/2, EW, EH,
+                  nc(v_neg, exit_=True), "Negative", "→ Dyspepsia Path")
+        elbow_line(CX-DW/2, Y["d_result"]+DH/2, LEXT+EW, Y["d_result"]+(DH-EH)/2+EH/2,
+                   v_neg, exit_=True, label="−")
+
+        v4 = v3 and is_positive and not has_alarm
+        vline(CX, Y["d_result"]+DH, Y["d_preg"], v4, label="+")
+        diamond_node(CX, Y["d_preg"]+DH/2, DW, DH, dc(v4), "Pregnancy /", "Nursing?")
+        v_preg = is_pregnant and is_positive and not has_alarm
+        exit_node(REXT, Y["d_preg"]+(DH-EH)/2, EW, EH,
+                  nc(v_preg, urgent=True), "Do Not Treat", "Reassess postpartum")
+        elbow_line(CX+DW/2, Y["d_preg"]+DH/2, REXT, Y["d_preg"]+(DH-EH)/2+EH/2,
+                   v_preg, urgent=True, label="Yes")
+
+        v5 = v4 and not is_pregnant
+        vline(CX, Y["d_preg"]+DH, Y["washout"], v5, label="No")
+        rect_node(CX-NW/2, Y["washout"], NW, NH, nc(v5), "Washout Verified", sub="Abx / PPI / Bismuth")
+
+        vline(CX, Y["washout"]+NH, Y["treat"], went_to_tx)
+        rect_node(CX-NW/2, Y["treat"], NW, NH, nc(went_to_tx), "4. Treatment", "Selection", sub="1st/2nd/3rd/4th Line")
+
+        vline(CX, Y["treat"]+NH, Y["d_erad"], has_followup)
+        diamond_node(CX, Y["d_erad"]+DH/2, DW, DH, dc(has_followup), "5. Eradication", "Confirmed?")
+
+        exit_node(REXT, Y["d_erad"]+(DH-EH)/2, EW, EH,
+                  nc(eradication_failed, urgent=eradication_failed, exit_=eradication_failed),
+                  "Failure", "→ Next Line / Refer")
+        elbow_line(CX+DW/2, Y["d_erad"]+DH/2, REXT, Y["d_erad"]+(DH-EH)/2+EH/2,
+                   eradication_failed, urgent=eradication_failed, exit_=eradication_failed, label="No")
+
+        v8 = has_followup and not eradication_failed
+        vline(CX, Y["d_erad"]+DH, 
