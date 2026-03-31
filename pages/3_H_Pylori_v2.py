@@ -412,4 +412,303 @@ with right:
                    eradication_failed, urgent=eradication_failed, exit_=eradication_failed, label="No")
 
         v8 = has_followup and not eradication_failed
-        vline(CX, Y["d_erad"]+DH, 
+        vline(CX, Y["d_erad"]+DH, Y["complete"], v8, exit_=v8, label="Yes")
+        rect_node(CX-NW/2, Y["complete"], NW, NH, nc(v8, exit_=v8), "Pathway Complete", sub="Re-infection < 2%")
+
+        ly = H - 22; lx = 18
+        for col, lbl in [
+            (C_MAIN, "Visited"), (C_DIAMOND, "Decision"),
+            (C_URGENT, "Urgent"), (C_EXIT, "Exit/Off-ramp"), (C_UNVISIT, "Not reached"),
+        ]:
+            svg.append(
+                f'<rect x="{lx}" y="{ly-11}" width="12" height="12" rx="2" fill="{col}"/>'
+            )
+            svgt(lx+16, ly, lbl, "#94a3b8", 10, anchor="start")
+            lx += 110
+        svg.append("</svg>")
+
+        st.subheader("🗺️ Pathway Followed")
+        components.html(
+            '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
+            + "".join(svg) + "</div>",
+            height=980, scrolling=True,
+        )
+
+        # ── PATIENT CONTEXT CARD ──────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("Clinical Recommendations")
+
+        hp_disp  = {"positive": "✅ Positive", "negative": "❌ Negative", None: "Not yet tested"}
+        test_str = hp_disp.get(patient_data.get("hp_test_result"), "—")
+        tx_labels = {1: "Treatment Naive", 2: "Second Line", 3: "Third Line", 4: "Fourth Line"}
+        alarm_fields = [
+            ("family_history_esophageal_or_gastric_cancer_first_degree", "Family hx cancer"),
+            ("personal_history_peptic_ulcer_disease",                    "Peptic ulcer hx"),
+            ("age_over_60_new_persistent_symptoms_over_3_months",        "Age>60 new symptoms"),
+            ("unintended_weight_loss",                                   "Weight loss >5%"),
+            ("progressive_dysphagia",                                    "Dysphagia"),
+            ("persistent_vomiting_not_cannabis_related",                 "Persistent vomiting"),
+            ("black_stool_or_blood_in_vomit",                            "GI bleed signs"),
+            ("iron_deficiency_anemia_present",                           "IDA"),
+            ("clinician_concern_serious_pathology",                      "Clinician concern"),
+        ]
+        active_alarms = [label for key, label in alarm_fields if patient_data.get(key)]
+        alarm_str = ", ".join(active_alarms) if active_alarms else "None"
+        pen_str   = "⚠️ Yes — penicillin-allergic regimens apply" if penicillin_allergy else "No"
+
+        st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="ctx-card">'
+            f'<span>🧑 <b>Age / Sex:</b> {age} / {sex.capitalize()}</span><br>'
+            f'<span>🦠 <b>H. Pylori Test:</b> {test_str} &nbsp;|&nbsp; <b>Test Type:</b> {hp_test_type}</span><br>'
+            f'<span>💊 <b>Treatment Line:</b> {tx_labels.get(tx_map[tx_line_sel], "—")}</span><br>'
+            f'<span>🧬 <b>Penicillin Allergy:</b> {pen_str}</span><br>'
+            f'<span>⚠️ <b>Alarm Features:</b> {alarm_str}</span>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        # ── RENDER HELPERS ────────────────────────────────────────────────
+        global override_candidates
+        override_candidates = []
+
+        def _med_table_html(key: str) -> str:
+            r = REGIMEN_DETAILS.get(key)
+            if not r:
+                return ""
+            rows = "".join(
+                f'<tr>'
+                f'<td style="color:#93c5fd;padding:3px 12px 3px 0;min-width:200px">{m["drug"]}</td>'
+                f'<td style="padding:3px 12px 3px 0;color:#e2e8f0">{m["dose"]}</td>'
+                f'<td style="padding:3px 0;color:#a5f3fc">{m["frequency"]}</td>'
+                f'</tr>'
+                for m in r["medications"]
+            )
+            notes_html = (
+                f'<p class="med-note">📝 {r["notes"]}</p>'
+                if r.get("notes") else ""
+            )
+            return (
+                '<div class="med-table-wrap">'
+                '<div class="med-table-header">'
+                f'📋 {r["name"]} &nbsp;|&nbsp; ⏱ {r["duration"]}'
+                f' &nbsp;|&nbsp; 💊 {r["approx_cost"]}'
+                "</div>"
+                f'<table style="border-collapse:collapse;width:100%">{rows}</table>'
+                f"{notes_html}"
+                "</div>"
+            )
+
+        def _detail_html(details) -> str:
+            if not details:
+                return ""
+            items = ""
+            if isinstance(details, dict):
+                for bullet in details.get("bullets", []):
+                    items += f"<li>{bullet}</li>"
+                for note in details.get("notes", []):
+                    items += f'<li style="color:#fde68a">⚠️ {note}</li>'
+                for src in details.get("supported_by", []):
+                    items += f"<li>📌 {src}</li>"
+                skip = {"bullets", "notes", "supported_by", "regimen_key"}
+                for k, v in details.items():
+                    if k in skip:
+                        continue
+                    if isinstance(v, list) and v:
+                        items += "".join(f"<li>{i}</li>" for i in v)
+                    elif v not in (None, False, "", []):
+                        items += f"<li><b>{k}:</b> {v}</li>"
+            elif isinstance(details, list):
+                items = "".join(f"<li>{d}</li>" for d in details if str(d).strip())
+            return f'<ul style="margin:6px 0 0 16px;padding:0">{items}</ul>' if items else ""
+
+        def render_action(a: Action, extra_cls: str = "") -> None:
+            urgency_to_cls = {
+                "urgent": "urgent", "warning": "warning",
+                None: "routine", "": "routine",
+            }
+            cls = urgency_to_cls.get(a.urgency or "", "routine")
+            if extra_cls:
+                cls = extra_cls
+
+            badge_label = (a.urgency or "info").upper()
+            label_html = (
+                a.label
+                .replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;")
+                .replace("\n", "<br>")
+            )
+
+            med_html    = _med_table_html(a.details.get("regimen_key")) if isinstance(a.details, dict) else ""
+            detail_html = _detail_html(a.details)
+            override_html = (
+                '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
+                "🔒 Override available — reason required</p>"
+                if a.override_options else ""
+            )
+
+            st.markdown(
+                f'<div class="action-card {cls}">'
+                f'<h4><span class="badge {cls}">{badge_label}</span> {label_html}</h4>'
+                f"{med_html}{detail_html}{override_html}"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            if a.override_options:
+                override_candidates.append(a)
+
+        # ── RENDER ALL OUTPUTS ────────────────────────────────────────────
+        st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
+
+        for output in outputs:
+
+            if isinstance(output, Action):
+                render_action(output)
+
+            elif isinstance(output, DataRequest):
+                missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
+                msg_html    = output.message.replace("\n", "<br>")
+                st.markdown(
+                    '<div class="action-card warning">'
+                    f'<h4><span class="badge warning">DATA NEEDED</span>'
+                    f' ⏳ {msg_html}</h4>'
+                    f'<ul><li>Missing fields: {missing_str}</li></ul>'
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+                for sa in output.suggested_actions:
+                    render_action(sa, extra_cls="info")
+
+            elif isinstance(output, Stop):
+                reason_html = (
+                    output.reason
+                    .replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;")
+                    .replace("\n", "<br>")
+                )
+                st.markdown(
+                    '<div class="action-card stop">'
+                    f'<h4><span class="badge stop">STOP</span>'
+                    f' 🛑 {reason_html}</h4>'
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+                for a in output.actions:
+                    render_action(a)
+
+        # ── CUSTOM EDITABLE TEXT BLOCK ────────────────────────────────────
+        st.markdown('<p class="section-label">EDITABLE SUMMARY</p>', unsafe_allow_html=True)
+        with st.container():
+            st.markdown('<div class="custom-text-card">', unsafe_allow_html=True)
+            st.caption("Clinician-edited summary for exporting into other systems.")
+            st.session_state.hp_custom_text = st.text_area(
+                "",
+                value=st.session_state.hp_custom_text,
+                height=140,
+                label_visibility="collapsed",
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # ── CLINICIAN OVERRIDE PANEL (rendered in left column placeholder) ─
+        def _pretty(s: str) -> str:
+            return s.replace("_", " ").title()
+
+        with override_panel:
+            if override_candidates:
+                st.markdown("---")
+                st.markdown('<p class="section-label">CLINICIAN OVERRIDES</p>', unsafe_allow_html=True)
+                st.caption(
+                    "Override engine decisions where clinical judgement differs. "
+                    "A documented reason is required for each override."
+                )
+
+                for a in override_candidates:
+                    opt       = a.override_options
+                    raw_node  = opt["node"]
+                    raw_field = opt["field"]
+                    node  = _pretty(raw_node)
+                    field = _pretty(raw_field)
+                    allowed = opt.get("allowed", [True, False])
+
+                    with st.expander(f"⚙️ Override: **{node}** → `{field}`"):
+                        preview = a.label[:120] + ("…" if len(a.label) > 120 else "")
+                        st.markdown(
+                            f'<div class="override-card">Engine decision based on: <b>{preview}</b></div>',
+                            unsafe_allow_html=True,
+                        )
+                        existing = next(
+                            (o for o in st.session_state.hp_overrides
+                             if o.target_node == raw_node and o.field == raw_field),
+                            None,
+                        )
+                        current_val = existing.new_value if existing else None
+                        new_val = st.radio(
+                            f"Set `{field}` to:",
+                            options=allowed,
+                            index=allowed.index(current_val) if current_val in allowed else 0,
+                            key=f"ov_val_{raw_node}_{raw_field}",
+                            horizontal=True,
+                        )
+                        reason = st.text_input(
+                            "Reason (required):",
+                            value=existing.reason if existing else "",
+                            key=f"ov_reason_{raw_node}_{raw_field}",
+                            placeholder="Document clinical rationale...",
+                        )
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Apply Override", key=f"ov_apply_{raw_node}_{raw_field}"):
+                                if not reason.strip():
+                                    st.error("A reason is required to apply an override.")
+                                else:
+                                    st.session_state.hp_overrides = [
+                                        o for o in st.session_state.hp_overrides
+                                        if not (o.target_node == raw_node and o.field == raw_field)
+                                    ]
+                                    st.session_state.hp_overrides.append(
+                                        Override(
+                                            target_node=raw_node,
+                                            field=raw_field,
+                                            old_value=None,
+                                            new_value=new_val,
+                                            reason=reason.strip(),
+                                        )
+                                    )
+                                    st.success("Override applied. Click **▶ Run Pathway** to re-evaluate.")
+                        with col2:
+                            if existing and st.button("🗑 Remove Override", key=f"ov_remove_{raw_node}_{raw_field}"):
+                                st.session_state.hp_overrides = [
+                                    o for o in st.session_state.hp_overrides
+                                    if not (o.target_node == raw_node and o.field == raw_field)
+                                ]
+                                st.success("Override removed.")
+
+                if st.session_state.hp_overrides:
+                    st.markdown('<p class="section-label">ACTIVE OVERRIDES</p>', unsafe_allow_html=True)
+                    for o in st.session_state.hp_overrides:
+                        st.markdown(
+                            '<div class="override-card">'
+                            f'🛠 <b>{_pretty(o.target_node)}</b> → <code>{_pretty(o.field)}</code>'
+                            f' set to <b>{o.new_value}</b><br>'
+                            f'<span style="color:#a5b4fc">Reason: {o.reason}</span><br>'
+                            f'<span style="color:#64748b;font-size:11px">'
+                            f'Applied: {o.created_at.strftime("%H:%M:%S")}</span>'
+                            "</div>",
+                            unsafe_allow_html=True,
+                        )
+
+        # ── DECISION AUDIT LOG ────────────────────────────────────────────
+        with st.expander("📋 Decision Audit Log"):
+            for log in logs:
+                try:
+                    ts = datetime.fromisoformat(log.timestamp).strftime("%H:%M:%S")
+                except Exception:
+                    ts = "—"
+                st.markdown(f"**[{ts}] {log.node}** → _{log.decision}_")
+                if log.used_inputs:
+                    st.caption(
+                        "  ".join(
+                            f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None
+                        )
+                    )
+
+    else:
+        st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
