@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="GI Clinical Decision Hub", page_icon="🏥", layout="wide")
+st.set_page_config(page_title="EZ GI CAT Clinical Decision Hub", page_icon="🏥", layout="wide")
 
 st.markdown("""
     <style>
@@ -15,7 +15,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🏥 GI Clinical Decision Support Hub")
+st.title("🏥 EZ GI CAT Clinical Decision Support Hub")
 st.caption("Alberta Health Services · Primary Care Networks")
 st.markdown("---")
 
