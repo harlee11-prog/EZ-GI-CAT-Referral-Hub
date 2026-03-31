@@ -9,7 +9,7 @@ from chronic_constipation_engine import (
     run_constipation_pathway, Action, DataRequest, Stop, Override
 )
 
-st.set_page_config(page_title="Chronic Constipation", page_icon="🚽", layout="wide")
+st.set_page_config(page_title="Chronic Constipation", layout="wide")
 
 # ── MARKDOWN HELPERS ─────────────────────────────────────────────────────────
 def _safe_text(text) -> str:
@@ -145,7 +145,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🚽 Chronic Constipation Pathway")
+st.title("Chronic Constipation Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
