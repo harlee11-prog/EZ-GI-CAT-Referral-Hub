@@ -7,19 +7,19 @@ st.set_page_config(
 )
 
 PATHWAYS = [
-    {"title": "H. Pylori", "page": "pages/1_H_Pylori.py", "pdf": "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-dh-pathway-hpylori.pdf", "group": "Upper GI", "desc": "Testing, treatment, and eradication follow-up."},
-    {"title": "GERD", "page": "pages/2_GERD.py", "pdf": "https://www.albertahealthservices.ca/assets/info/aph/if-aph-scn-dh-pathway-gerd.pdf", "group": "Upper GI", "desc": "Assessment and management of reflux symptoms."},
+    {"title": "Helicobacter Pylori (H. pylori)", "page": "pages/1_H._Pylori.py", "pdf": "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-dh-pathway-hpylori.pdf", "group": "Upper GI", "desc": "Testing, treatment, and eradication follow-up."},
+    {"title": "Gastroesophageal Reflux Disease (GERD).", "page": "pages/2_GERD.py", "pdf": "https://www.albertahealthservices.ca/assets/info/aph/if-aph-scn-dh-pathway-gerd.pdf", "group": "Upper GI", "desc": "Assessment and management of reflux symptoms."},
     {"title": "Dyspepsia", "page": "pages/3_Dyspepsia.py", "pdf": "https://www.albertahealthservices.ca/assets/info/aph/if-aph-scn-dh-pathway-dyspepsia.pdf", "group": "Upper GI", "desc": "Initial workup, alarm features, and referral triggers."},
     {"title": "Gastric Cancer", "page": "pages/4_Gastric_Cancer_draft.py", "pdf": "https://www.albertahealthservices.ca/assets/info/aph/if-aph-prov-gastric-cancer-prevention-screening-and-diagnosis-primary-care-pathway.pdf", "group": "Upper GI", "desc": "Prevention, screening, diagnosis, and referral."},
 
-    {"title": "IBS", "page": "pages/5_IBS.py", "pdf": "http://www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-ibs.pdf", "group": "Lower GI", "desc": "Diagnosis support and symptom-based pathway."},
+    {"title": "Irritable Bowel Syndrome (IBS)", "page": "pages/5_IBS.py", "pdf": "http://www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-ibs.pdf", "group": "Lower GI", "desc": "Diagnosis support and symptom-based pathway."},
     {"title": "Chronic Diarrhea", "page": "pages/6_Chronic_Diarrhea.py", "pdf": "http://www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-chronic-diarrhea.pdf", "group": "Lower GI", "desc": "Stepwise evaluation of persistent diarrhea."},
     {"title": "Chronic Constipation", "page": "pages/7_Constipation.py", "pdf": "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-dh-pathway-chronic-constipation.pdf", "group": "Lower GI", "desc": "Assessment and treatment planning for constipation."},
-    {"title": "Rectal Bleeding", "page": "pages/8_HRRB.py", "pdf": "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-cancer-high-risk-rectal-bleeding-pathway.pdf", "group": "Lower GI", "desc": "High-risk rectal bleeding pathway and escalation guidance."},
+    {"title": "High Risk Rectal Bleeding (HRRB)", "page": "pages/8_HRRB.py", "pdf": "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-cancer-high-risk-rectal-bleeding-pathway.pdf", "group": "Lower GI", "desc": "High-risk rectal bleeding pathway and escalation guidance."},
 
     {"title": "Liver Mass", "page": "pages/9_Liver_Mass.py", "pdf": "https://www.albertahealthservices.ca/assets/info/aph/if-aph-prov-liver-mass-primary-care-pathway.pdf", "group": "Liver", "desc": "Primary care pathway for liver mass evaluation."},
-    {"title": "NAFLD", "page": "pages/10_NAFLD.py", "pdf": "http://www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-nafld.pdf", "group": "Liver", "desc": "Risk stratification and fibrosis assessment support."},
-    {"title": "HCV", "page": "pages/11_HCV.py", "pdf": "http://www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-hepatitisc.pdf", "group": "Liver", "desc": "Hepatitis C assessment and pathway navigation."},
+    {"title": "Non-Alcoholic Fatty Liver Disease (NAFLD)", "page": "pages/10_NAFLD.py", "pdf": "http://www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-nafld.pdf", "group": "Liver", "desc": "Risk stratification and fibrosis assessment support."},
+    {"title": "Hepatitis C Virus (HCV)", "page": "pages/11_HCV.py", "pdf": "http://www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-hepatitisc.pdf", "group": "Liver", "desc": "Hepatitis C assessment and pathway navigation."},
 
     {"title": "Iron Deficiency Anemia", "page": "pages/12_IDA.py", "pdf": "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-cancer-iron-deficiency-anemia-pathway.pdf", "group": "Cancer / Anemia", "desc": "Workup and referral pathway for iron deficiency anemia."},
 ]
