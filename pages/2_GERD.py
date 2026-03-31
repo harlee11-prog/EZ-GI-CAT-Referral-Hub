@@ -9,7 +9,7 @@ from gerd_engine import (
     run_gerd_pathway, Action, DataRequest, Stop, Override
 )
 
-st.set_page_config(page_title="GERD", page_icon="🔥", layout="wide")
+st.set_page_config(page_title="GERD", layout="wide")
 
 # ── MARKDOWN EXPORT HELPER ───────────────────────────────────────────────────
 def _safe_text(text) -> str:
@@ -157,7 +157,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🔥 Gastroesophageal Reflux Disease (GERD) Pathway")
+st.title(" Gastroesophageal Reflux Disease (GERD) Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
