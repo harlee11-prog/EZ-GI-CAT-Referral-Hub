@@ -11,7 +11,7 @@ from liver_mass_engine import (
     run_liver_mass_pathway, Action, DataRequest, Stop, Override
 )
 
-st.set_page_config(page_title="Liver Mass", page_icon="🫀", layout="wide")
+st.set_page_config(page_title="Liver Mass" layout="wide")
 
 # ── MARKDOWN / PDF HELPERS ──────────────────────────────────────────────────
 def _safe_text(text) -> str:
@@ -127,7 +127,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🫀 Liver Mass (Solid Lesion) Pathway")
+st.title("Liver Mass (Solid Lesion) Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
