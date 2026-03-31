@@ -77,8 +77,9 @@ if "hp_overrides" not in st.session_state:
 if "hp_has_run" not in st.session_state:
     st.session_state.hp_has_run = False
 
-if "hp_custom_text" not in st.session_state:
-    st.session_state.hp_custom_text = ""
+# simple free-text notes
+if "hp_notes" not in st.session_state:
+    st.session_state.hp_notes = ""
 
 left, right = st.columns([1, 1.5])
 
@@ -230,7 +231,7 @@ with right:
             for o in outputs
         )
 
-        # ── SVG FLOWCHART ─────────────────────────────────────────────────
+        # ── SVG FLOWCHART (unchanged) ─────────────────────────────────────
         C_MAIN    = "#16a34a"; C_UNVISIT = "#475569"; C_DIAMOND = "#1d4ed8"
         C_URGENT  = "#dc2626"; C_EXIT    = "#d97706"
         C_TEXT    = "#ffffff"; C_DIM     = "#94a3b8"; C_BG      = "#0f172a"
@@ -586,55 +587,19 @@ with right:
                 for a in output.actions:
                     render_action(a)
 
-        # ── EDITABLE SUMMARY (form-based) ─────────────────────────────────
-        st.markdown('<p class="section-label">EDITABLE SUMMARY</p>', unsafe_allow_html=True)
-        st.markdown('<div class="custom-text-card">', unsafe_allow_html=True)
-        st.caption("Auto-generated summary you can edit before saving the output.")
-
-        # Build an auto-generated draft summary
-        summary_lines = [
-            f"Patient {age}-year-old {sex}, H. pylori test: {test_str.lower()}.",
-            f"Alarm features: {alarm_str}.",
-        ]
-
-        action_lines = []
-        for o in outputs:
-            if isinstance(o, Action):
-                label_clean = " ".join(o.label.split())
-                action_lines.append(f"- {label_clean}")
-
-        if action_lines:
-            summary_lines.append("Recommended actions:")
-            summary_lines.extend(action_lines)
-
-        auto_summary = "\n".join(summary_lines)
-
-        # Initialize once if empty
-        if not st.session_state.hp_custom_text:
-            st.session_state.hp_custom_text = auto_summary
-
-        with st.form("hp_summary_form"):
-            edited_text = st.text_area(
-                "Summary to attach to the saved output:",
-                value=st.session_state.hp_custom_text,
-                height=200,
+        # ── CLINICIAN NOTES (simple textbox) ─────────────────────────────
+        st.markdown('<p class="section-label">CLINICIAN NOTES</p>', unsafe_allow_html=True)
+        with st.container():
+            st.markdown('<div class="custom-text-card">', unsafe_allow_html=True)
+            st.caption("Optional free-text notes to be attached to the clinical recommendations.")
+            st.session_state.hp_notes = st.text_area(
+                "Notes to attach to the saved output:",
+                value=st.session_state.hp_notes,
+                height=180,
             )
-            col1, col2 = st.columns(2)
-            with col1:
-                reset_clicked = st.form_submit_button("↩ Reset to auto-generated")
-            with col2:
-                save_clicked = st.form_submit_button("✅ Update summary")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        if reset_clicked:
-            st.session_state.hp_custom_text = auto_summary
-            st.success("Summary reset to auto-generated text.")
-        elif save_clicked:
-            st.session_state.hp_custom_text = edited_text.strip()
-            st.success("Summary updated.")
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Build a single object that represents the whole output
+        # Build a single object representing patient context + clinical recommendations
         def _serialize_output(o):
             if isinstance(o, Action):
                 return {
@@ -658,19 +623,21 @@ with right:
             return {"type": "other", "repr": repr(o)}
 
         full_output = {
-            "patient": patient_data,
-            "engine_outputs": [_serialize_output(o) for o in outputs],
-            "overrides": [
-                {
-                    "node": o.target_node,
-                    "field": o.field,
-                    "new_value": o.new_value,
-                    "reason": o.reason,
-                    "created_at": o.created_at.isoformat(),
-                }
-                for o in st.session_state.hp_overrides
-            ],
-            "editable_summary": st.session_state.hp_custom_text,
+            "patient_context": patient_data,
+            "clinical_recommendations": {
+                "engine_outputs": [_serialize_output(o) for o in outputs],
+                "overrides": [
+                    {
+                        "node": o.target_node,
+                        "field": o.field,
+                        "new_value": o.new_value,
+                        "reason": o.reason,
+                        "created_at": o.created_at.isoformat(),
+                    }
+                    for o in st.session_state.hp_overrides
+                ],
+                "clinician_notes": st.session_state.hp_notes,
+            },
         }
 
         if st.button("💾 Save this output", key="hp_save_output"):
