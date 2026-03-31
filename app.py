@@ -36,7 +36,7 @@ with col2:
         st.markdown("### 💊 Chronic Constipation")
         nav2, pdf2 = st.columns([2, 1])
         with nav2:
-            st.page_link("pages/2_Constipation.py", label="Open →", use_container_width=True)
+            st.page_link("pages/10_Constipation.py", label="Open →", use_container_width=True)
         with pdf2:
             st.link_button("📄 PDF", "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-dh-pathway-chronic-constipation.pdf", use_container_width=True)
 
