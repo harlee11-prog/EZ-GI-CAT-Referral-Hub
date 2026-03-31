@@ -8,8 +8,108 @@ from h_pylori_engine_v2 import (
     REGIMEN_DETAILS,
 )
 from datetime import datetime
+from io import BytesIO
+from fpdf import FPDF
 
 st.set_page_config(page_title="H. Pylori", page_icon="🦠", layout="wide")
+
+# ── PDF HELPER ───────────────────────────────────────────────────────────────
+def build_h_pylori_pdf(patient_data, outputs, overrides, notes: str) -> bytes:
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "H. Pylori Pathway - Clinical Summary", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 6, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.ln(3)
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 8, "Patient Context", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", "", 11)
+    context_lines = [
+        f"Age / Sex: {patient_data.get('age')} / {str(patient_data.get('sex')).capitalize()}",
+        f"H. pylori test result: {patient_data.get('hp_test_result')}",
+        f"Test type: {patient_data.get('hp_test_type')}",
+        f"Treatment line: {patient_data.get('treatment_line')}",
+        f"Penicillin allergy: {patient_data.get('penicillin_allergy')}",
+        f"Pregnant: {patient_data.get('pregnant')}",
+        f"Breastfeeding: {patient_data.get('breastfeeding')}",
+        f"Symptoms persist: {patient_data.get('symptoms_persist')}",
+        f"Eradication test result: {patient_data.get('eradication_test_result')}",
+    ]
+    for line in context_lines:
+        pdf.multi_cell(0, 6, line)
+
+    pdf.ln(3)
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 8, "Clinical Recommendations", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 11)
+
+    for o in outputs:
+        if isinstance(o, Action):
+            label = " ".join(str(o.label).split())
+            urgency = (o.urgency or "info").upper()
+            pdf.multi_cell(0, 6, f"- [{urgency}] {label}")
+            if isinstance(o.details, dict):
+                bullets = o.details.get("bullets", [])
+                notes_list = o.details.get("notes", [])
+                for b in bullets:
+                    pdf.multi_cell(0, 6, f"    • {b}")
+                for n in notes_list:
+                    pdf.multi_cell(0, 6, f"    • Note: {n}")
+            pdf.ln(1)
+
+        elif isinstance(o, Stop):
+            reason = " ".join(str(o.reason).split())
+            pdf.multi_cell(0, 6, f"- [STOP] {reason}")
+            if getattr(o, "actions", None):
+                for a in o.actions:
+                    pdf.multi_cell(0, 6, f"    • Follow-up: {' '.join(str(a.label).split())}")
+            pdf.ln(1)
+
+        elif isinstance(o, DataRequest):
+            msg = " ".join(str(o.message).split())
+            missing = ", ".join(o.missing_fields)
+            pdf.multi_cell(0, 6, f"- [DATA NEEDED] {msg}")
+            pdf.multi_cell(0, 6, f"    • Missing fields: {missing}")
+            if getattr(o, "suggested_actions", None):
+                for a in o.suggested_actions:
+                    pdf.multi_cell(0, 6, f"    • Suggested action: {' '.join(str(a.label).split())}")
+            pdf.ln(1)
+
+    if overrides:
+        pdf.ln(3)
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.cell(0, 8, "Active Overrides", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 11)
+
+        for ov in overrides:
+            pdf.multi_cell(
+                0,
+                6,
+                f"- {ov.target_node}.{ov.field} -> {ov.new_value} (Reason: {ov.reason})"
+            )
+            pdf.ln(1)
+
+    pdf.ln(3)
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 8, "Clinician Notes", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 11)
+    if notes.strip():
+        pdf.multi_cell(0, 6, notes.strip())
+    else:
+        pdf.multi_cell(0, 6, "No clinician notes entered.")
+
+    pdf_bytes = pdf.output(dest="S")
+    if isinstance(pdf_bytes, bytearray):
+        pdf_bytes = bytes(pdf_bytes)
+    elif isinstance(pdf_bytes, str):
+        pdf_bytes = pdf_bytes.encode("latin-1")
+    return pdf_bytes
 
 # ── GLOBAL CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
@@ -60,7 +160,6 @@ st.markdown("""
     border-radius:8px; padding:10px 14px; margin-top:8px;
     font-size:13px; color:#c7d2fe;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -74,7 +173,6 @@ if "hp_overrides" not in st.session_state:
 if "hp_has_run" not in st.session_state:
     st.session_state.hp_has_run = False
 
-# simple free-text notes
 if "hp_notes" not in st.session_state:
     st.session_state.hp_notes = ""
 
@@ -87,35 +185,35 @@ with left:
     sex = st.selectbox("Sex", ["male", "female"])
 
     st.markdown("**Pregnancy / Nursing**")
-    pregnant      = st.checkbox("Pregnant")
+    pregnant = st.checkbox("Pregnant")
     breastfeeding = st.checkbox("Breastfeeding / Nursing")
 
     st.markdown("**Testing Indication**")
-    dyspepsia      = st.checkbox("Dyspepsia symptoms")
-    ulcer_hx       = st.checkbox("History of ulcer or GI bleed")
+    dyspepsia = st.checkbox("Dyspepsia symptoms")
+    ulcer_hx = st.checkbox("History of ulcer or GI bleed")
     family_gastric = st.checkbox("Personal/family history of gastric cancer")
     immigrant_prev = st.checkbox("Immigrant from high-prevalence region")
 
     st.markdown("**H. Pylori Test**")
     hp_result_sel = st.selectbox("Result", ["Not tested", "Positive", "Negative"])
     hp_result_map = {"Not tested": None, "Positive": "positive", "Negative": "negative"}
-    hp_test_type  = st.selectbox("Test type", ["HpSAT", "UBT", "Other"])
+    hp_test_type = st.selectbox("Test type", ["HpSAT", "UBT", "Other"])
 
     st.markdown("**Washout Status**")
-    off_abx     = st.checkbox("Off antibiotics ≥4 weeks", value=True)
-    off_ppi     = st.checkbox("Off PPIs ≥2 weeks",        value=True)
-    off_bismuth = st.checkbox("Off bismuth ≥2 weeks",     value=True)
+    off_abx = st.checkbox("Off antibiotics ≥4 weeks", value=True)
+    off_ppi = st.checkbox("Off PPIs ≥2 weeks", value=True)
+    off_bismuth = st.checkbox("Off bismuth ≥2 weeks", value=True)
 
     st.markdown("**Alarm Features**")
     al_family_cancer = st.checkbox("Family hx esophageal/gastric cancer")
-    al_ulcer_hx      = st.checkbox("Personal history of peptic ulcer")
-    al_age_symptoms  = st.checkbox("Age >60 with new persistent symptoms")
-    al_weight_loss   = st.checkbox("Unintended weight loss >5%")
-    al_dysphagia     = st.checkbox("Progressive dysphagia")
-    al_vomiting      = st.checkbox("Persistent vomiting")
-    al_gi_bleed      = st.checkbox("Black stool or blood in vomit")
-    al_ida           = st.checkbox("Iron deficiency anemia")
-    al_concern       = st.checkbox("Clinician concern — serious pathology")
+    al_ulcer_hx = st.checkbox("Personal history of peptic ulcer")
+    al_age_symptoms = st.checkbox("Age >60 with new persistent symptoms")
+    al_weight_loss = st.checkbox("Unintended weight loss >5%")
+    al_dysphagia = st.checkbox("Progressive dysphagia")
+    al_vomiting = st.checkbox("Persistent vomiting")
+    al_gi_bleed = st.checkbox("Black stool or blood in vomit")
+    al_ida = st.checkbox("Iron deficiency anemia")
+    al_concern = st.checkbox("Clinician concern — serious pathology")
 
     st.markdown("**Treatment History**")
     penicillin_allergy = st.checkbox("Penicillin allergy")
@@ -129,12 +227,12 @@ with left:
         ],
     )
     tx_map = {
-        "1 – Naive (no prior treatment)":     1,
-        "2 – Second line (1 prior failure)":  2,
-        "3 – Third line (2 prior failures)":  3,
+        "1 – Naive (no prior treatment)": 1,
+        "2 – Second line (1 prior failure)": 2,
+        "3 – Third line (2 prior failures)": 3,
         "4 – Fourth line (3 prior failures)": 4,
     }
-    bubble_pack  = st.checkbox("Bubble/blister pack NOT being used", value=False)
+    bubble_pack = st.checkbox("Bubble/blister pack NOT being used", value=False)
     nonadherence = st.checkbox("Non-adherence suspected")
 
     if hp_result_map[hp_result_sel] is not None:
@@ -146,14 +244,14 @@ with left:
         erad_map = {
             "Not done": None,
             "Negative (eradicated)": "negative",
-            "Positive (failed)":     "positive",
+            "Positive (failed)": "positive",
         }
         symptoms_persist = st.selectbox("Symptoms still persisting?", ["Unknown", "Yes", "No"])
         sp_map = {"Unknown": None, "Yes": True, "No": False}
     else:
-        erad_map         = {"Not done": None}
-        erad_result_sel  = "Not done"
-        sp_map           = {"Unknown": None}
+        erad_map = {"Not done": None}
+        erad_result_sel = "Not done"
+        sp_map = {"Unknown": None}
         symptoms_persist = "Unknown"
 
     run_clicked = st.button("▶ Run Pathway", type="primary", use_container_width=True)
@@ -164,59 +262,57 @@ with left:
         st.session_state.hp_overrides = []
         st.rerun()
 
-    # Placeholder where the override UI will be rendered (after outputs are known)
     override_panel = st.container()
 
 # ── RIGHT PANEL ──────────────────────────────────────────────────────────────
 with right:
     if st.session_state.hp_has_run:
         patient_data = {
-            "age":          age,
-            "sex":          sex,
-            "pregnant":     pregnant or None,
+            "age": age,
+            "sex": sex,
+            "pregnant": pregnant or None,
             "breastfeeding": breastfeeding or None,
             "dyspepsia_symptoms": dyspepsia or None,
             "current_or_past_gastric_or_duodenal_ulcer_or_upper_gi_bleed": ulcer_hx or None,
-            "personal_or_first_degree_relative_history_gastric_cancer":     family_gastric or None,
-            "first_generation_immigrant_high_prevalence_region":            immigrant_prev or None,
-            "hp_test_type":   hp_test_type if hp_result_map[hp_result_sel] else None,
+            "personal_or_first_degree_relative_history_gastric_cancer": family_gastric or None,
+            "first_generation_immigrant_high_prevalence_region": immigrant_prev or None,
+            "hp_test_type": hp_test_type if hp_result_map[hp_result_sel] else None,
             "hp_test_result": hp_result_map[hp_result_sel],
             "off_antibiotics_4_weeks_before_test": off_abx,
-            "off_ppi_2_weeks_before_test":         off_ppi,
-            "off_bismuth_2_weeks_before_test":     off_bismuth,
-            "penicillin_allergy":     penicillin_allergy or None,
-            "treatment_line":         tx_map[tx_line_sel],
-            "bubble_pack_used":       not bubble_pack,
+            "off_ppi_2_weeks_before_test": off_ppi,
+            "off_bismuth_2_weeks_before_test": off_bismuth,
+            "penicillin_allergy": penicillin_allergy or None,
+            "treatment_line": tx_map[tx_line_sel],
+            "bubble_pack_used": not bubble_pack,
             "nonadherence_suspected": nonadherence or None,
             "family_history_esophageal_or_gastric_cancer_first_degree": al_family_cancer or None,
-            "personal_history_peptic_ulcer_disease":                    al_ulcer_hx or None,
-            "age_over_60_new_persistent_symptoms_over_3_months":        al_age_symptoms or None,
-            "unintended_weight_loss":              al_weight_loss or None,
-            "progressive_dysphagia":               al_dysphagia or None,
+            "personal_history_peptic_ulcer_disease": al_ulcer_hx or None,
+            "age_over_60_new_persistent_symptoms_over_3_months": al_age_symptoms or None,
+            "unintended_weight_loss": al_weight_loss or None,
+            "progressive_dysphagia": al_dysphagia or None,
             "persistent_vomiting_not_cannabis_related": al_vomiting or None,
-            "black_stool_or_blood_in_vomit":       al_gi_bleed or None,
-            "iron_deficiency_anemia_present":      al_ida or None,
+            "black_stool_or_blood_in_vomit": al_gi_bleed or None,
+            "iron_deficiency_anemia_present": al_ida or None,
             "clinician_concern_serious_pathology": al_concern or None,
             "eradication_test_result": erad_map.get(erad_result_sel),
-            "symptoms_persist":        sp_map.get(symptoms_persist),
+            "symptoms_persist": sp_map.get(symptoms_persist),
             "off_antibiotics_4_weeks_before_retest": off_abx,
-            "off_ppi_2_weeks_before_retest":         off_ppi,
+            "off_ppi_2_weeks_before_retest": off_ppi,
         }
 
         outputs, logs, applied_overrides = run_h_pylori_pathway(
             patient_data, overrides=st.session_state.hp_overrides
         )
 
-        # ── PATH STATE FLAGS ──────────────────────────────────────────────
-        is_positive   = patient_data.get("hp_test_result") == "positive"
+        is_positive = patient_data.get("hp_test_result") == "positive"
         test_negative = patient_data.get("hp_test_result") == "negative"
         no_indication = (
             not any([dyspepsia, ulcer_hx, family_gastric, immigrant_prev])
             and patient_data.get("hp_test_result") is None
         )
-        has_alarm    = any(isinstance(o, Stop) and "alarm" in o.reason.lower() for o in outputs)
-        is_pregnant  = bool(pregnant or breastfeeding)
-        went_to_tx   = any(isinstance(o, Action) and "TREAT" in o.code for o in outputs)
+        has_alarm = any(isinstance(o, Stop) and "alarm" in o.reason.lower() for o in outputs)
+        is_pregnant = bool(pregnant or breastfeeding)
+        went_to_tx = any(isinstance(o, Action) and "TREAT" in o.code for o in outputs)
         has_followup = any(isinstance(o, Action) and "RETEST" in o.code for o in outputs)
         is_pediatric = age < 18
 
@@ -228,15 +324,14 @@ with right:
             for o in outputs
         )
 
-        # ── SVG FLOWCHART (unchanged) ─────────────────────────────────────
-        C_MAIN    = "#16a34a"; C_UNVISIT = "#475569"; C_DIAMOND = "#1d4ed8"
-        C_URGENT  = "#dc2626"; C_EXIT    = "#d97706"
-        C_TEXT    = "#ffffff"; C_DIM     = "#94a3b8"; C_BG      = "#0f172a"
+        C_MAIN = "#16a34a"; C_UNVISIT = "#475569"; C_DIAMOND = "#1d4ed8"
+        C_URGENT = "#dc2626"; C_EXIT = "#d97706"
+        C_TEXT = "#ffffff"; C_DIM = "#94a3b8"; C_BG = "#0f172a"
 
         def nc(vis, urgent=False, exit_=False):
-            if not vis:  return C_UNVISIT
-            if urgent:   return C_URGENT
-            if exit_:    return C_EXIT
+            if not vis: return C_UNVISIT
+            if urgent: return C_URGENT
+            if exit_: return C_EXIT
             return C_MAIN
 
         def dc(vis):
@@ -244,8 +339,8 @@ with right:
 
         def mid(vis, urgent=False, exit_=False):
             if not vis: return "ma"
-            if urgent:  return "mr"
-            if exit_:   return "mo"
+            if urgent: return "mr"
+            if exit_: return "mo"
             return "mg"
 
         svg = []
@@ -339,10 +434,10 @@ with right:
         CX = 350; NW, NH = 170, 50; DW, DH = 180, 58; EW, EH = 140, 46
         LEXT = 30; REXT = W - 30 - EW
         Y = {
-            "present": 18,  "d_test": 100,  "order": 202,
+            "present": 18, "d_test": 100, "order": 202,
             "d_alarm": 295, "d_result": 398,
-            "d_preg": 498,  "washout": 598, "treat": 688,
-            "d_erad": 778,  "complete": 878,
+            "d_preg": 498, "washout": 598, "treat": 688,
+            "d_erad": 778, "complete": 878,
         }
 
         rect_node(CX-NW/2, Y["present"], NW, NH, nc(True), "Patient Presents")
@@ -357,7 +452,6 @@ with right:
         vline(CX, Y["d_test"]+DH, Y["order"], v2, label="Yes")
         rect_node(CX-NW/2, Y["order"], NW, NH, nc(v2), "Order HpSAT / UBT", sub="Pre-test washout req.")
 
-        # Box 2 – Alarm features
         alarm_step_visited = v2
         vline(CX, Y["order"]+NH, Y["d_alarm"], alarm_step_visited)
         diamond_node(CX, Y["d_alarm"]+DH/2, DW, DH, dc(alarm_step_visited), "2. Alarm", "Features?")
@@ -368,9 +462,8 @@ with right:
         elbow_line(CX+DW/2, Y["d_alarm"]+DH/2, REXT, Y["d_alarm"]+(DH-EH)/2+EH/2,
                    urgent_alarm, urgent=True, label="Yes")
 
-        # Box 3 – H. pylori test result (only if no alarm)
         v_res = patient_data.get("hp_test_result") is not None
-        v3    = alarm_step_visited and not has_alarm and v_res
+        v3 = alarm_step_visited and not has_alarm and v_res
         vline(CX, Y["d_alarm"]+DH, Y["d_result"], v3, label="No")
         diamond_node(CX, Y["d_result"]+DH/2, DW, DH, dc(v3), "3. H. pylori", "Test Result?")
 
@@ -378,7 +471,7 @@ with right:
         exit_node(LEXT, Y["d_result"]+(DH-EH)/2, EW, EH,
                   nc(v_neg, exit_=True), "Negative", "→ Dyspepsia Path")
         elbow_line(CX-DW/2, Y["d_result"]+DH/2, LEXT+EW, Y["d_result"]+(DH-EH)/2+EH/2,
-                   v_neg, exit_=True, label="−")
+                   v_neg, exit_=True, label="-")
 
         v4 = v3 and is_positive and not has_alarm
         vline(CX, Y["d_result"]+DH, Y["d_preg"], v4, label="+")
@@ -394,7 +487,7 @@ with right:
         rect_node(CX-NW/2, Y["washout"], NW, NH, nc(v5), "Washout Verified", sub="Abx / PPI / Bismuth")
 
         vline(CX, Y["washout"]+NH, Y["treat"], went_to_tx)
-        rect_node(CX-NW/2, Y["treat"], NW, NH, nc(went_to_tx), "4. Treatment", "Selection", sub="1st/2nd/3rd/4th Line")
+        rect_node(CX-NW/2, Y["treat"], NW, NH, nc(went_to_tx), "4. Treatment", "Selection", sub="1st / 2nd / 3rd / 4th Line")
 
         vline(CX, Y["treat"]+NH, Y["d_erad"], has_followup)
         diamond_node(CX, Y["d_erad"]+DH/2, DW, DH, dc(has_followup), "5. Eradication", "Confirmed?")
@@ -407,16 +500,14 @@ with right:
 
         v8 = has_followup and not eradication_failed
         vline(CX, Y["d_erad"]+DH, Y["complete"], v8, exit_=v8, label="Yes")
-        rect_node(CX-NW/2, Y["complete"], NW, NH, nc(v8, exit_=v8), "Pathway Complete", sub="Re-infection < 2%")
+        rect_node(CX-NW/2, Y["complete"], NW, NH, nc(v8, exit_=v8), "Pathway Complete", sub="Re-infection <2%")
 
         ly = H - 22; lx = 18
         for col, lbl in [
             (C_MAIN, "Visited"), (C_DIAMOND, "Decision"),
             (C_URGENT, "Urgent"), (C_EXIT, "Exit/Off-ramp"), (C_UNVISIT, "Not reached"),
         ]:
-            svg.append(
-                f'<rect x="{lx}" y="{ly-11}" width="12" height="12" rx="2" fill="{col}"/>'
-            )
+            svg.append(f'<rect x="{lx}" y="{ly-11}" width="12" height="12" rx="2" fill="{col}"/>')
             svgt(lx+16, ly, lbl, "#94a3b8", 10, anchor="start")
             lx += 110
         svg.append("</svg>")
@@ -428,27 +519,26 @@ with right:
             height=980, scrolling=True,
         )
 
-        # ── PATIENT CONTEXT CARD ──────────────────────────────────────────
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
-        hp_disp  = {"positive": "✅ Positive", "negative": "❌ Negative", None: "Not yet tested"}
+        hp_disp = {"positive": "✅ Positive", "negative": "❌ Negative", None: "Not yet tested"}
         test_str = hp_disp.get(patient_data.get("hp_test_result"), "—")
         tx_labels = {1: "Treatment Naive", 2: "Second Line", 3: "Third Line", 4: "Fourth Line"}
         alarm_fields = [
             ("family_history_esophageal_or_gastric_cancer_first_degree", "Family hx cancer"),
-            ("personal_history_peptic_ulcer_disease",                    "Peptic ulcer hx"),
-            ("age_over_60_new_persistent_symptoms_over_3_months",        "Age>60 new symptoms"),
-            ("unintended_weight_loss",                                   "Weight loss >5%"),
-            ("progressive_dysphagia",                                    "Dysphagia"),
-            ("persistent_vomiting_not_cannabis_related",                 "Persistent vomiting"),
-            ("black_stool_or_blood_in_vomit",                            "GI bleed signs"),
-            ("iron_deficiency_anemia_present",                           "IDA"),
-            ("clinician_concern_serious_pathology",                      "Clinician concern"),
+            ("personal_history_peptic_ulcer_disease", "Peptic ulcer hx"),
+            ("age_over_60_new_persistent_symptoms_over_3_months", "Age>60 new symptoms"),
+            ("unintended_weight_loss", "Weight loss >5%"),
+            ("progressive_dysphagia", "Dysphagia"),
+            ("persistent_vomiting_not_cannabis_related", "Persistent vomiting"),
+            ("black_stool_or_blood_in_vomit", "GI bleed signs"),
+            ("iron_deficiency_anemia_present", "IDA"),
+            ("clinician_concern_serious_pathology", "Clinician concern"),
         ]
         active_alarms = [label for key, label in alarm_fields if patient_data.get(key)]
         alarm_str = ", ".join(active_alarms) if active_alarms else "None"
-        pen_str   = "⚠️ Yes — penicillin-allergic regimens apply" if penicillin_allergy else "No"
+        pen_str = "⚠️ Yes — penicillin-allergic regimens apply" if penicillin_allergy else "No"
 
         st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
         st.markdown(
@@ -462,8 +552,7 @@ with right:
             unsafe_allow_html=True,
         )
 
-        # ── RENDER HELPERS ────────────────────────────────────────────────
-        override_candidates: list = []
+        override_candidates = []
 
         def _med_table_html(key: str) -> str:
             r = REGIMEN_DETAILS.get(key)
@@ -477,10 +566,7 @@ with right:
                 f'</tr>'
                 for m in r["medications"]
             )
-            notes_html = (
-                f'<p class="med-note">📝 {r["notes"]}</p>'
-                if r.get("notes") else ""
-            )
+            notes_html = f'<p class="med-note">📝 {r["notes"]}</p>' if r.get("notes") else ""
             return (
                 '<div class="med-table-wrap">'
                 '<div class="med-table-header">'
@@ -525,13 +611,8 @@ with right:
                 cls = extra_cls
 
             badge_label = (a.urgency or "info").upper()
-            label_html = (
-                a.label
-                .replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;")
-                .replace("\n", "<br>")
-            )
-
-            med_html    = _med_table_html(a.details.get("regimen_key")) if isinstance(a.details, dict) else ""
+            label_html = a.label.replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
+            med_html = _med_table_html(a.details.get("regimen_key")) if isinstance(a.details, dict) else ""
             detail_html = _detail_html(a.details)
             override_html = (
                 '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
@@ -549,7 +630,6 @@ with right:
             if a.override_options:
                 override_candidates.append(a)
 
-        # ── RENDER ALL OUTPUTS ────────────────────────────────────────────
         st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
 
         for output in outputs:
@@ -557,7 +637,7 @@ with right:
                 render_action(output)
             elif isinstance(output, DataRequest):
                 missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
-                msg_html    = output.message.replace("\n", "<br>")
+                msg_html = output.message.replace("\n", "<br>")
                 st.markdown(
                     '<div class="action-card warning">'
                     f'<h4><span class="badge warning">DATA NEEDED</span>'
@@ -569,11 +649,7 @@ with right:
                 for sa in output.suggested_actions:
                     render_action(sa, extra_cls="info")
             elif isinstance(output, Stop):
-                reason_html = (
-                    output.reason
-                    .replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;")
-                    .replace("\n", "<br>")
-                )
+                reason_html = output.reason.replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
                 st.markdown(
                     '<div class="action-card stop">'
                     f'<h4><span class="badge stop">STOP</span>'
@@ -584,18 +660,15 @@ with right:
                 for a in output.actions:
                     render_action(a)
 
-        # ── CLINICIAN NOTES ─────────────────────────────
+        # ── CLINICIAN NOTES (no black bar) ───────────────────────────────
         st.markdown('<p class="section-label">CLINICIAN NOTES</p>', unsafe_allow_html=True)
-        with st.container():
-            st.caption("Optional free-text notes to be attached to the clinical recommendations.")
-            st.session_state.hp_notes = st.text_area(
-                "Notes to attach to the saved output:",
-                value=st.session_state.hp_notes,
-                height=180,
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+        st.caption("Optional free-text notes to be attached to the clinical recommendations.")
+        st.session_state.hp_notes = st.text_area(
+            "Notes to attach to the saved output:",
+            value=st.session_state.hp_notes,
+            height=180,
+        )
 
-        # Build a single object representing patient context + clinical recommendations
         def _serialize_output(o):
             if isinstance(o, Action):
                 return {
@@ -643,7 +716,21 @@ with right:
             }
             st.success("Output saved for this session.")
 
-        # ── CLINICIAN OVERRIDE PANEL (rendered in left column placeholder) ─
+        if "hp_saved_output" in st.session_state:
+            pdf_bytes = build_h_pylori_pdf(
+                patient_data=patient_data,
+                outputs=outputs,
+                overrides=st.session_state.hp_overrides,
+                notes=st.session_state.hp_notes,
+            )
+            st.download_button(
+                label="⬇️ Download PDF summary",
+                data=pdf_bytes,
+                file_name="h_pylori_summary.pdf",
+                mime="application/pdf",
+                key="hp_download_pdf",
+            )
+
         def _pretty(s: str) -> str:
             return s.replace("_", " ").title()
 
@@ -657,10 +744,10 @@ with right:
                 )
 
                 for a in override_candidates:
-                    opt       = a.override_options
-                    raw_node  = opt["node"]
+                    opt = a.override_options
+                    raw_node = opt["node"]
                     raw_field = opt["field"]
-                    node  = _pretty(raw_node)
+                    node = _pretty(raw_node)
                     field = _pretty(raw_field)
                     allowed = opt.get("allowed", [True, False])
 
@@ -731,7 +818,6 @@ with right:
                             unsafe_allow_html=True,
                         )
 
-        # ── DECISION AUDIT LOG ────────────────────────────────────────────
         with st.expander("📋 Decision Audit Log"):
             for log in logs:
                 try:
@@ -745,6 +831,5 @@ with right:
                             f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None
                         )
                     )
-
     else:
         st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
