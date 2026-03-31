@@ -613,7 +613,7 @@ with right:
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
-        hp_disp = {"positive": "✅ Positive", "negative": "❌ Negative", None: "Not yet tested"}
+        hp_disp = {"positive": "✓ Positive", "negative": "✗ Negative", None: "Not yet tested"}
         test_str = hp_disp.get(patient_data.get("hp_test_result"), "—")
         tx_labels = {1: "Treatment Naive", 2: "Second Line", 3: "Third Line", 4: "Fourth Line"}
         alarm_fields = [
@@ -629,7 +629,7 @@ with right:
         ]
         active_alarms = [label for key, label in alarm_fields if patient_data.get(key)]
         alarm_str = ", ".join(active_alarms) if active_alarms else "None"
-        pen_str = "⚠️ Yes — penicillin-allergic regimens apply" if penicillin_allergy else "No"
+        pen_str = "Yes — penicillin-allergic regimens apply" if penicillin_allergy else "No"
 
         st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
         st.markdown(
