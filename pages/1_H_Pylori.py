@@ -1,24 +1,14 @@
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import io
 import html
 from datetime import datetime
-
 import streamlit as st
 import streamlit.components.v1 as components
 from h_pylori_engine_v2 import (
     run_h_pylori_pathway, Action, DataRequest, Stop, Override,
     REGIMEN_DETAILS,
 )
-
-try:
-    import markdown2
-    PDF_EXPORT_AVAILABLE = True
-except ModuleNotFoundError:
-    markdown2 = None
-    pisa = None
-    PDF_EXPORT_AVAILABLE = False
 
 st.set_page_config(page_title="H. Pylori", page_icon="🦠", layout="wide")
 
@@ -128,11 +118,6 @@ def build_h_pylori_markdown(patient_data, outputs, overrides, notes: str) -> str
     lines.append("")
 
     return "\n".join(lines)
-
-
-def markdown_to_pdf_bytes(md_text: str) -> bytes:
-    if not PDF_EXPORT_AVAILABLE:
-        raise RuntimeError("PDF export libraries are not installed.")
 
     body_html = markdown2.markdown(
         md_text,
@@ -836,21 +821,6 @@ with right:
                 mime="text/markdown",
                 key="hp_download_md",
             )
-
-            if PDF_EXPORT_AVAILABLE:
-                try:
-                    pdf_bytes = markdown_to_pdf_bytes(md_text)
-                    st.download_button(
-                        label="⬇️ Download PDF summary",
-                        data=pdf_bytes,
-                        file_name="h_pylori_summary.pdf",
-                        mime="application/pdf",
-                        key="hp_download_pdf",
-                    )
-                except Exception as e:
-                    st.warning(f"PDF conversion unavailable: {e}")
-            else:
-                st.info("PDF export is unavailable because markdown2/xhtml2pdf is not installed yet.")
 
         def _pretty(s: str) -> str:
             return s.replace("_", " ").title()
