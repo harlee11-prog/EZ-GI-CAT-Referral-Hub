@@ -9,7 +9,7 @@ from chronic_diarrhea_engine import (
     run_chronic_diarrhea_pathway, Action, DataRequest, Stop, Override
 )
 
-st.set_page_config(page_title="Chronic Diarrhea", page_icon="🚽", layout="wide")
+st.set_page_config(page_title="Chronic Diarrhea", layout="wide")
 
 # ── MARKDOWN HELPERS ────────────────────────────────────────────────────────
 def _safe_text(text) -> str:
@@ -142,7 +142,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🚽 Chronic Diarrhea Pathway")
+st.title("Chronic Diarrhea Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
