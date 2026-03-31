@@ -15,7 +15,7 @@ PATHWAYS = [
     {"title": "IBS", "page": "pages/5_IBS.py", "pdf": "http://www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-ibs.pdf", "group": "Lower GI", "desc": "Diagnosis support and symptom-based pathway."},
     {"title": "Chronic Diarrhea", "page": "pages/6_Chronic_Diarrhea.py", "pdf": "http://www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-chronic-diarrhea.pdf", "group": "Lower GI", "desc": "Stepwise evaluation of persistent diarrhea."},
     {"title": "Chronic Constipation", "page": "pages/7_Constipation.py", "pdf": "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-dh-pathway-chronic-constipation.pdf", "group": "Lower GI", "desc": "Assessment and treatment planning for constipation."},
-    {"title": "HRRB", "page": "pages/8_HRRB.py", "pdf": "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-cancer-high-risk-rectal-bleeding-pathway.pdf", "group": "Lower GI", "desc": "High-risk rectal bleeding pathway and escalation guidance."},
+    {"title": "Rectal Bleeding", "page": "pages/8_HRRB.py", "pdf": "https://www.albertahealthservices.ca/assets/about/scn/ahs-scn-cancer-high-risk-rectal-bleeding-pathway.pdf", "group": "Lower GI", "desc": "High-risk rectal bleeding pathway and escalation guidance."},
 
     {"title": "Liver Mass", "page": "pages/9_Liver_Mass.py", "pdf": "https://www.albertahealthservices.ca/assets/info/aph/if-aph-prov-liver-mass-primary-care-pathway.pdf", "group": "Liver", "desc": "Primary care pathway for liver mass evaluation."},
     {"title": "NAFLD", "page": "pages/10_NAFLD.py", "pdf": "http://www.ahs.ca/assets/about/scn/ahs-scn-dh-pathway-nafld.pdf", "group": "Liver", "desc": "Risk stratification and fibrosis assessment support."},
