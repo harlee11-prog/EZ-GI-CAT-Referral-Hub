@@ -8,7 +8,7 @@ from dyspepsia_engine import (
     run_dyspepsia_pathway, Action, DataRequest, Stop, Override
 )
 
-st.set_page_config(page_title="Dyspepsia Pathway", page_icon="⚕️", layout="wide")
+st.set_page_config(page_title="Dyspepsia Pathway", layout="wide")
 
 # ── MARKDOWN / PDF HELPERS ──────────────────────────────────────────────────
 def _safe_text(text) -> str:
@@ -128,7 +128,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("⚕️ Dyspepsia Pathway")
+st.title("Dyspepsia Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
