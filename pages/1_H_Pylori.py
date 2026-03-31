@@ -1,23 +1,25 @@
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import io
+import html
+from datetime import datetime
+
 import streamlit as st
 import streamlit.components.v1 as components
 from h_pylori_engine_v2 import (
     run_h_pylori_pathway, Action, DataRequest, Stop, Override,
     REGIMEN_DETAILS,
 )
-from datetime import datetime
-import io
-import html
-import markdown2
-from xhtml2pdf import pisa
-PDF_EXPORT_AVAILABLE = True
+
+try:
+    import markdown2
+    from xhtml2pdf import pisa
+    PDF_EXPORT_AVAILABLE = True
 except ModuleNotFoundError:
     markdown2 = None
     pisa = None
     PDF_EXPORT_AVAILABLE = False
-
 
 st.set_page_config(page_title="H. Pylori", page_icon="🦠", layout="wide")
 
@@ -34,6 +36,7 @@ def build_h_pylori_markdown(patient_data, outputs, overrides, notes: str) -> str
     lines.append("")
     lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     lines.append("")
+
     lines.append("## Patient Context")
     lines.append(f"- **Age / Sex:** {patient_data.get('age')} / {str(patient_data.get('sex')).capitalize()}")
     lines.append(f"- **H. pylori test result:** {_safe_text(patient_data.get('hp_test_result')) or 'Not tested'}")
@@ -63,6 +66,7 @@ def build_h_pylori_markdown(patient_data, outputs, overrides, notes: str) -> str
                         lines.append(f"  - Regimen: **{_safe_text(r.get('name'))}**")
                         lines.append(f"  - Duration: {_safe_text(r.get('duration'))}")
                         lines.append(f"  - Approx cost: {_safe_text(r.get('approx_cost'))}")
+
                         meds = r.get("medications", [])
                         if meds:
                             lines.append("  - Medications:")
@@ -71,6 +75,7 @@ def build_h_pylori_markdown(patient_data, outputs, overrides, notes: str) -> str
                                 dose = _safe_text(m.get("dose"))
                                 freq = _safe_text(m.get("frequency"))
                                 lines.append(f"    - {drug}: {dose}, {freq}")
+
                         if r.get("notes"):
                             lines.append(f"  - Regimen note: {_safe_text(r.get('notes'))}")
 
@@ -100,7 +105,7 @@ def build_h_pylori_markdown(patient_data, outputs, overrides, notes: str) -> str
 
             elif isinstance(o, DataRequest):
                 msg = _safe_text(o.message)
-                missing = ", ".join(output_field for output_field in o.missing_fields)
+                missing = ", ".join(field for field in o.missing_fields)
                 lines.append(f"- **[DATA NEEDED]** {msg}")
                 lines.append(f"  - Missing fields: {missing}")
                 if getattr(o, "suggested_actions", None):
@@ -127,6 +132,9 @@ def build_h_pylori_markdown(patient_data, outputs, overrides, notes: str) -> str
 
 
 def markdown_to_pdf_bytes(md_text: str) -> bytes:
+    if not PDF_EXPORT_AVAILABLE:
+        raise RuntimeError("PDF export libraries are not installed.")
+
     body_html = markdown2.markdown(
         md_text,
         extras=["tables", "fenced-code-blocks", "break-on-newline"]
@@ -202,6 +210,7 @@ def markdown_to_pdf_bytes(md_text: str) -> bytes:
     if result.err:
         raise ValueError("Markdown-to-PDF conversion failed.")
     return pdf_buffer.getvalue()
+
 
 # ── GLOBAL CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
@@ -586,11 +595,15 @@ with right:
         vline(CX, Y["treat"]+NH, Y["d_erad"], has_followup)
         diamond_node(CX, Y["d_erad"]+DH/2, DW, DH, dc(has_followup), "5. Eradication", "Confirmed?")
 
-        exit_node(REXT, Y["d_erad"]+(DH-EH)/2, EW, EH,
-                  nc(eradication_failed, urgent=eradication_failed, exit_=eradication_failed),
-                  "Failure", "→ Next Line / Refer")
-        elbow_line(CX+DW/2, Y["d_erad"]+DH/2, REXT, Y["d_erad"]+(DH-EH)/2+EH/2,
-                   eradication_failed, urgent=eradication_failed, exit_=eradication_failed, label="No")
+        exit_node(
+            REXT, Y["d_erad"]+(DH-EH)/2, EW, EH,
+            nc(eradication_failed, urgent=eradication_failed, exit_=eradication_failed),
+            "Failure", "→ Next Line / Refer"
+        )
+        elbow_line(
+            CX+DW/2, Y["d_erad"]+DH/2, REXT, Y["d_erad"]+(DH-EH)/2+EH/2,
+            eradication_failed, urgent=eradication_failed, exit_=eradication_failed, label="No"
+        )
 
         v8 = has_followup and not eradication_failed
         vline(CX, Y["d_erad"]+DH, Y["complete"], v8, exit_=v8, label="Yes")
@@ -824,21 +837,21 @@ with right:
                 mime="text/markdown",
                 key="hp_download_md",
             )
-            
-        if PDF_EXPORT_AVAILABLE:
-            try:
-                pdf_bytes = markdown_to_pdf_bytes(md_text)
-                st.download_button(
-                    label="⬇️ Download PDF summary",
-                    data=pdf_bytes,
-                    file_name="h_pylori_summary.pdf",
-                    mime="application/pdf",
-                    key="hp_download_pdf",
-                )
-            except Exception as e:
-                st.warning(f"PDF conversion unavailable: {e}")
-        else:
-        st.info("PDF export is unavailable because markdown2/xhtml2pdf is not installed yet.")
+
+            if PDF_EXPORT_AVAILABLE:
+                try:
+                    pdf_bytes = markdown_to_pdf_bytes(md_text)
+                    st.download_button(
+                        label="⬇️ Download PDF summary",
+                        data=pdf_bytes,
+                        file_name="h_pylori_summary.pdf",
+                        mime="application/pdf",
+                        key="hp_download_pdf",
+                    )
+                except Exception as e:
+                    st.warning(f"PDF conversion unavailable: {e}")
+            else:
+                st.info("PDF export is unavailable because markdown2/xhtml2pdf is not installed yet.")
 
         def _pretty(s: str) -> str:
             return s.replace("_", " ").title()
@@ -940,6 +953,5 @@ with right:
                             f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None
                         )
                     )
-
     else:
         st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
