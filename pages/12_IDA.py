@@ -13,7 +13,7 @@ except ImportError:
     st.error("Engine module 'ida_engine.py' not found. Ensure it is in the same directory.")
     st.stop()
 
-st.set_page_config(page_title="IDA Pathway", page_icon="🩸", layout="wide")
+st.set_page_config(page_title="IDA Pathway", layout="wide")
 
 # ── MARKDOWN / SUMMARY HELPERS ──────────────────────────────────────────────
 def _safe_text(text) -> str:
@@ -137,7 +137,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🩸 Iron Deficiency Anemia (IDA) Pathway")
+st.title("Iron Deficiency Anemia (IDA) Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
