@@ -14,7 +14,7 @@ from ibs_engine import (
 # Empty dict to satisfy the regimen UI logic if expanded later
 REGIMEN_DETAILS = {}
 
-st.set_page_config(page_title="IBS Pathway", page_icon="🦠", layout="wide")
+st.set_page_config(page_title="IBS Pathway", layout="wide")
 
 # ── MARKDOWN / PDF HELPERS ──────────────────────────────────────────────────
 def _safe_text(text) -> str:
@@ -134,7 +134,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🦠 IBS Pathway")
+st.title("IBS Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
