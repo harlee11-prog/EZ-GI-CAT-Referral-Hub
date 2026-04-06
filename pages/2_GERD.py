@@ -425,7 +425,7 @@ with right:
             return "mg"
 
         svg = []
-        W, H = 700, 1080
+        W, H = 700, 970
         svg.append(
             '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="' + str(H) + '" '
             'viewBox="0 0 ' + str(W) + ' ' + str(H) + '" '
@@ -512,179 +512,182 @@ with right:
             if label:
                 svgt((x1 + x2) / 2, y1 - 5, label, stroke, 10, True)
 
-        # Layout constants
-        CX = 350; NW, NH = 180, 50; DW, DH = 188, 58; EW, EH = 142, 46
-        LEXT = 24; REXT = W - 24 - EW
+        # ── Layout constants ─────────────────────────────────────────────────
+        CX  = 350          # horizontal centre of the main spine
+        NW, NH = 185, 50   # rect node width / height
+        DW, DH = 195, 60   # diamond width / height
+        EW, EH = 136, 44   # exit-box width / height
+        LEXT = 18          # left-exit x start
+        REXT = W - 18 - EW # right-exit x start
+        # Right bypass rail used for "Resolved" arcs (PPI OD / BID → Maint)
+        R_RAIL = CX + NW // 2 + 36   # x = ~428
 
-        Y = {
-            "entry":    18,
-            "d_dysp":   95,
-            "d_alarm":  200,
-            "d_barre":  310,
-            "non_ph":   410,
-            "d_freq":   490,
-            "mild":     580,
-            "ppi_od":   580,
-            "ppi_bid":  670,
-            "d_maint":  760,
-            "maint":    855,
-            "d_mgmt":   955,
-        }
+        Y = dict(
+            entry   = 15,
+            d_dysp  = 88,   # diamond top
+            d_alarm = 193,
+            d_barre = 302,
+            non_ph  = 406,  # rect
+            d_freq  = 482,  # diamond  (6. Pharmacological – <2×/week?)
+            ppi_od  = 575,  # rect     PPI once daily
+            ppi_bid = 655,  # rect     Optimize PPI BID
+            maint   = 748,  # rect     7. Maintenance / Deprescribing
+            mgmt    = 848,  # rect     8. Management Response
+        )
 
-        # ── NODE 1: Suspected GERD entry ──
-        rect_node(CX - NW / 2, Y["entry"], NW, NH,
+        # ── NODE 1: Entry ────────────────────────────────────────────────────
+        rect_node(CX - NW/2, Y["entry"], NW, NH,
                   nc(True), "1. Suspected GERD",
                   sub="Heartburn / Regurgitation")
         vline(CX, Y["entry"] + NH, Y["d_dysp"], True)
 
-        # ── NODE 2: Dyspepsia screen diamond ──
-        diamond_node(CX, Y["d_dysp"] + DH / 2, DW, DH,
-                     dc(gerd_entry_met or is_dyspepsia_stop),
-                     "2. Dyspepsia?",
-                     "Epigastric / bloating?")
+        # ── NODE 2: Dyspepsia screen ─────────────────────────────────────────
+        d2_vis = gerd_entry_met or is_dyspepsia_stop
+        diamond_node(CX, Y["d_dysp"] + DH/2, DW, DH,
+                     dc(d2_vis), "2. Is it Dyspepsia?", "Epigastric / bloating?")
         dysp_vis = is_dyspepsia_stop
-        exit_node(REXT, Y["d_dysp"] + (DH - EH) / 2, EW, EH,
+        exit_node(REXT, Y["d_dysp"] + (DH - EH)//2, EW, EH,
                   nc(dysp_vis, exit_=True), "→ Dyspepsia", "Pathway")
-        elbow_line(CX + DW / 2, Y["d_dysp"] + DH / 2,
-                   REXT, Y["d_dysp"] + (DH - EH) / 2 + EH / 2,
+        elbow_line(CX + DW/2, Y["d_dysp"] + DH/2,
+                   REXT, Y["d_dysp"] + (DH - EH)//2 + EH/2,
                    dysp_vis, exit_=True, label="Yes")
 
         v_past_dysp = gerd_entry_met and not is_dyspepsia_stop
         vline(CX, Y["d_dysp"] + DH, Y["d_alarm"], v_past_dysp, label="No")
 
-        # ── NODE 3: Alarm features diamond ──
-        diamond_node(CX, Y["d_alarm"] + DH / 2, DW, DH,
-                     dc(v_past_dysp),
-                     "3. Alarm", "Features?")
-        alarm_exit_vis = has_alarm and v_past_dysp
-        exit_node(REXT, Y["d_alarm"] + (DH - EH) / 2, EW, EH,
-                  nc(alarm_exit_vis or active_bleeding_stop, urgent=True),
-                  "⚠ Refer", "GI / Endoscopy")
-        elbow_line(CX + DW / 2, Y["d_alarm"] + DH / 2,
-                   REXT, Y["d_alarm"] + (DH - EH) / 2 + EH / 2,
-                   alarm_exit_vis or active_bleeding_stop, urgent=True, label="Yes")
+        # ── NODE 3: Alarm features ───────────────────────────────────────────
+        diamond_node(CX, Y["d_alarm"] + DH/2, DW, DH,
+                     dc(v_past_dysp), "3. Alarm Features?", "")
+        alarm_exit_vis = (has_alarm or active_bleeding_stop) and v_past_dysp
+        exit_node(REXT, Y["d_alarm"] + (DH - EH)//2, EW, EH,
+                  nc(alarm_exit_vis, urgent=True), "⚠ Refer", "GI / Endoscopy")
+        elbow_line(CX + DW/2, Y["d_alarm"] + DH/2,
+                   REXT, Y["d_alarm"] + (DH - EH)//2 + EH/2,
+                   alarm_exit_vis, urgent=True, label="Yes")
 
         v_past_alarm = v_past_dysp and not has_alarm and not active_bleeding_stop
         vline(CX, Y["d_alarm"] + DH, Y["d_barre"], v_past_alarm, label="No")
 
-        # ── NODE 4: Barrett's risk diamond ──
-        diamond_node(CX, Y["d_barre"] + DH / 2, DW, DH,
-                     dc(v_past_alarm),
-                     "4. Barrett's", "Risk Assessment")
+        # ── NODE 4: Barrett's risk ───────────────────────────────────────────
+        diamond_node(CX, Y["d_barre"] + DH/2, DW, DH,
+                     dc(v_past_alarm), "4. Barrett's Risk", "≥3 risk factors?")
         barrett_exit_vis = barretts_refer and v_past_alarm
-        exit_node(REXT, Y["d_barre"] + (DH - EH) / 2, EW, EH,
-                  nc(barrett_exit_vis, exit_=True),
-                  "High Risk", "→ Refer / Screen")
-        elbow_line(CX + DW / 2, Y["d_barre"] + DH / 2,
-                   REXT, Y["d_barre"] + (DH - EH) / 2 + EH / 2,
+        exit_node(REXT, Y["d_barre"] + (DH - EH)//2, EW, EH,
+                  nc(barrett_exit_vis, exit_=True), "High Risk", "→ Screen / Refer")
+        elbow_line(CX + DW/2, Y["d_barre"] + DH/2,
+                   REXT, Y["d_barre"] + (DH - EH)//2 + EH/2,
                    barrett_exit_vis, exit_=True, label="High")
 
         v_past_barre = v_past_alarm and not barretts_refer
         vline(CX, Y["d_barre"] + DH, Y["non_ph"], v_past_barre, label="No")
 
-        # ── NODE 5: Non-pharmacological therapy ──
-        rect_node(CX - NW / 2, Y["non_ph"], NW, NH,
+        # ── NODE 5: Non-pharmacological therapy ─────────────────────────────
+        rect_node(CX - NW/2, Y["non_ph"], NW, NH,
                   nc(went_non_pharm),
                   "5. Non-Pharmacological",
-                  sub="Lifestyle / Diet / Smoking")
-        vline(CX, Y["non_ph"] + NH, Y["d_freq"], went_non_pharm)
+                  sub="Lifestyle · Diet · Smoking")
+        vline(CX, Y["non_ph"] + NH, Y["d_freq"], went_non_pharm, label="Ineffective")
 
-        # ── NODE 6: Symptom frequency diamond ──
-        diamond_node(CX, Y["d_freq"] + DH / 2, DW, DH,
-                     dc(went_pharm or went_non_pharm),
-                     "6. Pharmacological",
-                     "Symptoms ≥2×/week?")
+        # ── NODE 6 Diamond: symptom frequency ───────────────────────────────
+        freq_vis = went_pharm or (went_non_pharm and not went_pharm)
+        diamond_node(CX, Y["d_freq"] + DH/2, DW, DH,
+                     dc(freq_vis), "6. Symptoms", "<2×/week?")
 
-        # Mild branch – left exit
-        exit_node(LEXT, Y["mild"] + 2, EW, EH,
+        # ── LEFT EXIT: Mild branch → H2RA / Antacids ────────────────────────
+        h2ra_y  = Y["d_freq"] + (DH - EH)//2        # vertically centred on diamond
+        h2ra_cx = LEXT + EW/2                        # centre of H2RA box
+        exit_node(LEXT, h2ra_y, EW, EH,
                   nc(mild_branch, exit_=True), "H2RA /", "Antacids PRN")
-        elbow_line(CX - DW / 2, Y["d_freq"] + DH / 2,
-                   LEXT + EW, Y["mild"] + EH / 2,
+        elbow_line(CX - DW/2, Y["d_freq"] + DH/2,
+                   LEXT + EW, h2ra_y + EH/2,
                    mild_branch, exit_=True, label="<2×")
 
-        # PPI once-daily box (right side of freq diamond)
-        PPI_X = CX + DW / 2 + 8
-        PPI_W = 120
-        ppi_od_vis = went_pharm and not mild_branch
+        # H2RA reconnects to mgmt via left rail
+        h2ra_bottom  = h2ra_y + EH
+        mgmt_left_y  = Y["mgmt"] + NH/2
+        L_RAIL = LEXT + EW/2                        # x of left rail
+        if mild_branch:
+            m_lr = "mo"; s_lr = "#d97706"
+        else:
+            m_lr = "ma"; s_lr = "#64748b"
+        dash_lr = "" if mild_branch else 'stroke-dasharray="5,3"'
         svg.append(
-            f'<rect x="{PPI_X}" y="{Y["ppi_od"]}" width="{PPI_W}" height="{NH}" rx="7" '
-            f'fill="{nc(ppi_od_vis)}" stroke="#ffffff18" stroke-width="1.5"/>'
+            f'<polyline points="{L_RAIL},{h2ra_bottom} {L_RAIL},{mgmt_left_y} {CX - NW/2},{mgmt_left_y}" '
+            f'fill="none" stroke="{s_lr}" stroke-width="2" {dash_lr} marker-end="url(#{m_lr})"/>'
         )
-        tc_pod = C_TEXT if ppi_od_vis else C_DIM
-        svgt(PPI_X + PPI_W / 2, Y["ppi_od"] + NH / 2 - 6, "PPI Once Daily", tc_pod, 10, True)
-        svgt(PPI_X + PPI_W / 2, Y["ppi_od"] + NH / 2 + 8, "4–8 weeks", tc_pod, 9)
-        if went_pharm and not mild_branch:
-            m_pod = "mg"
-            stroke_pod = "#16a34a"
-            svg.append(
-                f'<polyline points="{CX+DW/2},{Y["d_freq"]+DH/2} {PPI_X},{Y["d_freq"]+DH/2} {PPI_X},{Y["ppi_od"]}" '
-                f'fill="none" stroke="{stroke_pod}" stroke-width="2" marker-end="url(#{m_pod})"/>'
-            )
-            svgt(PPI_X - 24, Y["d_freq"] + DH / 2 - 5, "≥2×", stroke_pod, 10, True)
 
-        # PPI BID box (below ppi_od)
+        # ── CENTER SPINE: ≥2×/week → PPI OD → PPI BID → Maint → Mgmt ───────
+        ppi_od_vis  = went_pharm and not mild_branch
         ppi_bid_vis = ppi_bid_action
-        svg.append(
-            f'<rect x="{PPI_X}" y="{Y["ppi_bid"]}" width="{PPI_W}" height="{NH}" rx="7" '
-            f'fill="{nc(ppi_bid_vis)}" stroke="#ffffff18" stroke-width="1.5"/>'
-        )
-        tc_pbid = C_TEXT if ppi_bid_vis else C_DIM
-        svgt(PPI_X + PPI_W / 2, Y["ppi_bid"] + NH / 2 - 6, "Optimize PPI", tc_pbid, 10, True)
-        svgt(PPI_X + PPI_W / 2, Y["ppi_bid"] + NH / 2 + 8, "BID 4–8 wks", tc_pbid, 9)
-        # connect ppi_od to ppi_bid
-        m_bid = mid(ppi_bid_vis)
-        stroke_bid = {"mg": "#16a34a"}.get(m_bid, "#64748b")
-        dash_bid = "" if ppi_bid_vis else 'stroke-dasharray="5,3"'
-        svg.append(
-            f'<line x1="{PPI_X + PPI_W / 2}" y1="{Y["ppi_od"] + NH}" '
-            f'x2="{PPI_X + PPI_W / 2}" y2="{Y["ppi_bid"]}" '
-            f'stroke="{stroke_bid}" stroke-width="2" {dash_bid} marker-end="url(#{m_bid})"/>'
-        )
-        if ppi_bid_vis:
-            svgt(PPI_X + PPI_W / 2 + 6, (Y["ppi_od"] + NH + Y["ppi_bid"]) / 2 - 3,
-                 "Inadequate", stroke_bid, 9, False, "start")
+        maint_vis   = went_maintenance
 
-        # ── NODE 7: Maintenance / deprescribing ──
-        vline(CX, Y["d_freq"] + DH, Y["d_maint"], went_maintenance)
-        rect_node(CX - NW / 2, Y["d_maint"], NW, NH,
-                  nc(went_maintenance),
-                  "7. Maintenance /",
-                  "Deprescribing",
+        # Arrow: freq diamond → PPI OD (down, ≥2×/week)
+        vline(CX, Y["d_freq"] + DH, Y["ppi_od"],
+              ppi_od_vis, label="≥2×")
+
+        # PPI OD rect (centre)
+        rect_node(CX - NW/2, Y["ppi_od"], NW, NH,
+                  nc(ppi_od_vis), "PPI Once Daily", "4–8 weeks",
+                  sub="30 min before breakfast")
+
+        # Arrow: PPI OD → PPI BID (down, Inadequate)
+        vline(CX, Y["ppi_od"] + NH, Y["ppi_bid"],
+              ppi_bid_vis, label="Inadequate")
+
+        # PPI BID rect (centre)
+        rect_node(CX - NW/2, Y["ppi_bid"], NW, NH,
+                  nc(ppi_bid_vis), "Optimize PPI BID", "4–8 weeks")
+
+        # Arrow: PPI BID → Maint (down)
+        vline(CX, Y["ppi_bid"] + NH, Y["maint"],
+              ppi_bid_vis and not ppi_bid_success)
+
+        # RIGHT BYPASS RAIL: PPI OD resolved → skips BID → Maint
+        # Also: PPI BID resolved → Maint (elbow right then down then left into maint)
+        for bypass_vis, src_y, label_txt in [
+            (ppi_od_success,  Y["ppi_od"]  + NH, "Resolved"),
+            (ppi_bid_success, Y["ppi_bid"] + NH, "Resolved"),
+        ]:
+            tgt_y = Y["maint"] + NH/2
+            if bypass_vis:
+                bm = "mg"; bs = "#16a34a"; bd = ""
+            else:
+                bm = "ma"; bs = "#64748b"; bd = 'stroke-dasharray="5,3"'
+            svg.append(
+                f'<polyline points="{CX + NW/2},{src_y} {R_RAIL},{src_y} {R_RAIL},{tgt_y} {CX + NW/2},{tgt_y}" '
+                f'fill="none" stroke="{bs}" stroke-width="2" {bd} marker-end="url(#{bm})"/>'
+            )
+            if bypass_vis:
+                svgt(R_RAIL + 4, (src_y + tgt_y)/2, label_txt, bs, 9, False, "start")
+
+        # ── NODE 7: Maintenance / Deprescribing ─────────────────────────────
+        rect_node(CX - NW/2, Y["maint"], NW, NH,
+                  nc(maint_vis), "7. Maintenance /", "Deprescribing",
                   sub="Lowest dose · Annual taper")
 
-        # Arrow from ppi_od success to maintenance (elbow from right side)
-        if ppi_od_success or ppi_bid_success:
-            m_mnt = "mg"
-            stroke_mnt = "#16a34a"
-            src_y = Y["ppi_od"] + NH if ppi_od_success else Y["ppi_bid"] + NH
-            tgt_x = CX - NW / 2
-            tgt_y = Y["d_maint"] + NH / 2
-            svg.append(
-                f'<polyline points="{PPI_X},{src_y} {PPI_X},{tgt_y} {tgt_x},{tgt_y}" '
-                f'fill="none" stroke="{stroke_mnt}" stroke-width="2" marker-end="url(#{m_mnt})"/>'
-            )
-            svgt(PPI_X - 6, (src_y + tgt_y) / 2, "Resolved", stroke_mnt, 9, False, "end")
+        # Arrow: Maint → Mgmt
+        mgmt_vis = maint_vis or pathway_complete or refer_final or mild_branch
+        vline(CX, Y["maint"] + NH, Y["mgmt"], mgmt_vis)
 
-        # ── NODE 8: Management response ──
-        vline(CX, Y["d_maint"] + NH, Y["d_mgmt"],
-              went_maintenance or pathway_complete or refer_final)
-        rect_node(CX - NW / 2, Y["d_mgmt"], NW, NH,
-                  nc(went_maintenance or pathway_complete or refer_final),
-                  "8. Management", "Response",
+        # ── NODE 8: Management Response ─────────────────────────────────────
+        rect_node(CX - NW/2, Y["mgmt"], NW, NH,
+                  nc(mgmt_vis), "8. Management", "Response",
                   sub="Satisfactory?")
 
+        # Complete exit → left
         complete_vis = pathway_complete
-        exit_node(LEXT, Y["d_mgmt"] + (NH - EH) // 2, EW, EH,
-                  nc(complete_vis, exit_=True), "✓ Complete", "Patient Medical Home")
-        elbow_line(CX - NW / 2, Y["d_mgmt"] + NH / 2,
-                   LEXT + EW, Y["d_mgmt"] + (NH - EH) // 2 + EH / 2,
+        exit_node(LEXT, Y["mgmt"] + (NH - EH)//2, EW, EH,
+                  nc(complete_vis, exit_=True), "✓ Complete", "Medical Home")
+        elbow_line(CX - NW/2, Y["mgmt"] + NH/2,
+                   LEXT + EW, Y["mgmt"] + (NH - EH)//2 + EH/2,
                    complete_vis, exit_=True, label="Yes")
 
+        # Refer exit → right
         refer_vis = refer_final
-        exit_node(REXT, Y["d_mgmt"] + (NH - EH) // 2, EW, EH,
-                  nc(refer_vis, urgent=True), "Refer", "Consultation / Scope")
-        elbow_line(CX + NW / 2, Y["d_mgmt"] + NH / 2,
-                   REXT, Y["d_mgmt"] + (NH - EH) // 2 + EH / 2,
+        exit_node(REXT, Y["mgmt"] + (NH - EH)//2, EW, EH,
+                  nc(refer_vis, urgent=True), "Refer", "Consult / Scope")
+        elbow_line(CX + NW/2, Y["mgmt"] + NH/2,
+                   REXT, Y["mgmt"] + (NH - EH)//2 + EH/2,
                    refer_vis, urgent=True, label="Unsat.")
 
         # ── Legend ──
@@ -702,7 +705,7 @@ with right:
         components.html(
             '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
             + "".join(svg) + "</div>",
-            height=1100, scrolling=True,
+            height=990, scrolling=True,
         )
 
         st.markdown("---")
