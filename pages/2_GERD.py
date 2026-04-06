@@ -519,8 +519,6 @@ with right:
         EW, EH = 136, 44   # exit-box width / height
         LEXT = 18          # left-exit x start
         REXT = W - 18 - EW # right-exit x start
-        # Right bypass rail used for "Resolved" arcs (PPI OD / BID → Maint)
-        R_RAIL = CX + NW // 2 + 36   # x = ~428
 
         Y = dict(
             entry   = 15,
@@ -593,101 +591,103 @@ with right:
         diamond_node(CX, Y["d_freq"] + DH/2, DW, DH,
                      dc(freq_vis), "6. Symptoms", "<2×/week?")
 
-        # ── LEFT EXIT: Mild branch → H2RA / Antacids ────────────────────────
-        h2ra_y  = Y["d_freq"] + (DH - EH)//2        # vertically centred on diamond
-        h2ra_cx = LEXT + EW/2                        # centre of H2RA box
+        # ── LEFT EXIT: Mild branch → H2RA / Antacids (terminal, no reconnect) ─
+        # The mild branch is an exit endpoint — no rail back to mgmt to avoid
+        # collision with the "✓ Complete" exit arrow on the same left side.
+        h2ra_y = Y["d_freq"] + (DH - EH) // 2   # vertically centred on diamond
         exit_node(LEXT, h2ra_y, EW, EH,
                   nc(mild_branch, exit_=True), "H2RA /", "Antacids PRN")
-        elbow_line(CX - DW/2, Y["d_freq"] + DH/2,
-                   LEXT + EW, h2ra_y + EH/2,
+        elbow_line(CX - DW / 2, Y["d_freq"] + DH / 2,
+                   LEXT + EW, h2ra_y + EH / 2,
                    mild_branch, exit_=True, label="<2×")
 
-        # H2RA reconnects to mgmt via left rail
-        h2ra_bottom  = h2ra_y + EH
-        mgmt_left_y  = Y["mgmt"] + NH/2
-        L_RAIL = LEXT + EW/2                        # x of left rail
-        if mild_branch:
-            m_lr = "mo"; s_lr = "#d97706"
-        else:
-            m_lr = "ma"; s_lr = "#64748b"
-        dash_lr = "" if mild_branch else 'stroke-dasharray="5,3"'
-        svg.append(
-            f'<polyline points="{L_RAIL},{h2ra_bottom} {L_RAIL},{mgmt_left_y} {CX - NW/2},{mgmt_left_y}" '
-            f'fill="none" stroke="{s_lr}" stroke-width="2" {dash_lr} marker-end="url(#{m_lr})"/>'
-        )
-
-        # ── CENTER SPINE: ≥2×/week → PPI OD → PPI BID → Maint → Mgmt ───────
+        # ── CENTER SPINE: ≥2×/week ──────────────────────────────────────────
         ppi_od_vis  = went_pharm and not mild_branch
         ppi_bid_vis = ppi_bid_action
         maint_vis   = went_maintenance
 
-        # Arrow: freq diamond → PPI OD (down, ≥2×/week)
-        vline(CX, Y["d_freq"] + DH, Y["ppi_od"],
-              ppi_od_vis, label="≥2×")
+        # freq diamond → PPI OD
+        vline(CX, Y["d_freq"] + DH, Y["ppi_od"], ppi_od_vis, label="≥2×")
 
-        # PPI OD rect (centre)
-        rect_node(CX - NW/2, Y["ppi_od"], NW, NH,
+        # PPI OD rect
+        rect_node(CX - NW / 2, Y["ppi_od"], NW, NH,
                   nc(ppi_od_vis), "PPI Once Daily", "4–8 weeks",
                   sub="30 min before breakfast")
 
-        # Arrow: PPI OD → PPI BID (down, Inadequate)
+        # PPI OD → PPI BID (inadequate, straight down)
+        # Only draw this segment when PPI BID is actually needed (not resolved at OD)
         vline(CX, Y["ppi_od"] + NH, Y["ppi_bid"],
               ppi_bid_vis, label="Inadequate")
 
-        # PPI BID rect (centre)
-        rect_node(CX - NW/2, Y["ppi_bid"], NW, NH,
+        # PPI BID rect
+        rect_node(CX - NW / 2, Y["ppi_bid"], NW, NH,
                   nc(ppi_bid_vis), "Optimize PPI BID", "4–8 weeks")
 
-        # Arrow: PPI BID → Maint (down)
-        vline(CX, Y["ppi_bid"] + NH, Y["maint"],
-              ppi_bid_vis and not ppi_bid_success)
+        # PPI BID → Maint (straight down, only when BID done and not resolved)
+        ppi_bid_to_maint = ppi_bid_vis and not ppi_bid_success
+        vline(CX, Y["ppi_bid"] + NH, Y["maint"], ppi_bid_to_maint)
 
-        # RIGHT BYPASS RAIL: PPI OD resolved → skips BID → Maint
-        # Also: PPI BID resolved → Maint (elbow right then down then left into maint)
-        for bypass_vis, src_y, label_txt in [
-            (ppi_od_success,  Y["ppi_od"]  + NH, "Resolved"),
-            (ppi_bid_success, Y["ppi_bid"] + NH, "Resolved"),
-        ]:
-            tgt_y = Y["maint"] + NH/2
-            if bypass_vis:
-                bm = "mg"; bs = "#16a34a"; bd = ""
-            else:
-                bm = "ma"; bs = "#64748b"; bd = 'stroke-dasharray="5,3"'
+        # ── RIGHT BYPASS RAIL: "Resolved" arcs → Maint right side ───────────
+        # Rail x sits just outside the right edge of the centre rect nodes.
+        # Only drawn when the bypass is actually active (visited path).
+        R_RAIL = CX + NW // 2 + 42   # right bypass rail x
+
+        # PPI OD resolved → skip BID → Maint right side mid-height
+        if ppi_od_success:
+            rs = "#16a34a"
+            tgt_y = Y["maint"] + NH // 2
             svg.append(
-                f'<polyline points="{CX + NW/2},{src_y} {R_RAIL},{src_y} {R_RAIL},{tgt_y} {CX + NW/2},{tgt_y}" '
-                f'fill="none" stroke="{bs}" stroke-width="2" {bd} marker-end="url(#{bm})"/>'
+                f'<polyline points="{CX + NW//2},{Y["ppi_od"] + NH//2} '
+                f'{R_RAIL},{Y["ppi_od"] + NH//2} '
+                f'{R_RAIL},{tgt_y} '
+                f'{CX + NW//2},{tgt_y}" '
+                f'fill="none" stroke="{rs}" stroke-width="2" marker-end="url(#mg)"/>'
             )
-            if bypass_vis:
-                svgt(R_RAIL + 4, (src_y + tgt_y)/2, label_txt, bs, 9, False, "start")
+            svgt(R_RAIL + 4, (Y["ppi_od"] + NH // 2 + tgt_y) // 2,
+                 "Resolved", rs, 9, False, "start")
+
+        # PPI BID resolved → Maint right side mid-height
+        if ppi_bid_success:
+            rs = "#16a34a"
+            tgt_y = Y["maint"] + NH // 2
+            svg.append(
+                f'<polyline points="{CX + NW//2},{Y["ppi_bid"] + NH//2} '
+                f'{R_RAIL},{Y["ppi_bid"] + NH//2} '
+                f'{R_RAIL},{tgt_y} '
+                f'{CX + NW//2},{tgt_y}" '
+                f'fill="none" stroke="{rs}" stroke-width="2" marker-end="url(#mg)"/>'
+            )
+            svgt(R_RAIL + 4, (Y["ppi_bid"] + NH // 2 + tgt_y) // 2,
+                 "Resolved", rs, 9, False, "start")
 
         # ── NODE 7: Maintenance / Deprescribing ─────────────────────────────
-        rect_node(CX - NW/2, Y["maint"], NW, NH,
+        rect_node(CX - NW / 2, Y["maint"], NW, NH,
                   nc(maint_vis), "7. Maintenance /", "Deprescribing",
                   sub="Lowest dose · Annual taper")
 
-        # Arrow: Maint → Mgmt
-        mgmt_vis = maint_vis or pathway_complete or refer_final or mild_branch
+        # Maint → Mgmt (straight down)
+        mgmt_vis = maint_vis or pathway_complete or refer_final
         vline(CX, Y["maint"] + NH, Y["mgmt"], mgmt_vis)
 
         # ── NODE 8: Management Response ─────────────────────────────────────
-        rect_node(CX - NW/2, Y["mgmt"], NW, NH,
+        rect_node(CX - NW / 2, Y["mgmt"], NW, NH,
                   nc(mgmt_vis), "8. Management", "Response",
                   sub="Satisfactory?")
 
-        # Complete exit → left
+        # ✓ Complete exit → LEFT (below H2RA zone — no rail conflict)
         complete_vis = pathway_complete
-        exit_node(LEXT, Y["mgmt"] + (NH - EH)//2, EW, EH,
+        exit_node(LEXT, Y["mgmt"] + (NH - EH) // 2, EW, EH,
                   nc(complete_vis, exit_=True), "✓ Complete", "Medical Home")
-        elbow_line(CX - NW/2, Y["mgmt"] + NH/2,
-                   LEXT + EW, Y["mgmt"] + (NH - EH)//2 + EH/2,
+        elbow_line(CX - NW / 2, Y["mgmt"] + NH / 2,
+                   LEXT + EW, Y["mgmt"] + (NH - EH) // 2 + EH / 2,
                    complete_vis, exit_=True, label="Yes")
 
-        # Refer exit → right
+        # Refer exit → RIGHT
         refer_vis = refer_final
-        exit_node(REXT, Y["mgmt"] + (NH - EH)//2, EW, EH,
+        exit_node(REXT, Y["mgmt"] + (NH - EH) // 2, EW, EH,
                   nc(refer_vis, urgent=True), "Refer", "Consult / Scope")
-        elbow_line(CX + NW/2, Y["mgmt"] + NH/2,
-                   REXT, Y["mgmt"] + (NH - EH)//2 + EH/2,
+        elbow_line(CX + NW / 2, Y["mgmt"] + NH / 2,
+                   REXT, Y["mgmt"] + (NH - EH) // 2 + EH / 2,
                    refer_vis, urgent=True, label="Unsat.")
 
         # ── Legend ──
