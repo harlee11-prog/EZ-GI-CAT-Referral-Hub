@@ -1,54 +1,37 @@
 import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import html
 from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
-
-# Import from the GERD engine
 from gerd_engine import (
-    run_gerd_pathway, Action, DataRequest, Stop, Override
+    run_gerd_pathway, Action, DataRequest, Stop, Override,
 )
 
-st.set_page_config(page_title="GERD", layout="wide")
+st.set_page_config(page_title="GERD", page_icon="🔥", layout="wide")
 
-# ── MARKDOWN EXPORT HELPER ───────────────────────────────────────────────────
+# ── MARKDOWN HELPER ──────────────────────────────────────────────────────────
 def _safe_text(text) -> str:
     if text is None:
         return ""
     return " ".join(str(text).replace("\u00a0", " ").split())
 
+
 def build_gerd_markdown(patient_data, outputs, overrides, notes: str) -> str:
     lines = []
-    lines.append("# GERD Pathway - Clinical Summary")
+    lines.append("# GERD Pathway – Clinical Summary")
     lines.append("")
     lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     lines.append("")
 
     lines.append("## Patient Context")
-    lines.append(f"- **Age / Sex:** {patient_data.get('age', 'N/A')} / {str(patient_data.get('sex', 'N/A')).capitalize()}")
-    
-    # Core symptoms
-    hb = "Yes" if patient_data.get("predominant_heartburn") else "No"
-    rg = "Yes" if patient_data.get("predominant_regurgitation") else "No"
-    lines.append(f"- **Predominant Heartburn:** {hb}")
-    lines.append(f"- **Predominant Regurgitation:** {rg}")
-    
-    freq = patient_data.get("symptoms_per_week")
-    lines.append(f"- **Symptom frequency:** {_safe_text(freq) + ' times/week' if freq is not None else 'Unknown'}")
-    
-    # Alarms
-    alarms = [
-        ("actively_bleeding_now", "Active bleeding"),
-        ("unintended_weight_loss", "Unintended weight loss"),
-        ("progressive_dysphagia", "Progressive dysphagia"),
-        ("odynophagia", "Odynophagia"),
-        ("persistent_vomiting", "Persistent vomiting"),
-        ("black_stool_or_blood_in_vomit", "Black stool / blood in vomit"),
-        ("iron_deficiency_anemia_present", "Iron deficiency anemia"),
-        ("abdominal_mass", "Abdominal mass")
-    ]
-    active_alarms = [lbl for k, lbl in alarms if patient_data.get(k)]
-    lines.append(f"- **Alarm Features:** {', '.join(active_alarms) if active_alarms else 'None reported'}")
+    lines.append(f"- **Age / Sex:** {patient_data.get('age')} / {str(patient_data.get('sex','—')).capitalize()}")
+    lines.append(f"- **Heartburn:** {patient_data.get('predominant_heartburn')}")
+    lines.append(f"- **Regurgitation:** {patient_data.get('predominant_regurgitation')}")
+    lines.append(f"- **Symptoms per week:** {patient_data.get('symptoms_per_week', '—')}")
+    lines.append(f"- **GERD symptom years:** {patient_data.get('gerd_symptom_years', '—')}")
+    lines.append(f"- **Known Barrett's:** {patient_data.get('known_barretts_esophagus', False)}")
     lines.append("")
 
     lines.append("## Clinical Recommendations")
@@ -60,7 +43,6 @@ def build_gerd_markdown(patient_data, outputs, overrides, notes: str) -> str:
                 urgency = (o.urgency or "info").upper()
                 label = _safe_text(o.label)
                 lines.append(f"- **[{urgency}]** {label}")
-
                 if isinstance(o.details, dict):
                     for b in o.details.get("bullets", []):
                         lines.append(f"  - {_safe_text(b)}")
@@ -68,28 +50,23 @@ def build_gerd_markdown(patient_data, outputs, overrides, notes: str) -> str:
                         lines.append(f"  - Note: {_safe_text(n)}")
                     for s in o.details.get("supported_by", []):
                         lines.append(f"  - Support: {_safe_text(s)}")
-
-                    skip = {"bullets", "notes", "supported_by", "regimen_key"}
+                    skip = {"bullets", "notes", "supported_by"}
                     for k, v in o.details.items():
                         if k in skip:
                             continue
-                        if isinstance(v, list):
+                        if isinstance(v, list) and v:
                             for item in v:
-                                lines.append(f"  - {_safe_text(k).replace('_', ' ').title()}: {_safe_text(item)}")
+                                lines.append(f"  - {_safe_text(k).replace('_',' ').title()}: {_safe_text(item)}")
                         elif v not in (None, False, "", []):
-                            lines.append(f"  - {_safe_text(k).replace('_', ' ').title()}: {_safe_text(v)}")
-
+                            lines.append(f"  - {_safe_text(k).replace('_',' ').title()}: {_safe_text(v)}")
             elif isinstance(o, Stop):
-                reason = _safe_text(o.reason)
-                lines.append(f"- **[STOP]** {reason}")
+                lines.append(f"- **[STOP]** {_safe_text(o.reason)}")
                 if getattr(o, "actions", None):
                     for a in o.actions:
                         lines.append(f"  - Follow-up: {_safe_text(a.label)}")
-
             elif isinstance(o, DataRequest):
-                msg = _safe_text(o.message)
-                missing = ", ".join(field for field in o.missing_fields)
-                lines.append(f"- **[DATA NEEDED]** {msg}")
+                missing = ", ".join(o.missing_fields)
+                lines.append(f"- **[DATA NEEDED]** {_safe_text(o.message)}")
                 lines.append(f"  - Missing fields: {missing}")
                 if getattr(o, "suggested_actions", None):
                     for a in o.suggested_actions:
@@ -157,88 +134,149 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title(" Gastroesophageal Reflux Disease (GERD) Pathway")
+st.title("🔥 GERD Pathway")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
 if "gerd_overrides" not in st.session_state:
     st.session_state.gerd_overrides = []
-
 if "gerd_has_run" not in st.session_state:
     st.session_state.gerd_has_run = False
-
 if "gerd_notes" not in st.session_state:
     st.session_state.gerd_notes = ""
 
 left, right = st.columns([1, 1.5])
 
-# ── LEFT PANEL (INPUTS) ──────────────────────────────────────────────────────
+# ── LEFT PANEL ───────────────────────────────────────────────────────────────
 with left:
     st.subheader("Patient Information")
-    
-    st.markdown("**Demographics & Metrics**")
-    colA, colB = st.columns(2)
-    with colA:
-        age = st.number_input("Age", 1, 120, 52)
-        sex = st.selectbox("Sex", ["male", "female"])
-        caucasian = st.checkbox("Caucasian")
-    with colB:
-        waist_cm = st.number_input("Waist Circumference (cm)", 0, 250, 0)
-        waist_hip = st.number_input("Waist-Hip Ratio", 0.0, 2.0, 0.0, step=0.1)
 
-    st.markdown("**GERD Symptoms**")
-    pred_heartburn = st.checkbox("Predominant Heartburn")
-    pred_regurgitation = st.checkbox("Predominant Regurgitation")
-    dom_chest_pain = st.checkbox("Dominant Chest Pain (Requires Cardiac Excl.)")
-    
-    st.markdown("**Dyspepsia Symptoms**")
-    pred_epigastric = st.checkbox("Predominant Epigastric Pain/Discomfort")
-    pred_bloating = st.checkbox("Predominant Upper Abdominal Bloating")
+    age = st.number_input("Age", 1, 120, 52)
+    sex = st.selectbox("Sex", ["male", "female"])
 
-    st.markdown("**Chronicity & Frequency**")
-    symptom_years = st.number_input("Duration of GERD Symptoms (Years)", 0, 80, 0)
-    freq_sel = st.selectbox("Symptoms Frequency (Times per Week)", ["Unknown", "0-1 times/week", "2 or more times/week"])
-    freq_val = None
-    if freq_sel == "0-1 times/week":
-        freq_val = 1
-    elif freq_sel == "2 or more times/week":
-        freq_val = 3
+    st.markdown("**1. Suspected GERD — Entry Symptoms**")
+    predominant_heartburn = st.checkbox("Predominant heartburn")
+    predominant_regurgitation = st.checkbox("Predominant regurgitation")
+    dominant_chest_pain = st.checkbox("Chest pain is a dominant feature")
 
-    st.markdown("**Barrett's Esophagus Risk Factors**")
-    hx_smoking = st.checkbox("Current or past history of tobacco smoking")
-    fh_cancer = st.checkbox("Family history (1st-degree) Barrett's / Esophageal Cancer")
-    hx_sleeve = st.checkbox("History of sleeve gastrectomy")
-    known_barretts = st.checkbox("Already has known Barrett's esophagus")
-    pos_screen = st.checkbox("Recent Barrett's screening was positive")
+    st.markdown("**2. Dyspepsia Screen**")
+    predominant_epigastric_pain = st.checkbox("Predominant epigastric pain / discomfort")
+    predominant_upper_abdominal_bloating = st.checkbox("Upper abdominal distension or bloating")
 
-    st.markdown("**Alarm Features**")
-    al_bleed_now = st.checkbox("Actively bleeding now (Urgent)")
-    al_weight_loss = st.checkbox("Unintended weight loss (> 5% over 6-12 months)")
+    st.markdown("**3. Alarm Features**")
+    actively_bleeding_now = st.checkbox("⚠ Active / acute GI bleeding NOW")
+    al_weight_loss = st.checkbox("Unintended weight loss >5% (over 6–12 months)")
     al_dysphagia = st.checkbox("Progressive dysphagia")
     al_odynophagia = st.checkbox("Odynophagia (painful swallowing)")
-    al_vomiting = st.checkbox("Persistent vomiting (not cannabis use)")
+    al_vomiting = st.checkbox("Persistent vomiting (not cannabis-related)")
     al_gi_bleed = st.checkbox("Black stool or blood in vomit")
     al_ida = st.checkbox("Iron deficiency anemia")
     al_mass = st.checkbox("Abdominal mass")
 
-    st.markdown("**Pharmacologic Therapy History**")
-    
-    def tri_state(label):
-        val = st.selectbox(label, ["Unknown/Not Attempted", "Yes", "No"])
-        if val == "Yes": return True
-        if val == "No": return False
-        return None
+    st.markdown("**4. Barrett's Esophagus Risk**")
+    gerd_symptom_years_sel = st.selectbox(
+        "GERD symptom duration",
+        ["Unknown / <5 years", "5–10 years", ">10 years"],
+    )
+    gerd_symptom_years_map = {"Unknown / <5 years": None, "5–10 years": 6, ">10 years": 11}
 
-    ppi_once_trial = tri_state("Trialed PPI Once Daily for 4-8 weeks?")
-    ppi_once_resp = tri_state("Was response adequate to Once Daily PPI?")
-    ppi_correct = tri_state("PPI taken correctly (30 min before breakfast)?")
-    ppi_adherence = tri_state("Adequate adherence to PPI?")
-    ppi_bid_trial = tri_state("Trialed Optimized PPI Twice Daily (BID)?")
-    ppi_bid_resp = tri_state("Was response adequate to BID PPI?")
-    ppi_resolved = tri_state("Did symptoms resolve fully after PPI use?")
-    ppi_return = tri_state("Did symptoms return after deprescribing taper?")
-    unsat_resp = tri_state("Overall unsatisfactory response to pharmacologic therapy?")
-    advice_used = tri_state("Has advice service been considered/used?")
+    symptoms_per_week_sel = st.selectbox(
+        "Symptom frequency per week",
+        ["Unknown", "<1 (infrequent)", "1–1.9 (weekly)", "≥2 (frequent)"],
+    )
+    spw_map = {"Unknown": None, "<1 (infrequent)": 0.5, "1–1.9 (weekly)": 1.0, "≥2 (frequent)": 2.0}
+
+    caucasian = st.checkbox("Caucasian")
+    current_or_history_smoking = st.checkbox("Current or past tobacco smoking")
+    family_hx_barretts = st.checkbox("Family history (1st degree) of Barrett's or esophageal cancer")
+    history_of_sleeve_gastrectomy = st.checkbox("History of sleeve gastrectomy")
+    known_barretts_esophagus = st.checkbox("Known Barrett's esophagus")
+    barretts_screen_positive = st.checkbox("Barrett's screening test already positive")
+
+    st.markdown("**Waist Measurements** *(for central obesity assessment)*")
+    waist_cm_input = st.number_input("Waist circumference (cm) — 0 = not measured", 0.0, 250.0, 0.0, step=0.5)
+    waist_cm = waist_cm_input if waist_cm_input > 0 else None
+    whr_input = st.number_input("Waist-hip ratio — 0 = not measured", 0.0, 3.0, 0.0, step=0.01)
+    whr = whr_input if whr_input > 0 else None
+
+    st.markdown("**5. Non-Pharmacological Therapy**")
+    st.caption("Non-pharmacological counselling is always recommended (smoking, diet, weight, meal timing).")
+
+    st.markdown("**6. Pharmacological Therapy**")
+    ppi_od_done_sel = st.selectbox(
+        "Once-daily PPI trial (4–8 weeks)",
+        ["Not yet started", "Completed"],
+    )
+    ppi_od_done = ppi_od_done_sel == "Completed"
+
+    ppi_od_response = None
+    ppi_adherence_correct = None
+    ppi_adherence_adequate = None
+    ppi_bid_done = None
+    ppi_bid_response = None
+
+    if ppi_od_done:
+        ppi_od_resp_sel = st.selectbox(
+            "Response to once-daily PPI",
+            ["Unknown", "Adequate (symptoms resolved)", "Inadequate"],
+        )
+        ppi_od_response_map = {
+            "Unknown": None,
+            "Adequate (symptoms resolved)": True,
+            "Inadequate": False,
+        }
+        ppi_od_response = ppi_od_response_map[ppi_od_resp_sel]
+
+        if ppi_od_response is False:
+            st.markdown("*PPI adherence check (before escalating):*")
+            ppi_adherence_correct = st.checkbox("PPI taken correctly — 30 min before breakfast", value=True)
+            ppi_adherence_adequate = st.checkbox("Patient adherence to daily PPI adequate", value=True)
+
+            ppi_bid_done_sel = st.selectbox(
+                "Twice-daily (BID) PPI trial (4–8 weeks)",
+                ["Not yet started", "Completed"],
+                key="ppi_bid_done_sel",
+            )
+            ppi_bid_done = ppi_bid_done_sel == "Completed"
+
+            if ppi_bid_done:
+                ppi_bid_resp_sel = st.selectbox(
+                    "Response to BID PPI",
+                    ["Unknown", "Adequate (symptoms resolved)", "Inadequate"],
+                )
+                ppi_bid_response_map = {
+                    "Unknown": None,
+                    "Adequate (symptoms resolved)": True,
+                    "Inadequate": False,
+                }
+                ppi_bid_response = ppi_bid_response_map[ppi_bid_resp_sel]
+
+    st.markdown("**7. Maintenance / Deprescribing**")
+    symptoms_resolved_sel = st.selectbox(
+        "Symptoms resolved after PPI?",
+        ["Unknown", "Yes", "No"],
+    )
+    symptoms_resolved_map = {"Unknown": None, "Yes": True, "No": False}
+    symptoms_resolved = symptoms_resolved_map[symptoms_resolved_sel]
+
+    symptoms_return_sel = st.selectbox(
+        "Symptoms returned after taper/stop?",
+        ["Unknown", "Yes", "No"],
+    )
+    symptoms_return_map = {"Unknown": None, "Yes": True, "No": False}
+    symptoms_return = symptoms_return_map[symptoms_return_sel]
+
+    st.markdown("**8. Overall Management Response**")
+    unsat_sel = st.selectbox(
+        "Overall response to GERD pharmacologic therapy",
+        ["Unknown", "Satisfactory", "Unsatisfactory"],
+    )
+    unsat_map = {"Unknown": None, "Satisfactory": False, "Unsatisfactory": True}
+    unsatisfactory_response = unsat_map[unsat_sel]
+
+    advice_considered = None
+    if unsatisfactory_response is True:
+        advice_considered = st.checkbox("Advice service already consulted / considered")
 
     run_clicked = st.button("▶ Run Pathway", type="primary", use_container_width=True)
     if run_clicked:
@@ -252,259 +290,461 @@ with left:
 
     override_panel = st.container()
 
-# ── RIGHT PANEL (OUTPUTS & FLOWCHART) ────────────────────────────────────────
+# ── RIGHT PANEL ──────────────────────────────────────────────────────────────
 with right:
     if st.session_state.gerd_has_run:
-        
-        # Build payload mapping to engine
+
         patient_data = {
             "age": age,
             "sex": sex,
-            "waist_circumference_cm": waist_cm if waist_cm > 0 else None,
-            "waist_hip_ratio": waist_hip if waist_hip > 0.0 else None,
-            "caucasian": caucasian,
-            "gerd_symptom_years": symptom_years if symptom_years > 0 else None,
-            "symptoms_per_week": freq_val,
-            "current_or_history_smoking": hx_smoking,
-            "family_history_barretts_or_esophageal_cancer_first_degree": fh_cancer,
-            "predominant_heartburn": pred_heartburn,
-            "predominant_regurgitation": pred_regurgitation,
-            "dominant_chest_pain": dom_chest_pain,
-            "predominant_epigastric_pain": pred_epigastric,
-            "predominant_upper_abdominal_bloating": pred_bloating,
-            "actively_bleeding_now": al_bleed_now,
-            "unintended_weight_loss": al_weight_loss,
-            "progressive_dysphagia": al_dysphagia,
-            "odynophagia": al_odynophagia,
-            "persistent_vomiting": al_vomiting,
-            "black_stool_or_blood_in_vomit": al_gi_bleed,
-            "iron_deficiency_anemia_present": al_ida,
-            "abdominal_mass": al_mass,
-            "known_barretts_esophagus": known_barretts,
-            "barretts_screen_positive": pos_screen,
-            "history_of_sleeve_gastrectomy": hx_sleeve,
-            "ppi_once_daily_trial_done": ppi_once_trial,
-            "ppi_once_daily_response_adequate": ppi_once_resp,
-            "ppi_taken_correctly_before_breakfast": ppi_correct,
-            "ppi_adherence_adequate": ppi_adherence,
-            "ppi_bid_trial_done": ppi_bid_trial,
-            "ppi_bid_response_adequate": ppi_bid_resp,
-            "symptoms_resolved_after_ppi": ppi_resolved,
-            "symptoms_return_after_taper": ppi_return,
-            "unsatisfactory_response_to_pharmacologic_therapy": unsat_resp,
-            "advice_service_considered": advice_used,
+            # Entry
+            "predominant_heartburn": predominant_heartburn or None,
+            "predominant_regurgitation": predominant_regurgitation or None,
+            "dominant_chest_pain": dominant_chest_pain or None,
+            # Dyspepsia
+            "predominant_epigastric_pain": predominant_epigastric_pain or None,
+            "predominant_upper_abdominal_bloating": predominant_upper_abdominal_bloating or None,
+            # Alarm
+            "actively_bleeding_now": actively_bleeding_now or None,
+            "unintended_weight_loss": al_weight_loss or None,
+            "progressive_dysphagia": al_dysphagia or None,
+            "odynophagia": al_odynophagia or None,
+            "persistent_vomiting": al_vomiting or None,
+            "black_stool_or_blood_in_vomit": al_gi_bleed or None,
+            "iron_deficiency_anemia_present": al_ida or None,
+            "abdominal_mass": al_mass or None,
+            # Barrett's
+            "gerd_symptom_years": gerd_symptom_years_map[gerd_symptom_years_sel],
+            "symptoms_per_week": spw_map[symptoms_per_week_sel],
+            "caucasian": caucasian or None,
+            "current_or_history_smoking": current_or_history_smoking or None,
+            "family_history_barretts_or_esophageal_cancer_first_degree": family_hx_barretts or None,
+            "history_of_sleeve_gastrectomy": history_of_sleeve_gastrectomy or None,
+            "known_barretts_esophagus": known_barretts_esophagus or None,
+            "barretts_screen_positive": barretts_screen_positive or None,
+            "waist_circumference_cm": waist_cm,
+            "waist_hip_ratio": whr,
+            # Pharmacologic
+            "ppi_once_daily_trial_done": ppi_od_done if ppi_od_done else None,
+            "ppi_once_daily_response_adequate": ppi_od_response,
+            "ppi_taken_correctly_before_breakfast": ppi_adherence_correct,
+            "ppi_adherence_adequate": ppi_adherence_adequate,
+            "ppi_bid_trial_done": ppi_bid_done,
+            "ppi_bid_response_adequate": ppi_bid_response,
+            # Maintenance
+            "symptoms_resolved_after_ppi": symptoms_resolved,
+            "symptoms_return_after_taper": symptoms_return,
+            # Management response
+            "unsatisfactory_response_to_pharmacologic_therapy": unsatisfactory_response,
+            "advice_service_considered": advice_considered or None,
         }
 
         outputs, logs, applied_overrides = run_gerd_pathway(
             patient_data, overrides=st.session_state.gerd_overrides
         )
 
-        # ── SVG FLOWCHART LOGIC ──
-        # Determine paths logically to light up flowchart
-        has_gerd = pred_heartburn or pred_regurgitation
-        is_dyspepsia = pred_epigastric or pred_bloating
-        has_alarm = any([al_bleed_now, al_weight_loss, al_dysphagia, al_odynophagia, al_vomiting, al_gi_bleed, al_ida, al_mass])
-        
-        path_gerd = True
-        path_dysp = has_gerd
-        path_alarm = path_dysp and not is_dyspepsia
-        path_barrett = path_alarm and not has_alarm
-        path_nonpharm = path_barrett and not pos_screen
-        path_pharm = path_nonpharm # Assumed passes through non-pharm
-        
-        # Colors & styling matching H. pylori page
+        # ── Pathway state flags for the SVG flowchart ──────────────────────
+        gerd_entry_met = any(
+            isinstance(o, Action) and o.code == "GERD_ENTRY_MET" for o in outputs
+        )
+        is_dyspepsia_stop = any(
+            isinstance(o, Stop) and "dyspeptic" in o.reason.lower() for o in outputs
+        )
+        has_alarm = any(
+            isinstance(o, Stop) and "alarm" in o.reason.lower() for o in outputs
+        ) or any(
+            isinstance(o, Action) and o.code == "URGENT_ENDOSCOPY_REFERRAL" for o in outputs
+        )
+        barretts_refer = any(
+            isinstance(o, Stop) and "barrett" in o.reason.lower() for o in outputs
+        )
+        went_non_pharm = any(
+            isinstance(o, Action) and o.code == "COUNSEL_SMOKING_CESSATION" for o in outputs
+        )
+        went_pharm = any(
+            isinstance(o, Action) and o.code in {
+                "H2RA_OR_ANTACID_PRN", "START_PPI_ONCE_DAILY",
+                "OPTIMIZE_PPI_BID", "PPI_ONCE_DAILY_SUCCESS",
+            } for o in outputs
+        )
+        mild_branch = any(
+            isinstance(o, Action) and o.code == "H2RA_OR_ANTACID_PRN" for o in outputs
+        )
+        ppi_od_success = any(
+            isinstance(o, Action) and o.code == "PPI_ONCE_DAILY_SUCCESS" for o in outputs
+        )
+        ppi_bid_action = any(
+            isinstance(o, Action) and o.code == "OPTIMIZE_PPI_BID" for o in outputs
+        )
+        ppi_bid_success = any(
+            isinstance(o, Action) and o.code == "PPI_BID_SUCCESS" for o in outputs
+        )
+        went_maintenance = any(
+            isinstance(o, Action) and o.code in {
+                "TITRATE_TO_LOWEST_EFFECTIVE_PPI", "PPI_MAINTENANCE",
+                "KNOWN_BARRETTS_LIFETIME_PPI",
+            } for o in outputs
+        )
+        pathway_complete = any(
+            isinstance(o, Stop) and "complete" in o.reason.lower() for o in outputs
+        )
+        refer_final = any(
+            isinstance(o, Stop) and "failed gerd" in o.reason.lower() or
+            (isinstance(o, Stop) and "consultation/endoscopy" in o.reason.lower()
+             and "alarm" not in o.reason.lower() and "barrett" not in o.reason.lower())
+            for o in outputs
+        )
+        active_bleeding_stop = any(
+            isinstance(o, Stop) and "bleeding" in o.reason.lower() for o in outputs
+        )
+
+        # ── SVG FLOWCHART ───────────────────────────────────────────────────
         C_MAIN = "#16a34a"; C_UNVISIT = "#475569"; C_DIAMOND = "#1d4ed8"
         C_URGENT = "#dc2626"; C_EXIT = "#d97706"
         C_TEXT = "#ffffff"; C_DIM = "#94a3b8"; C_BG = "#0f172a"
 
         def nc(vis, urgent=False, exit_=False):
-            if not vis: return C_UNVISIT
-            if urgent: return C_URGENT
-            if exit_: return C_EXIT
+            if not vis:
+                return C_UNVISIT
+            if urgent:
+                return C_URGENT
+            if exit_:
+                return C_EXIT
             return C_MAIN
 
         def dc(vis):
             return C_DIAMOND if vis else C_UNVISIT
 
         def mid(vis, urgent=False, exit_=False):
-            if not vis: return "ma"
-            if urgent: return "mr"
-            if exit_: return "mo"
+            if not vis:
+                return "ma"
+            if urgent:
+                return "mr"
+            if exit_:
+                return "mo"
             return "mg"
 
         svg = []
-        W, H = 700, 850
+        W, H = 700, 1080
         svg.append(
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="{H}" '
-            f'viewBox="0 0 {W} {H}" style="background:{C_BG};border-radius:12px;font-family:Arial,sans-serif">'
+            '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="' + str(H) + '" '
+            'viewBox="0 0 ' + str(W) + ' ' + str(H) + '" '
+            'style="background:' + C_BG + ';border-radius:12px;font-family:Arial,sans-serif">'
         )
         svg.append(
             "<defs>"
-            '<marker id="ma" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>'
-            '<marker id="mg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#16a34a"/></marker>'
-            '<marker id="mr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#dc2626"/></marker>'
-            '<marker id="mo" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#d97706"/></marker>'
+            '<marker id="ma" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
+            '<path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>'
+            '<marker id="mg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
+            '<path d="M0,0 L0,6 L9,3 z" fill="#16a34a"/></marker>'
+            '<marker id="mr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
+            '<path d="M0,0 L0,6 L9,3 z" fill="#dc2626"/></marker>'
+            '<marker id="mo" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
+            '<path d="M0,0 L0,6 L9,3 z" fill="#d97706"/></marker>'
             "</defs>"
         )
 
         def svgt(x, y, text, fill, size=11, bold=False, anchor="middle"):
             w = "bold" if bold else "normal"
-            svg.append(f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="{fill}" font-size="{size}" font-weight="{w}">{html.escape(str(text))}</text>')
+            svg.append(
+                f'<text x="{x}" y="{y}" text-anchor="{anchor}" '
+                f'fill="{fill}" font-size="{size}" font-weight="{w}">{html.escape(str(text))}</text>'
+            )
 
         def rect_node(x, y, w, h, color, line1, line2="", sub="", rx=8):
             tc = C_TEXT if color != C_UNVISIT else C_DIM
-            svg.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
+            svg.append(
+                f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
+                f'fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
+            )
             if line2:
-                svgt(x+w/2, y+h/2-8, line1, tc, 11, True)
-                svgt(x+w/2, y+h/2+7, line2, tc, 11, True)
+                svgt(x + w / 2, y + h / 2 - 8, line1, tc, 11, True)
+                svgt(x + w / 2, y + h / 2 + 7, line2, tc, 11, True)
             else:
-                svgt(x+w/2, y+h/2+4, line1, tc, 11, True)
+                svgt(x + w / 2, y + h / 2 + 4, line1, tc, 11, True)
             if sub:
-                svgt(x+w/2, y+h-8, sub, tc+"99", 9)
+                svgt(x + w / 2, y + h - 8, sub, tc + "99", 9)
 
         def diamond_node(cx, cy, w, h, color, line1, line2=""):
             tc = C_TEXT if color != C_UNVISIT else C_DIM
-            hw, hh = w/2, h/2
+            hw, hh = w / 2, h / 2
             pts = f"{cx},{cy-hh} {cx+hw},{cy} {cx},{cy+hh} {cx-hw},{cy}"
-            svg.append(f'<polygon points="{pts}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
+            svg.append(
+                f'<polygon points="{pts}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
+            )
             if line2:
-                svgt(cx, cy-7, line1, tc, 10, True)
-                svgt(cx, cy+8, line2, tc, 10, True)
+                svgt(cx, cy - 7, line1, tc, 10, True)
+                svgt(cx, cy + 8, line2, tc, 10, True)
             else:
-                svgt(cx, cy+4, line1, tc, 10, True)
+                svgt(cx, cy + 4, line1, tc, 10, True)
 
         def exit_node(x, y, w, h, color, line1, line2="", rx=7):
             tc = C_TEXT if color != C_UNVISIT else C_DIM
-            svg.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
+            svg.append(
+                f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
+                f'fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
+            )
             if line2:
-                svgt(x+w/2, y+h/2-7, line1, tc, 10, True)
-                svgt(x+w/2, y+h/2+7, line2, tc, 9)
+                svgt(x + w / 2, y + h / 2 - 7, line1, tc, 10, True)
+                svgt(x + w / 2, y + h / 2 + 7, line2, tc, 9)
             else:
-                svgt(x+w/2, y+h/2+4, line1, tc, 10, True)
+                svgt(x + w / 2, y + h / 2 + 4, line1, tc, 10, True)
 
         def vline(x, y1, y2, vis, urgent=False, exit_=False, label=""):
             m = mid(vis, urgent, exit_)
             stroke = {"mg": "#16a34a", "mr": "#dc2626", "mo": "#d97706"}.get(m, "#64748b")
             dash = "" if vis else 'stroke-dasharray="5,3"'
-            svg.append(f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
+            svg.append(
+                f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" '
+                f'stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>'
+            )
             if label:
-                svgt(x+6, (y1+y2)/2-3, label, stroke, 10, True, "start")
+                svgt(x + 6, (y1 + y2) / 2 - 3, label, stroke, 10, True, "start")
 
         def elbow_line(x1, y1, x2, y2, vis, urgent=False, exit_=False, label=""):
             m = mid(vis, urgent, exit_)
             stroke = {"mg": "#16a34a", "mr": "#dc2626", "mo": "#d97706"}.get(m, "#64748b")
             dash = "" if vis else 'stroke-dasharray="5,3"'
-            svg.append(f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" fill="none" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
+            svg.append(
+                f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" '
+                f'fill="none" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>'
+            )
             if label:
-                svgt((x1+x2)/2, y1-5, label, stroke, 10, True)
+                svgt((x1 + x2) / 2, y1 - 5, label, stroke, 10, True)
 
-        CX = 350; NW, NH = 180, 50; DW, DH = 180, 58; EW, EH = 140, 46
-        LEXT = 30; REXT = W - 30 - EW
+        # Layout constants
+        CX = 350; NW, NH = 180, 50; DW, DH = 188, 58; EW, EH = 142, 46
+        LEXT = 24; REXT = W - 24 - EW
+
         Y = {
-            "start": 20, "d_gerd": 100, "d_dysp": 200, "d_alarm": 300,
-            "barretts": 400, "nonpharm": 500, "pharm": 600, "mgt": 700
+            "entry":    18,
+            "d_dysp":   95,
+            "d_alarm":  200,
+            "d_barre":  310,
+            "non_ph":   410,
+            "d_freq":   490,
+            "mild":     580,
+            "ppi_od":   580,
+            "ppi_bid":  670,
+            "d_maint":  760,
+            "maint":    855,
+            "d_mgmt":   955,
         }
 
-        # Flow starts
-        rect_node(CX-NW/2, Y["start"], NW, NH, nc(True), "Patient Presents", "Heartburn/Regurgitation")
-        vline(CX, Y["start"]+NH, Y["d_gerd"], True)
-        
-        # 1. Suspected GERD
-        diamond_node(CX, Y["d_gerd"]+DH/2, DW, DH, dc(True), "1. Suspected GERD?")
-        v_not_gerd = not has_gerd
-        exit_node(LEXT, Y["d_gerd"]+(DH-EH)/2, EW, EH, nc(v_not_gerd, exit_=True), "No", "Not GERD Pathway")
-        elbow_line(CX-DW/2, Y["d_gerd"]+DH/2, LEXT+EW, Y["d_gerd"]+(DH-EH)/2+EH/2, v_not_gerd, exit_=True, label="No")
+        # ── NODE 1: Suspected GERD entry ──
+        rect_node(CX - NW / 2, Y["entry"], NW, NH,
+                  nc(True), "1. Suspected GERD",
+                  sub="Heartburn / Regurgitation")
+        vline(CX, Y["entry"] + NH, Y["d_dysp"], True)
 
-        vline(CX, Y["d_gerd"]+DH, Y["d_dysp"], path_dysp, label="Yes")
-        
-        # 2. Dyspepsia
-        diamond_node(CX, Y["d_dysp"]+DH/2, DW, DH, dc(path_dysp), "2. Dyspepsia", "Predominant?")
-        v_is_dysp = path_dysp and is_dyspepsia
-        exit_node(REXT, Y["d_dysp"]+(DH-EH)/2, EW, EH, nc(v_is_dysp, exit_=True), "Yes", "→ Dyspepsia Pathway")
-        elbow_line(CX+DW/2, Y["d_dysp"]+DH/2, REXT, Y["d_dysp"]+(DH-EH)/2+EH/2, v_is_dysp, exit_=True, label="Yes")
+        # ── NODE 2: Dyspepsia screen diamond ──
+        diamond_node(CX, Y["d_dysp"] + DH / 2, DW, DH,
+                     dc(gerd_entry_met or is_dyspepsia_stop),
+                     "2. Dyspepsia?",
+                     "Epigastric / bloating?")
+        dysp_vis = is_dyspepsia_stop
+        exit_node(REXT, Y["d_dysp"] + (DH - EH) / 2, EW, EH,
+                  nc(dysp_vis, exit_=True), "→ Dyspepsia", "Pathway")
+        elbow_line(CX + DW / 2, Y["d_dysp"] + DH / 2,
+                   REXT, Y["d_dysp"] + (DH - EH) / 2 + EH / 2,
+                   dysp_vis, exit_=True, label="Yes")
 
-        vline(CX, Y["d_dysp"]+DH, Y["d_alarm"], path_alarm, label="No")
-        
-        # 3. Alarm Features
-        diamond_node(CX, Y["d_alarm"]+DH/2, DW, DH, dc(path_alarm), "3. Alarm Features?")
-        v_has_alarm = path_alarm and has_alarm
-        exit_node(REXT, Y["d_alarm"]+(DH-EH)/2, EW, EH, nc(v_has_alarm, urgent=True), "Yes", "→ Urgent Endoscopy")
-        elbow_line(CX+DW/2, Y["d_alarm"]+DH/2, REXT, Y["d_alarm"]+(DH-EH)/2+EH/2, v_has_alarm, urgent=True, label="Yes")
+        v_past_dysp = gerd_entry_met and not is_dyspepsia_stop
+        vline(CX, Y["d_dysp"] + DH, Y["d_alarm"], v_past_dysp, label="No")
 
-        vline(CX, Y["d_alarm"]+DH, Y["barretts"], path_barrett, label="No")
+        # ── NODE 3: Alarm features diamond ──
+        diamond_node(CX, Y["d_alarm"] + DH / 2, DW, DH,
+                     dc(v_past_dysp),
+                     "3. Alarm", "Features?")
+        alarm_exit_vis = has_alarm and v_past_dysp
+        exit_node(REXT, Y["d_alarm"] + (DH - EH) / 2, EW, EH,
+                  nc(alarm_exit_vis or active_bleeding_stop, urgent=True),
+                  "⚠ Refer", "GI / Endoscopy")
+        elbow_line(CX + DW / 2, Y["d_alarm"] + DH / 2,
+                   REXT, Y["d_alarm"] + (DH - EH) / 2 + EH / 2,
+                   alarm_exit_vis or active_bleeding_stop, urgent=True, label="Yes")
 
-        # 4. Barrett's Risk
-        rect_node(CX-NW/2, Y["barretts"], NW, NH, nc(path_barrett), "4. Barrett's Risk", "Assessment")
-        exit_node(LEXT, Y["barretts"]+(NH-EH)/2, EW, EH, nc(pos_screen, urgent=True), "High Risk / Pos", "→ Endoscopy")
-        elbow_line(CX-NW/2, Y["barretts"]+NH/2, LEXT+EW, Y["barretts"]+(NH-EH)/2+EH/2, pos_screen, urgent=True, label="Yes")
+        v_past_alarm = v_past_dysp and not has_alarm and not active_bleeding_stop
+        vline(CX, Y["d_alarm"] + DH, Y["d_barre"], v_past_alarm, label="No")
 
-        vline(CX, Y["barretts"]+NH, Y["nonpharm"], path_nonpharm)
+        # ── NODE 4: Barrett's risk diamond ──
+        diamond_node(CX, Y["d_barre"] + DH / 2, DW, DH,
+                     dc(v_past_alarm),
+                     "4. Barrett's", "Risk Assessment")
+        barrett_exit_vis = barretts_refer and v_past_alarm
+        exit_node(REXT, Y["d_barre"] + (DH - EH) / 2, EW, EH,
+                  nc(barrett_exit_vis, exit_=True),
+                  "High Risk", "→ Refer / Screen")
+        elbow_line(CX + DW / 2, Y["d_barre"] + DH / 2,
+                   REXT, Y["d_barre"] + (DH - EH) / 2 + EH / 2,
+                   barrett_exit_vis, exit_=True, label="High")
 
-        # 5. Non-Pharm
-        rect_node(CX-NW/2, Y["nonpharm"], NW, NH, nc(path_nonpharm), "5. Non-Pharmacological", "Therapy")
-        vline(CX, Y["nonpharm"]+NH, Y["pharm"], path_pharm, label="Ineffective")
+        v_past_barre = v_past_alarm and not barretts_refer
+        vline(CX, Y["d_barre"] + DH, Y["non_ph"], v_past_barre, label="No")
 
-        # 6. Pharmacological
-        rect_node(CX-NW/2, Y["pharm"], NW, NH, nc(path_pharm), "6. Pharmacological", "Therapy (H2RA/PPI)")
-        vline(CX, Y["pharm"]+NH, Y["mgt"], path_pharm)
+        # ── NODE 5: Non-pharmacological therapy ──
+        rect_node(CX - NW / 2, Y["non_ph"], NW, NH,
+                  nc(went_non_pharm),
+                  "5. Non-Pharmacological",
+                  sub="Lifestyle / Diet / Smoking")
+        vline(CX, Y["non_ph"] + NH, Y["d_freq"], went_non_pharm)
 
-        # 7. Management Response
-        diamond_node(CX, Y["mgt"]+DH/2, DW, DH, dc(path_pharm), "7. Response / Mgt", "Adequate?")
-        v_unsat = path_pharm and unsat_resp is True
-        exit_node(REXT, Y["mgt"]+(DH-EH)/2, EW, EH, nc(v_unsat, exit_=True), "Unsatisfactory", "Refer / Advice")
-        elbow_line(CX+DW/2, Y["mgt"]+DH/2, REXT, Y["mgt"]+(DH-EH)/2+EH/2, v_unsat, exit_=True, label="No")
+        # ── NODE 6: Symptom frequency diamond ──
+        diamond_node(CX, Y["d_freq"] + DH / 2, DW, DH,
+                     dc(went_pharm or went_non_pharm),
+                     "6. Pharmacological",
+                     "Symptoms ≥2×/week?")
 
-        v_sat = path_pharm and not v_unsat
-        exit_node(CX-EW/2, Y["mgt"]+DH+20, EW, EH, nc(v_sat, exit_=v_sat), "Controlled", "Patient Medical Home")
-        vline(CX, Y["mgt"]+DH, Y["mgt"]+DH+20, v_sat, exit_=v_sat, label="Yes")
+        # Mild branch – left exit
+        exit_node(LEXT, Y["mild"] + 2, EW, EH,
+                  nc(mild_branch, exit_=True), "H2RA /", "Antacids PRN")
+        elbow_line(CX - DW / 2, Y["d_freq"] + DH / 2,
+                   LEXT + EW, Y["mild"] + EH / 2,
+                   mild_branch, exit_=True, label="<2×")
 
-        # Legend
-        ly = H - 22; lx = 18
+        # PPI once-daily box (right side of freq diamond)
+        PPI_X = CX + DW / 2 + 8
+        PPI_W = 120
+        ppi_od_vis = went_pharm and not mild_branch
+        svg.append(
+            f'<rect x="{PPI_X}" y="{Y["ppi_od"]}" width="{PPI_W}" height="{NH}" rx="7" '
+            f'fill="{nc(ppi_od_vis)}" stroke="#ffffff18" stroke-width="1.5"/>'
+        )
+        tc_pod = C_TEXT if ppi_od_vis else C_DIM
+        svgt(PPI_X + PPI_W / 2, Y["ppi_od"] + NH / 2 - 6, "PPI Once Daily", tc_pod, 10, True)
+        svgt(PPI_X + PPI_W / 2, Y["ppi_od"] + NH / 2 + 8, "4–8 weeks", tc_pod, 9)
+        if went_pharm and not mild_branch:
+            m_pod = "mg"
+            stroke_pod = "#16a34a"
+            svg.append(
+                f'<polyline points="{CX+DW/2},{Y["d_freq"]+DH/2} {PPI_X},{Y["d_freq"]+DH/2} {PPI_X},{Y["ppi_od"]}" '
+                f'fill="none" stroke="{stroke_pod}" stroke-width="2" marker-end="url(#{m_pod})"/>'
+            )
+            svgt(PPI_X - 24, Y["d_freq"] + DH / 2 - 5, "≥2×", stroke_pod, 10, True)
+
+        # PPI BID box (below ppi_od)
+        ppi_bid_vis = ppi_bid_action
+        svg.append(
+            f'<rect x="{PPI_X}" y="{Y["ppi_bid"]}" width="{PPI_W}" height="{NH}" rx="7" '
+            f'fill="{nc(ppi_bid_vis)}" stroke="#ffffff18" stroke-width="1.5"/>'
+        )
+        tc_pbid = C_TEXT if ppi_bid_vis else C_DIM
+        svgt(PPI_X + PPI_W / 2, Y["ppi_bid"] + NH / 2 - 6, "Optimize PPI", tc_pbid, 10, True)
+        svgt(PPI_X + PPI_W / 2, Y["ppi_bid"] + NH / 2 + 8, "BID 4–8 wks", tc_pbid, 9)
+        # connect ppi_od to ppi_bid
+        m_bid = mid(ppi_bid_vis)
+        stroke_bid = {"mg": "#16a34a"}.get(m_bid, "#64748b")
+        dash_bid = "" if ppi_bid_vis else 'stroke-dasharray="5,3"'
+        svg.append(
+            f'<line x1="{PPI_X + PPI_W / 2}" y1="{Y["ppi_od"] + NH}" '
+            f'x2="{PPI_X + PPI_W / 2}" y2="{Y["ppi_bid"]}" '
+            f'stroke="{stroke_bid}" stroke-width="2" {dash_bid} marker-end="url(#{m_bid})"/>'
+        )
+        if ppi_bid_vis:
+            svgt(PPI_X + PPI_W / 2 + 6, (Y["ppi_od"] + NH + Y["ppi_bid"]) / 2 - 3,
+                 "Inadequate", stroke_bid, 9, False, "start")
+
+        # ── NODE 7: Maintenance / deprescribing ──
+        vline(CX, Y["d_freq"] + DH, Y["d_maint"], went_maintenance)
+        rect_node(CX - NW / 2, Y["d_maint"], NW, NH,
+                  nc(went_maintenance),
+                  "7. Maintenance /",
+                  "Deprescribing",
+                  sub="Lowest dose · Annual taper")
+
+        # Arrow from ppi_od success to maintenance (elbow from right side)
+        if ppi_od_success or ppi_bid_success:
+            m_mnt = "mg"
+            stroke_mnt = "#16a34a"
+            src_y = Y["ppi_od"] + NH if ppi_od_success else Y["ppi_bid"] + NH
+            tgt_x = CX - NW / 2
+            tgt_y = Y["d_maint"] + NH / 2
+            svg.append(
+                f'<polyline points="{PPI_X},{src_y} {PPI_X},{tgt_y} {tgt_x},{tgt_y}" '
+                f'fill="none" stroke="{stroke_mnt}" stroke-width="2" marker-end="url(#{m_mnt})"/>'
+            )
+            svgt(PPI_X - 6, (src_y + tgt_y) / 2, "Resolved", stroke_mnt, 9, False, "end")
+
+        # ── NODE 8: Management response ──
+        vline(CX, Y["d_maint"] + NH, Y["d_mgmt"],
+              went_maintenance or pathway_complete or refer_final)
+        rect_node(CX - NW / 2, Y["d_mgmt"], NW, NH,
+                  nc(went_maintenance or pathway_complete or refer_final),
+                  "8. Management", "Response",
+                  sub="Satisfactory?")
+
+        complete_vis = pathway_complete
+        exit_node(LEXT, Y["d_mgmt"] + (NH - EH) // 2, EW, EH,
+                  nc(complete_vis, exit_=True), "✓ Complete", "Patient Medical Home")
+        elbow_line(CX - NW / 2, Y["d_mgmt"] + NH / 2,
+                   LEXT + EW, Y["d_mgmt"] + (NH - EH) // 2 + EH / 2,
+                   complete_vis, exit_=True, label="Yes")
+
+        refer_vis = refer_final
+        exit_node(REXT, Y["d_mgmt"] + (NH - EH) // 2, EW, EH,
+                  nc(refer_vis, urgent=True), "Refer", "Consultation / Scope")
+        elbow_line(CX + NW / 2, Y["d_mgmt"] + NH / 2,
+                   REXT, Y["d_mgmt"] + (NH - EH) // 2 + EH / 2,
+                   refer_vis, urgent=True, label="Unsat.")
+
+        # ── Legend ──
+        ly = H - 20; lx = 18
         for col, lbl in [
             (C_MAIN, "Visited"), (C_DIAMOND, "Decision"),
             (C_URGENT, "Urgent"), (C_EXIT, "Exit/Off-ramp"), (C_UNVISIT, "Not reached"),
         ]:
             svg.append(f'<rect x="{lx}" y="{ly-11}" width="12" height="12" rx="2" fill="{col}"/>')
-            svgt(lx+16, ly, lbl, "#94a3b8", 10, anchor="start")
+            svgt(lx + 16, ly, lbl, "#94a3b8", 10, anchor="start")
             lx += 110
         svg.append("</svg>")
 
         st.subheader("🗺️ Pathway Followed")
         components.html(
-            f'<div style="background:{C_BG};padding:10px;border-radius:14px;overflow-x:auto">{"".join(svg)}</div>',
-            height=880, scrolling=True,
+            '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
+            + "".join(svg) + "</div>",
+            height=1100, scrolling=True,
         )
 
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
-        # Context Strings
-        ctx_freq = f"{freq_val} times/week" if freq_val is not None else "Unknown"
-        active_alarms = [lbl for k, lbl in [
-            ("actively_bleeding_now", "Active Bleeding"),
-            ("unintended_weight_loss", "Weight Loss"),
+        # ── Patient context card ──
+        alarm_fields = [
+            ("unintended_weight_loss", "Weight loss >5%"),
             ("progressive_dysphagia", "Dysphagia"),
             ("odynophagia", "Odynophagia"),
             ("persistent_vomiting", "Vomiting"),
-            ("black_stool_or_blood_in_vomit", "GI Bleed Signs"),
+            ("black_stool_or_blood_in_vomit", "GI bleed signs"),
             ("iron_deficiency_anemia_present", "IDA"),
-            ("abdominal_mass", "Abd Mass")
-        ] if patient_data.get(k)]
+            ("abdominal_mass", "Abdominal mass"),
+            ("actively_bleeding_now", "Active bleeding"),
+        ]
+        active_alarms = [label for key, label in alarm_fields if patient_data.get(key)]
         alarm_str = ", ".join(active_alarms) if active_alarms else "None"
+
+        spw_display = spw_map[symptoms_per_week_sel]
+        spw_str = f"{spw_display}×/week" if spw_display is not None else "Unknown"
+
+        barretts_str = "Known Barrett's – lifetime PPI" if known_barretts_esophagus else (
+            "Positive screen – refer" if barretts_screen_positive else "Not indicated / not screened"
+        )
 
         st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
         st.markdown(
             '<div class="ctx-card">'
             f'<span><b>Age / Sex:</b> {age} / {sex.capitalize()}</span><br>'
-            f'<span><b>Predominant Symptom:</b> {"Heartburn/Regurgitation" if has_gerd else "Other"}</span><br>'
-            f'<span><b>Frequency:</b> {ctx_freq}</span><br>'
-            f'<span><b>Alarm Features:</b> {alarm_str}</span>'
+            f'<span><b>Symptom Frequency:</b> {spw_str}'
+            f' &nbsp;|&nbsp; <b>Duration:</b> {gerd_symptom_years_sel}</span><br>'
+            f'<span><b>Alarm Features:</b> {alarm_str}</span><br>'
+            f'<span><b>Barrett\'s Status:</b> {barretts_str}</span><br>'
+            f'<span><b>Overall Response:</b> {unsat_sel}</span>'
             "</div>",
             unsafe_allow_html=True,
         )
 
         override_candidates = []
 
+        # ── Render helpers ──
         def _detail_html(details) -> str:
             if not details:
                 return ""
@@ -516,9 +756,10 @@ with right:
                     items += f'<li style="color:#fde68a">⚠️ {html.escape(str(note))}</li>'
                 for src in details.get("supported_by", []):
                     items += f"<li>📌 {html.escape(str(src))}</li>"
-                skip = {"bullets", "notes", "supported_by", "regimen_key"}
+                skip = {"bullets", "notes", "supported_by"}
                 for k, v in details.items():
-                    if k in skip: continue
+                    if k in skip:
+                        continue
                     if isinstance(v, list) and v:
                         items += "".join(f"<li>{html.escape(str(i))}</li>" for i in v)
                     elif v not in (None, False, "", []):
@@ -533,8 +774,8 @@ with right:
                 None: "routine", "": "routine",
             }
             cls = urgency_to_cls.get(a.urgency or "", "routine")
-            if extra_cls: cls = extra_cls
-
+            if extra_cls:
+                cls = extra_cls
             badge_label = (a.urgency or "info").upper()
             label_html = html.escape(a.label).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
             detail_html = _detail_html(a.details)
@@ -543,7 +784,6 @@ with right:
                 "🔒 Override available — reason required</p>"
                 if a.override_options else ""
             )
-
             st.markdown(
                 f'<div class="action-card {cls}">'
                 f'<h4><span class="badge {cls}">{badge_label}</span> {label_html}</h4>'
@@ -563,8 +803,9 @@ with right:
                 missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
                 msg_html = html.escape(output.message).replace("\n", "<br>")
                 st.markdown(
-                    f'<div class="action-card warning">'
-                    f'<h4><span class="badge warning">DATA NEEDED</span> ⏳ {msg_html}</h4>'
+                    '<div class="action-card warning">'
+                    f'<h4><span class="badge warning">DATA NEEDED</span>'
+                    f' ⏳ {msg_html}</h4>'
                     f'<ul><li>Missing fields: {missing_str}</li></ul>'
                     "</div>",
                     unsafe_allow_html=True,
@@ -574,14 +815,16 @@ with right:
             elif isinstance(output, Stop):
                 reason_html = html.escape(output.reason).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
                 st.markdown(
-                    f'<div class="action-card stop">'
-                    f'<h4><span class="badge stop">STOP</span> 🛑 {reason_html}</h4>'
+                    '<div class="action-card stop">'
+                    f'<h4><span class="badge stop">STOP</span>'
+                    f' 🛑 {reason_html}</h4>'
                     "</div>",
                     unsafe_allow_html=True,
                 )
                 for a in output.actions:
                     render_action(a)
 
+        # ── Clinician Notes ──
         st.markdown('<p class="section-label">CLINICIAN NOTES</p>', unsafe_allow_html=True)
         st.caption("Optional free-text notes to be attached to the clinical recommendations.")
         st.session_state.gerd_notes = st.text_area(
@@ -590,6 +833,7 @@ with right:
             height=180,
         )
 
+        # ── Save / Download ──
         def _serialize_output(o):
             if isinstance(o, Action):
                 return {"type": "action", "code": o.code, "label": o.label, "urgency": o.urgency}
@@ -605,10 +849,13 @@ with right:
                 "engine_outputs": [_serialize_output(o) for o in outputs],
                 "overrides": [
                     {
-                        "node": o.target_node, "field": o.field,
-                        "new_value": o.new_value, "reason": o.reason,
+                        "node": o.target_node,
+                        "field": o.field,
+                        "new_value": o.new_value,
+                        "reason": o.reason,
                         "created_at": o.created_at.isoformat(),
-                    } for o in st.session_state.gerd_overrides
+                    }
+                    for o in st.session_state.gerd_overrides
                 ],
                 "clinician_notes": st.session_state.gerd_notes,
             },
@@ -628,7 +875,6 @@ with right:
                 overrides=st.session_state.gerd_overrides,
                 notes=st.session_state.gerd_notes,
             )
-
             st.download_button(
                 label="⬇️ Download Markdown summary",
                 data=md_text.encode("utf-8"),
@@ -637,6 +883,7 @@ with right:
                 key="gerd_download_md",
             )
 
+        # ── Overrides panel ──
         def _pretty(s: str) -> str:
             return s.replace("_", " ").title()
 
@@ -644,24 +891,33 @@ with right:
             if override_candidates:
                 st.markdown("---")
                 st.markdown('<p class="section-label">CLINICIAN OVERRIDES</p>', unsafe_allow_html=True)
-                st.caption("Override engine decisions where clinical judgement differs. A documented reason is required.")
+                st.caption(
+                    "Override engine decisions where clinical judgement differs. "
+                    "A documented reason is required for each override."
+                )
 
                 for a in override_candidates:
                     opt = a.override_options
                     raw_node = opt["node"]
                     raw_field = opt["field"]
-                    node_name = _pretty(raw_node)
-                    field_name = _pretty(raw_field)
+                    node_lbl = _pretty(raw_node)
+                    field_lbl = _pretty(raw_field)
                     allowed = opt.get("allowed", [True, False])
 
-                    with st.expander(f"⚙️ Override: **{node_name}** → `{field_name}`"):
+                    with st.expander(f"⚙️ Override: **{node_lbl}** → `{field_lbl}`"):
                         preview = a.label[:120] + ("…" if len(a.label) > 120 else "")
-                        st.markdown(f'<div class="override-card">Engine decision based on: <b>{html.escape(preview)}</b></div>', unsafe_allow_html=True)
-                        existing = next((o for o in st.session_state.gerd_overrides if o.target_node == raw_node and o.field == raw_field), None)
+                        st.markdown(
+                            f'<div class="override-card">Engine decision based on: <b>{html.escape(preview)}</b></div>',
+                            unsafe_allow_html=True,
+                        )
+                        existing = next(
+                            (o for o in st.session_state.gerd_overrides
+                             if o.target_node == raw_node and o.field == raw_field),
+                            None,
+                        )
                         current_val = existing.new_value if existing else None
-                        
                         new_val = st.radio(
-                            f"Set `{field_name}` to:",
+                            f"Set `{field_lbl}` to:",
                             options=allowed,
                             index=allowed.index(current_val) if current_val in allowed else 0,
                             key=f"ov_val_{raw_node}_{raw_field}",
@@ -679,28 +935,44 @@ with right:
                                 if not reason.strip():
                                     st.error("A reason is required to apply an override.")
                                 else:
-                                    st.session_state.gerd_overrides = [o for o in st.session_state.gerd_overrides if not (o.target_node == raw_node and o.field == raw_field)]
+                                    st.session_state.gerd_overrides = [
+                                        o for o in st.session_state.gerd_overrides
+                                        if not (o.target_node == raw_node and o.field == raw_field)
+                                    ]
                                     st.session_state.gerd_overrides.append(
-                                        Override(target_node=raw_node, field=raw_field, old_value=None, new_value=new_val, reason=reason.strip())
+                                        Override(
+                                            target_node=raw_node,
+                                            field=raw_field,
+                                            old_value=None,
+                                            new_value=new_val,
+                                            reason=reason.strip(),
+                                        )
                                     )
                                     st.success("Override applied. Click **▶ Run Pathway** to re-evaluate.")
                         with col2:
                             if existing and st.button("🗑 Remove Override", key=f"ov_remove_{raw_node}_{raw_field}"):
-                                st.session_state.gerd_overrides = [o for o in st.session_state.gerd_overrides if not (o.target_node == raw_node and o.field == raw_field)]
+                                st.session_state.gerd_overrides = [
+                                    o for o in st.session_state.gerd_overrides
+                                    if not (o.target_node == raw_node and o.field == raw_field)
+                                ]
                                 st.success("Override removed.")
 
                 if st.session_state.gerd_overrides:
                     st.markdown('<p class="section-label">ACTIVE OVERRIDES</p>', unsafe_allow_html=True)
                     for o in st.session_state.gerd_overrides:
                         st.markdown(
-                            f'<div class="override-card">'
-                            f'🛠 <b>{html.escape(_pretty(o.target_node))}</b> → <code>{html.escape(_pretty(o.field))}</code> set to <b>{html.escape(str(o.new_value))}</b><br>'
+                            '<div class="override-card">'
+                            f'🛠 <b>{html.escape(_pretty(o.target_node))}</b> → '
+                            f'<code>{html.escape(_pretty(o.field))}</code>'
+                            f' set to <b>{html.escape(str(o.new_value))}</b><br>'
                             f'<span style="color:#a5b4fc">Reason: {html.escape(o.reason)}</span><br>'
-                            f'<span style="color:#64748b;font-size:11px">Applied: {o.created_at.strftime("%H:%M:%S")}</span>'
-                            f'</div>',
+                            f'<span style="color:#64748b;font-size:11px">'
+                            f'Applied: {o.created_at.strftime("%H:%M:%S")}</span>'
+                            "</div>",
                             unsafe_allow_html=True,
                         )
 
+        # ── Audit log ──
         with st.expander("📋 Decision Audit Log"):
             for log in logs:
                 try:
@@ -709,6 +981,10 @@ with right:
                     ts = "—"
                 st.markdown(f"**[{ts}] {log.node}** → _{log.decision}_")
                 if log.used_inputs:
-                    st.caption("  ".join(f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None))
+                    st.caption(
+                        "  ".join(
+                            f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None
+                        )
+                    )
     else:
         st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
