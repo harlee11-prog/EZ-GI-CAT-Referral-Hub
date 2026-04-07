@@ -713,20 +713,19 @@ with right:
             maint_vis,
         )
 
-        # H2RA mild branch → Management Response, routed around “Complete” ----
-        # Short horizontal, then down and across so it no longer draws a long
-        # vertical line beside the “✓ Complete / Medical Home” exit.
+        # ── H2RA → Maintenance connection (mild branch) ─────────────────────
+        # Route: H2RA bottom-centre → drop straight down to node 7 Maintenance
+        # left mid-height, entering from the LEFT side of node 7.
         if mild_branch:
-            hx = LEXT + EW / 2                     # centre of H2RA box
-            hy_bot = h2ra_y + EH                   # bottom of H2RA box
-            mgmt_top = Y["mgmt"]                   # top of Management box
-            join_x = (CX - NW // 2 + LEXT + EW) // 2  # midway between H2RA and Mgmt
+            hx  = LEXT + EW / 2             # H2RA box horizontal centre
+            hy_bot = h2ra_y + EH            # H2RA box bottom edge
+            maint_mid_y = Y["maint"] + NH / 2   # mid-height of Maintenance rect
+            maint_left_x = CX - NW / 2     # left edge of Maintenance rect
             svg.append(
                 f'<polyline points="'
                 f'{hx},{hy_bot} '
-                f'{join_x},{hy_bot} '
-                f'{join_x},{mgmt_top} '
-                f'{CX},{mgmt_top}" '
+                f'{hx},{maint_mid_y} '
+                f'{maint_left_x},{maint_mid_y}" '
                 f'fill="none" stroke="#d97706" stroke-width="2" '
                 f'marker-end="url(#mo)"/>'
             )
