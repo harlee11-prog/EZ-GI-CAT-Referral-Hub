@@ -383,6 +383,7 @@ with right:
             isinstance(o, Action) and o.code in {
                 "TITRATE_TO_LOWEST_EFFECTIVE_PPI", "PPI_MAINTENANCE",
                 "KNOWN_BARRETTS_LIFETIME_PPI",
+                "CAPTURE_PPI_RESOLUTION_STATUS",   # maintenance node reached, resolution status pending
             } for o in outputs
         )
         pathway_complete = any(
