@@ -666,16 +666,27 @@ with right:
                   nc(maint_vis), "7. Maintenance /", "Deprescribing",
                   sub="Lowest dose · Annual taper")
 
-        # Maint → Mgmt (straight down)
-        mgmt_vis = maint_vis or pathway_complete or refer_final
-        vline(CX, Y["maint"] + NH, Y["mgmt"], mgmt_vis)
+        # Maint → Mgmt line: colour ONLY follows maint_vis so a grey Maint node
+        # never emits a misleading green arrow when mgmt is reached via another path.
+        mgmt_node_vis = maint_vis or pathway_complete or refer_final
+        vline(CX, Y["maint"] + NH, Y["mgmt"], maint_vis)
+
+        # ── H2RA → Mgmt connection (mild branch visits Mgmt directly) ────────
+        # Route: H2RA bottom-centre → drop straight down → elbow right → Mgmt top
+        if mild_branch:
+            hx = LEXT + EW / 2          # H2RA horizontal centre
+            hy_bot = h2ra_y + EH        # H2RA bottom edge
+            mgmt_top = Y["mgmt"]        # top of Mgmt rect
+            svg.append(
+                f'<polyline points="{hx},{hy_bot} {hx},{mgmt_top} {CX},{mgmt_top}" '
+                f'fill="none" stroke="#d97706" stroke-width="2" marker-end="url(#mo)"/>')
 
         # ── NODE 8: Management Response ─────────────────────────────────────
         rect_node(CX - NW / 2, Y["mgmt"], NW, NH,
-                  nc(mgmt_vis), "8. Management", "Response",
+                  nc(mgmt_node_vis), "8. Management", "Response",
                   sub="Satisfactory?")
 
-        # ✓ Complete exit → LEFT (below H2RA zone — no rail conflict)
+        # ✓ Complete exit → LEFT
         complete_vis = pathway_complete
         exit_node(LEXT, Y["mgmt"] + (NH - EH) // 2, EW, EH,
                   nc(complete_vis, exit_=True), "✓ Complete", "Medical Home")
