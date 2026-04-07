@@ -466,7 +466,7 @@ with right:
             if st.button("→ Continue in Dyspepsia Pathway", key="hp_to_dys"):
                 queue_handoff("3_Dyspepsia", patient_data)
                 st.switch_page("pages/3_Dyspepsia.py")
-        )
+    
 
         is_positive = patient_data.get("hp_test_result") == "positive"
         test_negative = patient_data.get("hp_test_result") == "negative"
