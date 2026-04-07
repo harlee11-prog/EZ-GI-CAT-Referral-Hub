@@ -5,10 +5,15 @@ import html
 from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
-from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner, HANDOFF_KEY
 from dyspepsia_engine import (
-    run_dyspepsia_pathway, Action, DataRequest, Stop, Override,
+    run_dyspepsia_pathway,
+    Action,
+    DataRequest,
+    Stop,
+    Override,
 )
+
+from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner
 
 st.set_page_config(page_title="Dyspepsia", layout="wide")
 
@@ -93,47 +98,47 @@ def build_dyspepsia_markdown(patient_data, outputs, overrides, notes: str) -> st
 
 
 # ── GLOBAL CSS ────────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <style>
 .ctx-card {
-    background: #1e3a5f; border: 1px solid #2e5c8a;
-    border-radius: 10px; padding: 14px 18px;
-    margin-bottom: 14px; font-size: 14px; color: #e2e8f0;
+  background:#1e3a5f;border:1px solid #2e5c8a;
+  border-radius:10px;padding:14px 18px;
+  margin-bottom:14px;font-size:14px;color:#e2e8f0;
 }
-.ctx-card b { color: #93c5fd; }
+.ctx-card b { color:#93c5fd; }
 .section-label {
-    font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-    color: #94a3b8; margin-bottom: 6px; margin-top: 18px;
+  font-size:11px;font-weight:700;letter-spacing:1.2px;
+  color:#94a3b8;margin-bottom:6px;margin-top:18px;
 }
 .action-card {
-    border-radius: 10px; padding: 14px 18px;
-    margin-bottom: 12px; font-size: 13.5px; line-height: 1.6;
+  border-radius:10px;padding:14px 18px;
+  margin-bottom:12px;font-size:13.5px;line-height:1.6;
 }
-.action-card.urgent  { background:#3b0a0a; border-left:5px solid #ef4444; color:#fecaca; }
-.action-card.routine { background:#052e16; border-left:5px solid #22c55e; color:#bbf7d0; }
-.action-card.info    { background:#0c1a2e; border-left:5px solid #3b82f6; color:#bfdbfe; }
-.action-card.warning { background:#2d1a00; border-left:5px solid #f59e0b; color:#fde68a; }
-.action-card.stop    { background:#2d0a0a; border-left:5px solid #ef4444; color:#fecaca; }
-.action-card h4 { margin:0 0 6px 0; font-size:14px; }
-.action-card ul { margin:6px 0 0 16px; padding:0; }
-.action-card li { margin-bottom:3px; }
-.badge {
-    display:inline-block; font-size:11px; font-weight:bold;
-    padding:2px 8px; border-radius:20px; margin-right:6px;
-    text-transform:uppercase; letter-spacing:0.5px;
+.action-card.urgent {background:#3b0a0a;border-left:5px solid #ef4444;color:#fecaca;}
+.action-card.routine{background:#052e16;border-left:5px solid #22c55e;color:#bbf7d0;}
+.action-card.info   {background:#0c1a2e;border-left:5px solid #3b82f6;color:#bfdbfe;}
+.action-card.warning{background:#2d1a00;border-left:5px solid #f59e0b;color:#fde68a;}
+.action-card.stop   {background:#2d0a0a;border-left:5px solid #ef4444;color:#fecaca;}
+.badge{
+  display:inline-block;font-size:11px;font-weight:bold;
+  padding:2px 8px;border-radius:20px;margin-right:6px;
+  text-transform:uppercase;letter-spacing:0.5px;
 }
-.badge.urgent  { background:#ef4444; color:#fff; }
-.badge.routine { background:#22c55e; color:#fff; }
-.badge.info    { background:#3b82f6; color:#fff; }
-.badge.warning { background:#f59e0b; color:#000; }
-.badge.stop    { background:#ef4444; color:#fff; }
-.override-card {
-    background:#1a1a2e; border:1px dashed #6366f1;
-    border-radius:8px; padding:10px 14px; margin-top:8px;
-    font-size:13px; color:#c7d2fe;
+.badge.urgent{background:#ef4444;color:#fff;}
+.badge.routine{background:#22c55e;color:#fff;}
+.badge.info{background:#3b82f6;color:#fff;}
+.badge.warning{background:#f59e0b;color:#000;}
+.badge.stop{background:#ef4444;color:#fff;}
+.override-card{
+  background:#1a1a2e;border:1px dashed #6366f1;
+  border-radius:8px;padding:10px 14px;margin-top:8px;
+  font-size:13px;color:#c7d2fe;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 st.title("Dyspepsia Pathway")
 st.markdown("---")
@@ -148,157 +153,323 @@ if "dys_notes" not in st.session_state:
 
 left, right = st.columns([1, 1.5])
 
+# ── HANDOFF INBOUND ──────────────────────────────────────────────────────────
+_dys_handoff = apply_handoff("3_Dyspepsia")
+if _dys_handoff:
+    transferred = []
+    if _dys_handoff.get("age") is not None:
+        st.session_state["_do_age"] = int(_dys_handoff["age"])
+        transferred.append("age")
+    if _dys_handoff.get("sex"):
+        st.session_state["_do_sex"] = _dys_handoff["sex"]
+        transferred.append("sex")
+
+    if _dys_handoff.get("predominant_heartburn"):
+        st.session_state["_do_heartburn"] = True
+        transferred.append("predominant_heartburn")
+    if _dys_handoff.get("predominant_regurgitation"):
+        st.session_state["_do_regurg"] = True
+        transferred.append("predominant_regurgitation")
+
+    if _dys_handoff.get("h_pylori_result_positive") is not None:
+        st.session_state["_do_hpdone"] = "Done"
+        st.session_state["_do_hpresult"] = (
+            "Positive" if _dys_handoff["h_pylori_result_positive"] else "Negative"
+        )
+        transferred.extend(
+            ["h_pylori_test_done", "h_pylori_result_positive"]
+        )
+    elif _dys_handoff.get("hp_test_result") in ("positive", "negative"):
+        st.session_state["_do_hpdone"] = "Done"
+        st.session_state["_do_hpresult"] = _dys_handoff["hp_test_result"].capitalize()
+        transferred.append("hp_test_result")
+
+    alarm_map = [
+        ("actively_bleeding_now", "do_al_bleeding"),
+        ("family_history_upper_gi_cancer_first_degree", "do_al_cancer"),
+        ("family_history_esophageal_or_gastric_cancer_first_degree", "do_al_cancer"),
+        ("symptom_onset_after_age_60", "do_al_age60"),
+        ("age_over_60_new_persistent_symptoms_over_3_months", "do_al_age60"),
+        ("unintended_weight_loss", "do_al_wl"),
+        ("dysphagia", "do_al_dys"),
+        ("progressive_dysphagia", "do_al_dys"),
+        ("persistent_vomiting", "do_al_vomit"),
+        ("black_stool_or_blood_in_vomit", "do_al_bleed"),
+        ("iron_deficiency_anemia_present", "do_al_ida"),
+    ]
+    for src, dst in alarm_map:
+        if _dys_handoff.get(src):
+            st.session_state[f"_{dst}"] = True
+            transferred.append(src)
+
+    show_handoff_banner("GERD / H. Pylori", transferred)
+
+
+left, right = st.columns([1, 1.5])
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # LEFT PANEL
 # ═══════════════════════════════════════════════════════════════════════════════
 with left:
     st.subheader("Patient Information")
-    age = st.number_input("Age", 1, 120, 45)
-    sex = st.selectbox("Sex", ["male", "female"])
+    age = st.number_input(
+        "Age",
+        1,
+        120,
+        value=st.session_state.pop("_do_age", 45),
+    )
+    sex = st.selectbox(
+        "Sex",
+        ["male", "female"],
+        index=["male", "female"].index(
+            st.session_state.pop("_do_sex", "male")
+        ),
+    )
 
-    st.markdown("**1. Suspected Dyspepsia** — Predominant symptoms (> 1 month)")
+    st.markdown("**1. Suspected Dyspepsia** – Predominant symptoms (> 1 month)")
     symptom_duration_months = st.number_input(
-        "Symptom duration (months)", min_value=0, max_value=240, value=2,
+        "Symptom duration (months)",
+        min_value=0,
+        max_value=240,
+        value=2,
         help="Pathway requires > 1 month",
     )
-    predominant_epigastric_pain          = st.checkbox("Predominant epigastric pain")
-    predominant_epigastric_discomfort    = st.checkbox("Predominant epigastric discomfort")
-    predominant_upper_abdominal_bloating = st.checkbox("Predominant upper abdominal bloating / distension")
+    predominant_epigastric_pain = st.checkbox("Predominant epigastric pain")
+    predominant_epigastric_discomfort = st.checkbox(
+        "Predominant epigastric discomfort"
+    )
+    predominant_upper_abdominal_bloating = st.checkbox(
+        "Predominant upper abdominal bloating / distension"
+    )
 
     with st.expander("Rome IV support criteria (optional)"):
-        postprandial_fullness    = st.checkbox("Postprandial fullness")
-        early_satiety            = st.checkbox("Early satiety")
-        epigastric_pain_rome     = st.checkbox("Epigastric pain (Rome IV)")
-        epigastric_burning       = st.checkbox("Epigastric burning")
+        postprandial_fullness = st.checkbox("Postprandial fullness")
+        early_satiety = st.checkbox("Early satiety")
+        epigastric_pain_rome = st.checkbox("Epigastric pain (Rome IV)")
+        epigastric_burning = st.checkbox("Epigastric burning")
         symptom_onset_months_ago = st.number_input(
-            "Symptom onset (months ago)", min_value=0, max_value=360, value=0,
+            "Symptom onset (months ago)",
+            min_value=0,
+            max_value=360,
+            value=0,
             help="Rome IV: onset ≥ 6 months ago",
         )
 
-    st.markdown("**2. Is it GERD?** — Predominant heartburn ± regurgitation")
-    predominant_heartburn     = st.checkbox("Predominant heartburn")
-    predominant_regurgitation = st.checkbox("Predominant regurgitation")
+    st.markdown("**2. Is it GERD?** – Predominant heartburn ± regurgitation")
+    predominant_heartburn = st.checkbox(
+        "Predominant heartburn",
+        value=st.session_state.pop("_do_heartburn", False),
+    )
+    predominant_regurgitation = st.checkbox(
+        "Predominant regurgitation",
+        value=st.session_state.pop("_do_regurg", False),
+    )
 
     st.markdown("**3. Alarm Features**")
-    actively_bleeding_now = st.checkbox("⚠️ Actively bleeding NOW (emergency)")
-    al_fh_cancer          = st.checkbox("Family hx (1st-degree) esophageal / gastric cancer")
-    al_onset_after_60     = st.checkbox("Age > 60 — new & persistent symptoms (> 3 months)")
-    al_weight_loss        = st.checkbox("Unintended weight loss > 5% over 6–12 months")
-    al_dysphagia          = st.checkbox("Progressive dysphagia")
-    al_vomiting           = st.checkbox("Persistent vomiting (not cannabis-related)")
-    al_black_stool        = st.checkbox("Black stool or blood in vomit")
-    al_ida                = st.checkbox("Iron deficiency anemia")
+    actively_bleeding_now = st.checkbox(
+        "Actively bleeding NOW (emergency)",
+        value=st.session_state.pop("_do_al_bleeding", False),
+    )
+    al_fh_cancer = st.checkbox(
+        "Family hx 1st-degree upper GI cancer",
+        value=st.session_state.pop("_do_al_cancer", False),
+    )
+    al_onset_after_60 = st.checkbox(
+        "Onset after age 60",
+        value=st.session_state.pop("_do_al_age60", False),
+    )
+    al_weight_loss = st.checkbox(
+        "Unintended weight loss >5% over 6–12 months",
+        value=st.session_state.pop("_do_al_wl", False),
+    )
+    al_dysphagia = st.checkbox(
+        "Progressive dysphagia",
+        value=st.session_state.pop("_do_al_dys", False),
+    )
+    al_vomiting = st.checkbox(
+        "Persistent vomiting",
+        value=st.session_state.pop("_do_al_vomit", False),
+    )
+    al_black_stool = st.checkbox(
+        "Black stool or blood in vomit",
+        value=st.session_state.pop("_do_al_bleed", False),
+    )
+    al_ida = st.checkbox(
+        "Iron deficiency anemia",
+        value=st.session_state.pop("_do_al_ida", False),
+    )
 
     st.markdown("**4. Medication & Lifestyle Review**")
-    medication_review_done   = st.checkbox("Medication review done (NSAIDs, steroids, metformin, iron…)")
-    lifestyle_review_done    = st.checkbox("Lifestyle review done (alcohol, caffeine, smoking, stress)")
+    medication_review_done = st.checkbox(
+        "Medication review done (NSAIDs, steroids, metformin, iron…)"
+    )
+    lifestyle_review_done = st.checkbox(
+        "Lifestyle review done (alcohol, caffeine, smoking, stress)"
+    )
     diet_trigger_review_done = st.checkbox("Dietary trigger review done")
     improved_sel = st.selectbox(
         "Symptoms after medication / lifestyle review:",
-        ["Not yet assessed", "Improved — no further action needed", "Not improved — continue pathway"],
+        [
+            "Not yet assessed",
+            "Improved — no further action needed",
+            "Not improved — continue pathway",
+        ],
     )
     improved_map = {
-        "Not yet assessed":                       None,
-        "Improved — no further action needed":    True,
-        "Not improved — continue pathway":        False,
+        "Not yet assessed": None,
+        "Improved — no further action needed": True,
+        "Not improved — continue pathway": False,
     }
 
     st.markdown("**5. Baseline Investigations**")
-    cbc_sel      = st.selectbox("CBC (mandatory)", ["Not done", "Done — normal", "Done — abnormal"])
-    cbc_done_val = cbc_sel in ("Done — normal", "Done — abnormal")
-    cbc_abnormal = cbc_sel == "Done — abnormal"
+    cbc_sel = st.selectbox(
+        "CBC (mandatory)", ["Not done", "Done normal", "Done abnormal"]
+    )
+    cbc_done_val = cbc_sel in ("Done normal", "Done abnormal")
+    cbc_abnormal = cbc_sel == "Done abnormal"
 
-    ferritin_sel = st.selectbox("Ferritin (optional)", ["Not ordered", "Done", "Not done"])
+    ferritin_sel = st.selectbox(
+        "Ferritin (optional)", ["Not ordered", "Done", "Not done"]
+    )
     ferritin_map = {"Not ordered": None, "Done": True, "Not done": False}
 
-    ttg_sel      = st.selectbox("TTG IgA — celiac screen", ["Not ordered", "Done — negative", "Done — positive"])
-    ttg_done_val = ttg_sel in ("Done — negative", "Done — positive")
-    ttg_positive = ttg_sel == "Done — positive"
+    ttg_sel = st.selectbox(
+        "TTG IgA – celiac screen",
+        ["Not ordered", "Done negative", "Done positive"],
+    )
+    ttg_done_val = ttg_sel in ("Done negative", "Done positive")
+    ttg_positive = ttg_sel == "Done positive"
 
-    suspect_hepato    = st.checkbox("Suspect hepatobiliary / pancreatic disease")
-    hepato_done       = False
-    hepato_abnormal   = False
+    suspect_hepato = st.checkbox("Suspect hepatobiliary / pancreatic disease")
+    hepatodone = False
+    hepatoabnormal = False
     if suspect_hepato:
-        hepato_done     = st.checkbox("Hepatobiliary / pancreatic workup done (U/S, ALT, ALP, bilirubin, lipase)")
-        if hepato_done:
-            hepato_abnormal = st.checkbox("Hepatobiliary / pancreatic workup abnormal")
+        hepatodone = st.checkbox(
+            "Hepatobiliary / pancreatic workup done (U/S, ALT, ALP, bilirubin, lipase)"
+        )
+        if hepatodone:
+            hepatoabnormal = st.checkbox("Hepatobiliary / pancreatic workup abnormal")
 
-    other_dx_found = st.checkbox("Other diagnosis identified on baseline investigations")
+    otherdxfound = st.checkbox("Other diagnosis identified on baseline investigations")
 
-    st.markdown("**6. Test and Treat — H. pylori** (HpSAT or UBT)")
-    hp_done_sel  = st.selectbox("H. pylori test", ["Not yet done", "Done"])
-    hp_done      = hp_done_sel == "Done"
-    hp_positive  = None
+    st.markdown("**6. Test and Treat — H. pylori (HpSAT or UBT)**")
+    hp_done_sel = st.selectbox(
+        "H. pylori test",
+        ["Not yet done", "Done"],
+        index=["Not yet done", "Done"].index(
+            st.session_state.pop("_do_hpdone", "Not yet done")
+        ),
+    )
+    hp_done = hp_done_sel == "Done"
+    hp_positive = None
     if hp_done:
-        hp_result_sel = st.selectbox("H. pylori result", ["Negative", "Positive"])
-        hp_positive   = hp_result_sel == "Positive"
+        hp_result_sel = st.selectbox(
+            "H. pylori result",
+            ["Negative", "Positive"],
+            index=["Negative", "Positive"].index(
+                st.session_state.pop("_do_hpresult", "Negative")
+            ),
+        )
+        hp_positive = hp_result_sel == "Positive"
 
     st.markdown("**7. Pharmacological Therapy**")
     ppi_od_sel = st.selectbox(
         "PPI once-daily trial (4–8 weeks)",
-        ["Not yet started", "Trial done — adequate response", "Trial done — inadequate response"],
+        [
+            "Not yet started",
+            "Trial done adequate response",
+            "Trial done inadequate response",
+        ],
     )
-    ppi_od_done     = ppi_od_sel != "Not yet started"
-    ppi_od_adequate = (
-        True  if ppi_od_sel == "Trial done — adequate response"  else
-        False if ppi_od_sel == "Trial done — inadequate response" else None
-    )
+    ppi_od_done = ppi_od_sel != "Not yet started"
+    if ppi_od_sel == "Trial done adequate response":
+        ppi_od_adequate = True
+    elif ppi_od_sel == "Trial done inadequate response":
+        ppi_od_adequate = False
+    else:
+        ppi_od_adequate = None
 
-    ppi_bid_done     = None
+    ppi_bid_done = None
     ppi_bid_adequate = None
-    if ppi_od_sel == "Trial done — inadequate response":
-        ppi_bid_sel  = st.selectbox(
+    if ppi_od_sel == "Trial done inadequate response":
+        ppi_bid_sel = st.selectbox(
             "Optimize PPI twice-daily (4–8 weeks)",
-            ["Not yet started", "Trial done — adequate response", "Trial done — inadequate response"],
+            [
+                "Not yet started",
+                "Trial done adequate response",
+                "Trial done inadequate response",
+            ],
         )
         ppi_bid_done = True if ppi_bid_sel != "Not yet started" else None
-        ppi_bid_adequate = (
-            True  if ppi_bid_sel == "Trial done — adequate response"  else
-            False if ppi_bid_sel == "Trial done — inadequate response" else None
-        )
+        if ppi_bid_sel == "Trial done adequate response":
+            ppi_bid_adequate = True
+        elif ppi_bid_sel == "Trial done inadequate response":
+            ppi_bid_adequate = False
+        else:
+            ppi_bid_adequate = None
 
-    symptoms_resolved_after_ppi         = None
+    symptoms_resolved_after_ppi = None
     symptoms_return_after_deprescribing = None
     if ppi_od_adequate is True or ppi_bid_adequate is True:
         resolved_sel = st.selectbox(
             "Symptoms resolved after PPI?",
-            ["Unknown", "Yes — resolved", "No — persisting"],
+            ["Unknown", "Yes resolved", "No persisting"],
         )
-        resolved_map = {"Unknown": None, "Yes — resolved": True, "No — persisting": False}
+        resolved_map = {
+            "Unknown": None,
+            "Yes resolved": True,
+            "No persisting": False,
+        }
         symptoms_resolved_after_ppi = resolved_map[resolved_sel]
         if symptoms_resolved_after_ppi is True:
             return_sel = st.selectbox(
                 "Symptoms returned after deprescribing?",
-                ["Unknown / not tried", "Yes — returned", "No — still resolved"],
+                ["Unknown / not tried", "Yes returned", "No still resolved"],
             )
-            return_map = {"Unknown / not tried": None, "Yes — returned": True, "No — still resolved": False}
+            return_map = {
+                "Unknown / not tried": None,
+                "Yes returned": True,
+                "No still resolved": False,
+            }
             symptoms_return_after_deprescribing = return_map[return_sel]
 
-    ecg_qtc_ms       = None
-    family_hx_scd    = None
+    ecg_qtc_ms = None
+    family_hx_scd = None
     personal_cardiac = None
-    qt_meds          = None
+    qt_meds = None
     if ppi_bid_adequate is False:
         st.markdown("**Domperidone Safety Check**")
-        ecg_qtc_ms       = st.number_input("ECG QTc (ms)", min_value=300, max_value=700, value=430,
-                                            help="Male limit 470 ms | Female limit 450 ms")
-        family_hx_scd    = st.checkbox("Family history of sudden cardiac death")
+        ecg_qtc_ms = st.number_input(
+            "ECG QTc (ms)",
+            min_value=300,
+            max_value=700,
+            value=430,
+            help="Male limit 470 ms | Female limit 450 ms",
+        )
+        family_hx_scd = st.checkbox("Family history of sudden cardiac death")
         personal_cardiac = st.checkbox("Personal cardiac history (e.g. heart failure)")
-        qt_meds          = st.checkbox("Currently on QT-prolonging medications")
+        qt_meds = st.checkbox("Currently on QT-prolonging medications")
 
     st.markdown("**Overall Management Response**")
     mgmt_sel = st.selectbox(
         "Response to overall dyspepsia management:",
-        ["Not yet assessed", "Satisfactory — continue in medical home", "Unsatisfactory — further action needed"],
+        [
+            "Not yet assessed",
+            "Satisfactory — continue in medical home",
+            "Unsatisfactory — further action needed",
+        ],
     )
     mgmt_map = {
-        "Not yet assessed":                         None,
-        "Satisfactory — continue in medical home":  False,
-        "Unsatisfactory — further action needed":   True,
+        "Not yet assessed": None,
+        "Satisfactory — continue in medical home": False,
+        "Unsatisfactory — further action needed": True,
     }
     advice_considered = False
     if mgmt_sel == "Unsatisfactory — further action needed":
-        advice_considered = st.checkbox("Advice service already consulted before referring")
+        advice_considered = st.checkbox(
+            "Advice service already consulted before referring"
+        )
 
     run_clicked = st.button("▶ Run Pathway", type="primary", use_container_width=True)
     if run_clicked:
@@ -311,6 +482,7 @@ with left:
         st.rerun()
 
     override_panel = st.container()
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # RIGHT PANEL
@@ -373,6 +545,26 @@ with right:
         outputs, logs, applied_overrides = run_dyspepsia_pathway(
             patient_data, overrides=st.session_state.dys_overrides
         )
+
+        # ── Outbound: Dyspepsia → H. Pylori ──────────────────────────────────
+        if routed_hp:
+            st.info(
+                "Engine routes to **H. Pylori** based on positive test / indication. "
+                "You can continue treatment in the H. Pylori pathway."
+            )
+            if st.button("→ Continue in H. Pylori Pathway", key="dys_to_hp"):
+                queue_handoff("1_H._Pylori", patient_data)
+                st.switch_page("pages/1_H_Pylori.py")
+
+        # ── Outbound: Dyspepsia → GERD ───────────────────────────────────────
+        if routed_gerd:
+            st.info(
+                "Engine routes to **GERD** based on predominant heartburn / "
+                "regurgitation. You can continue management in the GERD pathway."
+            )
+            if st.button("→ Continue in GERD Pathway", key="dys_to_gerd"):
+                queue_handoff("2_GERD", patient_data)
+                st.switch_page("pages/2_GERD.py")
 
         _action_codes   = {o.code for o in outputs if isinstance(o, Action)}
         _stop_act_codes = {a.code for o in outputs if isinstance(o, Stop) for a in o.actions}
