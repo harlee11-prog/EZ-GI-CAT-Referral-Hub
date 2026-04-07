@@ -5,6 +5,7 @@ import html
 from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
+from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner, HANDOFF_KEY
 from dyspepsia_engine import (
     run_dyspepsia_pathway, Action, DataRequest, Stop, Override,
 )
