@@ -581,110 +581,164 @@ with right:
         vline(CX, Y["d_barre"] + DH, Y["non_ph"], v_past_barre, label="No")
 
         # ── NODE 5: Non-pharmacological therapy ─────────────────────────────
-        rect_node(CX - NW/2, Y["non_ph"], NW, NH,
-                  nc(went_non_pharm),
-                  "5. Non-Pharmacological",
-                  sub="Lifestyle · Diet · Smoking")
-        vline(CX, Y["non_ph"] + NH, Y["d_freq"], went_non_pharm, label="Ineffective")
+        rect_node(
+            CX - NW / 2, Y["non_ph"], NW, NH,
+            nc(went_non_pharm),
+            "5. Non-Pharmacological",
+            sub="Lifestyle · Diet · Smoking",
+        )
+        vline(
+            CX, Y["non_ph"] + NH, Y["d_freq"],
+            went_non_pharm,
+            label="Ineffective",
+        )
 
         # ── NODE 6 Diamond: symptom frequency ───────────────────────────────
         freq_vis = went_pharm or (went_non_pharm and not went_pharm)
         diamond_node(CX, Y["d_freq"] + DH/2, DW, DH,
-                     dc(freq_vis), "6. Symptoms", "<2×/week?")
+                     dc(freq_vis), "6. Symptoms", "<2×/week?",
+        )
+        # LEFT EXIT: mild branch → H2RA / Antacids (terminal) ----------------
+        h2ra_y = Y["d_freq"] + (DH - EH) // 2  # vertically aligned with diamond
+        exit_node(
+            LEXT, h2ra_y, EW, EH,
+            nc(mild_branch, exit_=True),
+            "H2RA /",
+            "Antacids PRN",
+        )
+        elbow_line(
+            CX - DW / 2, Y["d_freq"] + DH / 2,
+            LEXT + EW, h2ra_y + EH / 2,
+            mild_branch,
+            exit_=True,
+            label="<2×",
+        )
 
-        # ── LEFT EXIT: Mild branch → H2RA / Antacids (terminal, no reconnect) ─
-        # The mild branch is an exit endpoint — no rail back to mgmt to avoid
-        # collision with the "✓ Complete" exit arrow on the same left side.
-        h2ra_y = Y["d_freq"] + (DH - EH) // 2   # vertically centred on diamond
-        exit_node(LEXT, h2ra_y, EW, EH,
-                  nc(mild_branch, exit_=True), "H2RA /", "Antacids PRN")
-        elbow_line(CX - DW / 2, Y["d_freq"] + DH / 2,
-                   LEXT + EW, h2ra_y + EH / 2,
-                   mild_branch, exit_=True, label="<2×")
-
-        # ── CENTER SPINE: ≥2×/week ──────────────────────────────────────────
+        # CENTRE SPINE: ≥2×/week → PPI once daily → PPI BID → Maintenance ----
         ppi_od_vis  = went_pharm and not mild_branch
         ppi_bid_vis = ppi_bid_action
         maint_vis   = went_maintenance
 
         # freq diamond → PPI OD
-        vline(CX, Y["d_freq"] + DH, Y["ppi_od"], ppi_od_vis, label="≥2×")
+        vline(
+            CX, Y["d_freq"] + DH, Y["ppi_od"],
+            ppi_od_vis,
+            label="≥2×",
+        )
 
-        # PPI OD rect
-        rect_node(CX - NW / 2, Y["ppi_od"], NW, NH,
-                  nc(ppi_od_vis), "PPI Once Daily", "4–8 weeks",
-                  sub="30 min before breakfast")
+        # PPI once-daily trial
+        rect_node(
+            CX - NW / 2, Y["ppi_od"], NW, NH,
+            nc(ppi_od_vis),
+            "PPI Once Daily", "4–8 weeks",
+            sub="30 min before breakfast",
+        )
 
-        # PPI OD → PPI BID (inadequate, straight down)
-        # Only draw this segment when PPI BID is actually needed (not resolved at OD)
-        vline(CX, Y["ppi_od"] + NH, Y["ppi_bid"],
-              ppi_bid_vis, label="Inadequate")
+        # PPI OD → PPI BID (inadequate response)
+        vline(
+            CX, Y["ppi_od"] + NH, Y["ppi_bid"],
+            ppi_bid_vis,
+            label="Inadequate",
+        )
 
-        # PPI BID rect
-        rect_node(CX - NW / 2, Y["ppi_bid"], NW, NH,
-                  nc(ppi_bid_vis), "Optimize PPI BID", "4–8 weeks")
+        # PPI BID optimization
+        rect_node(
+            CX - NW / 2, Y["ppi_bid"], NW, NH,
+            nc(ppi_bid_vis),
+            "Optimize PPI BID", "4–8 weeks",
+        )
 
-        # PPI BID → Maint (straight down, only when BID done and not resolved)
+        # PPI BID → Maintenance (if still not resolved)
         ppi_bid_to_maint = ppi_bid_vis and not ppi_bid_success
-        vline(CX, Y["ppi_bid"] + NH, Y["maint"], ppi_bid_to_maint)
+        vline(
+            CX, Y["ppi_bid"] + NH, Y["maint"],
+            ppi_bid_to_maint,
+        )
 
-        # ── RIGHT BYPASS RAIL: "Resolved" arcs → Maint right side ───────────
-        # Rail x sits just outside the right edge of the centre rect nodes.
-        # Only drawn when the bypass is actually active (visited path).
-        R_RAIL = CX + NW // 2 + 42   # right bypass rail x
+        # RIGHT BYPASS RAIL: “Resolved” arcs from PPI OD / BID to Maintenance -
+        R_RAIL = CX + NW // 2 + 42  # x for the right-side rail
 
-        # PPI OD resolved → skip BID → Maint right side mid-height
         if ppi_od_success:
             rs = "#16a34a"
             tgt_y = Y["maint"] + NH // 2
             svg.append(
-                f'<polyline points="{CX + NW//2},{Y["ppi_od"] + NH//2} '
+                f'<polyline points="'
+                f'{CX + NW//2},{Y["ppi_od"] + NH//2} '
                 f'{R_RAIL},{Y["ppi_od"] + NH//2} '
                 f'{R_RAIL},{tgt_y} '
                 f'{CX + NW//2},{tgt_y}" '
-                f'fill="none" stroke="{rs}" stroke-width="2" marker-end="url(#mg)"/>'
+                f'fill="none" stroke="{rs}" stroke-width="2" '
+                f'marker-end="url(#mg)"/>'
             )
-            svgt(R_RAIL + 4, (Y["ppi_od"] + NH // 2 + tgt_y) // 2,
-                 "Resolved", rs, 9, False, "start")
+            svgt(
+                R_RAIL + 4,
+                (Y["ppi_od"] + NH // 2 + tgt_y) // 2,
+                "Resolved",
+                rs, 9, False, "start",
+            )
 
-        # PPI BID resolved → Maint right side mid-height
         if ppi_bid_success:
             rs = "#16a34a"
             tgt_y = Y["maint"] + NH // 2
             svg.append(
-                f'<polyline points="{CX + NW//2},{Y["ppi_bid"] + NH//2} '
+                f'<polyline points="'
+                f'{CX + NW//2},{Y["ppi_bid"] + NH//2} '
                 f'{R_RAIL},{Y["ppi_bid"] + NH//2} '
                 f'{R_RAIL},{tgt_y} '
                 f'{CX + NW//2},{tgt_y}" '
-                f'fill="none" stroke="{rs}" stroke-width="2" marker-end="url(#mg)"/>'
+                f'fill="none" stroke="{rs}" stroke-width="2" '
+                f'marker-end="url(#mg)"/>'
             )
-            svgt(R_RAIL + 4, (Y["ppi_bid"] + NH // 2 + tgt_y) // 2,
-                 "Resolved", rs, 9, False, "start")
+            svgt(
+                R_RAIL + 4,
+                (Y["ppi_bid"] + NH // 2 + tgt_y) // 2,
+                "Resolved",
+                rs, 9, False, "start",
+            )
 
-        # ── NODE 7: Maintenance / Deprescribing ─────────────────────────────
-        rect_node(CX - NW / 2, Y["maint"], NW, NH,
-                  nc(maint_vis), "7. Maintenance /", "Deprescribing",
-                  sub="Lowest dose · Annual taper")
+        # NODE 7: Maintenance / Deprescribing --------------------------------
+        rect_node(
+            CX - NW / 2, Y["maint"], NW, NH,
+            nc(maint_vis),
+            "7. Maintenance /", "Deprescribing",
+            sub="Lowest dose · Annual taper",
+        )
 
-        # Maint → Mgmt line: colour ONLY follows maint_vis so a grey Maint node
-        # never emits a misleading green arrow when mgmt is reached via another path.
+        # Maintenance → Management Response (only coloured if Maintenance truly
+        # visited, so the arrow does not turn green just because a final stop
+        # was reached by another route)
         mgmt_node_vis = maint_vis or pathway_complete or refer_final
-        vline(CX, Y["maint"] + NH, Y["mgmt"], maint_vis)
+        vline(
+            CX, Y["maint"] + NH, Y["mgmt"],
+            maint_vis,
+        )
 
-        # ── H2RA → Mgmt connection (mild branch visits Mgmt directly) ────────
-        # Route: H2RA bottom-centre → drop straight down → elbow right → Mgmt top
+        # H2RA mild branch → Management Response, routed around “Complete” ----
+        # Short horizontal, then down and across so it no longer draws a long
+        # vertical line beside the “✓ Complete / Medical Home” exit.
         if mild_branch:
-            hx = LEXT + EW / 2          # H2RA horizontal centre
-            hy_bot = h2ra_y + EH        # H2RA bottom edge
-            mgmt_top = Y["mgmt"]        # top of Mgmt rect
+            hx = LEXT + EW / 2                     # centre of H2RA box
+            hy_bot = h2ra_y + EH                   # bottom of H2RA box
+            mgmt_top = Y["mgmt"]                   # top of Management box
+            join_x = (CX - NW // 2 + LEXT + EW) // 2  # midway between H2RA and Mgmt
             svg.append(
-                f'<polyline points="{hx},{hy_bot} {hx},{mgmt_top} {CX},{mgmt_top}" '
-                f'fill="none" stroke="#d97706" stroke-width="2" marker-end="url(#mo)"/>')
+                f'<polyline points="'
+                f'{hx},{hy_bot} '
+                f'{join_x},{hy_bot} '
+                f'{join_x},{mgmt_top} '
+                f'{CX},{mgmt_top}" '
+                f'fill="none" stroke="#d97706" stroke-width="2" '
+                f'marker-end="url(#mo)"/>'
+            )
 
-        # ── NODE 8: Management Response ─────────────────────────────────────
-        rect_node(CX - NW / 2, Y["mgmt"], NW, NH,
-                  nc(mgmt_node_vis), "8. Management", "Response",
-                  sub="Satisfactory?")
+        # NODE 8: Management Response -----------------------------------------
+        rect_node(
+            CX - NW / 2, Y["mgmt"], NW, NH,
+            nc(mgmt_node_vis),
+            "8. Management", "Response",
+            sub="Satisfactory?",
+        )
+
 
         # ✓ Complete exit → LEFT
         complete_vis = pathway_complete
