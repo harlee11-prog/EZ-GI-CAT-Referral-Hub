@@ -93,50 +93,50 @@ def build_gerd_markdown(patient_data, outputs, overrides, notes: str) -> str:
 
 
 # ── GLOBAL CSS ───────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <style>
 .ctx-card {
-    background: #1e3a5f; border: 1px solid #2e5c8a;
-    border-radius: 10px; padding: 14px 18px;
-    margin-bottom: 14px; font-size: 14px; color: #e2e8f0;
+  background:#1e3a5f;border:1px solid #2e5c8a;
+  border-radius:10px;padding:14px 18px;
+  margin-bottom:14px;font-size:14px;color:#e2e8f0;
 }
-.ctx-card b { color: #93c5fd; }
+.ctx-card b { color:#93c5fd; }
 .section-label {
-    font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-    color: #94a3b8; margin-bottom: 6px; margin-top: 18px;
+  font-size:11px;font-weight:700;letter-spacing:1.2px;
+  color:#94a3b8;margin-bottom:6px;margin-top:18px;
 }
 .action-card {
-    border-radius: 10px; padding: 14px 18px;
-    margin-bottom: 12px; font-size: 13.5px; line-height: 1.6;
+  border-radius:10px;padding:14px 18px;
+  margin-bottom:12px;font-size:13.5px;line-height:1.6;
 }
-.action-card.urgent   { background:#3b0a0a; border-left:5px solid #ef4444; color:#fecaca; }
-.action-card.routine  { background:#052e16; border-left:5px solid #22c55e; color:#bbf7d0; }
-.action-card.info     { background:#0c1a2e; border-left:5px solid #3b82f6; color:#bfdbfe; }
-.action-card.warning  { background:#2d1a00; border-left:5px solid #f59e0b; color:#fde68a; }
-.action-card.stop     { background:#2d0a0a; border-left:5px solid #ef4444; color:#fecaca; }
-.action-card.complete { background:#052e16; border-left:5px solid #16a34a; color:#bbf7d0; }
-.action-card h4 { margin:0 0 6px 0; font-size:14px; }
-.action-card ul { margin:6px 0 0 16px; padding:0; }
-.action-card li { margin-bottom:3px; }
-.badge {
-    display:inline-block; font-size:11px; font-weight:bold;
-    padding:2px 8px; border-radius:20px; margin-right:6px;
-    text-transform:uppercase; letter-spacing:0.5px;
+.action-card.urgent   {background:#3b0a0a;border-left:5px solid #ef4444;color:#fecaca;}
+.action-card.routine  {background:#052e16;border-left:5px solid #22c55e;color:#bbf7d0;}
+.action-card.info     {background:#0c1a2e;border-left:5px solid #3b82f6;color:#bfdbfe;}
+.action-card.warning  {background:#2d1a00;border-left:5px solid #f59e0b;color:#fde68a;}
+.action-card.stop     {background:#2d0a0a;border-left:5px solid #ef4444;color:#fecaca;}
+.action-card.complete {background:#052e16;border-left:5px solid #16a34a;color:#bbf7d0;}
+.badge{
+  display:inline-block;font-size:11px;font-weight:bold;
+  padding:2px 8px;border-radius:20px;margin-right:6px;
+  text-transform:uppercase;letter-spacing:0.5px;
 }
-.badge.urgent   { background:#ef4444; color:#fff; }
-.badge.routine  { background:#22c55e; color:#fff; }
-.badge.info     { background:#3b82f6; color:#fff; }
-.badge.warning  { background:#f59e0b; color:#000; }
-.badge.stop     { background:#ef4444; color:#fff; }
-.badge.complete { background:#16a34a; color:#fff; }
-.badge.non-pharm { background:#0d9488; color:#fff; }
-.override-card {
-    background:#1a1a2e; border:1px dashed #6366f1;
-    border-radius:8px; padding:10px 14px; margin-top:8px;
-    font-size:13px; color:#c7d2fe;
+.badge.urgent   {background:#ef4444;color:#fff;}
+.badge.routine  {background:#22c55e;color:#fff;}
+.badge.info     {background:#3b82f6;color:#fff;}
+.badge.warning  {background:#f59e0b;color:#000;}
+.badge.stop     {background:#ef4444;color:#fff;}
+.badge.complete {background:#16a34a;color:#fff;}
+.badge.non-pharm {background:#0d9488;color:#fff;}
+.override-card{
+  background:#1a1a2e;border:1px dashed #6366f1;
+  border-radius:8px;padding:10px 14px;margin-top:8px;
+  font-size:13px;color:#c7d2fe;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 st.title("GERD Pathway")
 st.markdown("---")
@@ -151,12 +151,56 @@ if "gerd_notes" not in st.session_state:
 
 left, right = st.columns([1, 1.5])
 
+# ── HANDOFF INBOUND ──────────────────────────────────────────────────────────
+_gerd_handoff = apply_handoff("2_GERD")
+if _gerd_handoff:
+    transferred = []
+    if _gerd_handoff.get("age") is not None:
+        st.session_state["_go_age"] = int(_gerd_handoff["age"])
+        transferred.append("age")
+    if _gerd_handoff.get("sex"):
+        st.session_state["_go_sex"] = _gerd_handoff["sex"]
+        transferred.append("sex")
+
+    alarm_map = [
+        ("actively_bleeding_now", "go_al_bleeding"),
+        ("unintended_weight_loss", "go_al_wl"),
+        ("dysphagia", "go_al_dys"),
+        ("progressive_dysphagia", "go_al_dys"),
+        ("persistent_vomiting", "go_al_vomit"),
+        ("black_stool_or_blood_in_vomit", "go_al_bleed"),
+        ("iron_deficiency_anemia_present", "go_al_ida"),
+    ]
+    for src, dst in alarm_map:
+        if _gerd_handoff.get(src):
+            st.session_state[f"_{dst}"] = True
+            transferred.append(src)
+
+    if _gerd_handoff.get("ppi_once_daily_trial_done"):
+        st.session_state["_go_ppiod"] = "Completed"
+        transferred.append("ppi_once_daily_trial_done")
+
+    show_handoff_banner("Dyspepsia / H. Pylori", transferred)
+
+
+left, right = st.columns([1, 1.5])
+
 # ── LEFT PANEL ───────────────────────────────────────────────────────────────
 with left:
     st.subheader("Patient Information")
-
-    age = st.number_input("Age", 1, 120, 52)
-    sex = st.selectbox("Sex", ["male", "female"])
+    age = st.number_input(
+        "Age",
+        1,
+        120,
+        value=st.session_state.pop("_go_age", 52),
+    )
+    sex = st.selectbox(
+        "Sex",
+        ["male", "female"],
+        index=["male", "female"].index(
+            st.session_state.pop("_go_sex", "male")
+        ),
+    )
 
     st.markdown("**1. Suspected GERD — Entry Symptoms**")
     predominant_heartburn = st.checkbox("Predominant heartburn")
@@ -165,16 +209,36 @@ with left:
 
     st.markdown("**2. Dyspepsia Screen**")
     predominant_epigastric_pain = st.checkbox("Predominant epigastric pain / discomfort")
-    predominant_upper_abdominal_bloating = st.checkbox("Upper abdominal distension or bloating")
+    predominant_upper_abdominal_bloating = st.checkbox(
+        "Upper abdominal distension or bloating"
+    )
 
     st.markdown("**3. Alarm Features**")
-    actively_bleeding_now = st.checkbox("⚠ Active / acute GI bleeding NOW")
-    al_weight_loss = st.checkbox("Unintended weight loss >5% (over 6–12 months)")
-    al_dysphagia = st.checkbox("Progressive dysphagia")
+    actively_bleeding_now = st.checkbox(
+        "⚠ Active / acute GI bleeding NOW",
+        value=st.session_state.pop("_go_al_bleeding", False),
+    )
+    al_weight_loss = st.checkbox(
+        "Unintended weight loss >5% (over 6–12 months)",
+        value=st.session_state.pop("_go_al_wl", False),
+    )
+    al_dysphagia = st.checkbox(
+        "Progressive dysphagia",
+        value=st.session_state.pop("_go_al_dys", False),
+    )
     al_odynophagia = st.checkbox("Odynophagia (painful swallowing)")
-    al_vomiting = st.checkbox("Persistent vomiting (not cannabis-related)")
-    al_gi_bleed = st.checkbox("Black stool or blood in vomit")
-    al_ida = st.checkbox("Iron deficiency anemia")
+    al_vomiting = st.checkbox(
+        "Persistent vomiting (not cannabis-related)",
+        value=st.session_state.pop("_go_al_vomit", False),
+    )
+    al_gi_bleed = st.checkbox(
+        "Black stool or blood in vomit",
+        value=st.session_state.pop("_go_al_bleed", False),
+    )
+    al_ida = st.checkbox(
+        "Iron deficiency anemia",
+        value=st.session_state.pop("_go_al_ida", False),
+    )
     al_mass = st.checkbox("Abdominal mass")
 
     st.markdown("**4. Barrett's Esophagus Risk**")
@@ -182,34 +246,58 @@ with left:
         "GERD symptom duration",
         ["Unknown / <5 years", "5–10 years", ">10 years"],
     )
-    gerd_symptom_years_map = {"Unknown / <5 years": None, "5–10 years": 6, ">10 years": 11}
+    gerd_symptom_years_map = {
+        "Unknown / <5 years": None,
+        "5–10 years": 6,
+        ">10 years": 11,
+    }
 
     symptoms_per_week_sel = st.selectbox(
         "Symptom frequency per week",
         ["Unknown", "<1 (infrequent)", "1–1.9 (weekly)", "≥2 (frequent)"],
     )
-    spw_map = {"Unknown": None, "<1 (infrequent)": 0.5, "1–1.9 (weekly)": 1.0, "≥2 (frequent)": 2.0}
+    spw_map = {
+        "Unknown": None,
+        "<1 (infrequent)": 0.5,
+        "1–1.9 (weekly)": 1.0,
+        "≥2 (frequent)": 2.0,
+    }
 
     caucasian = st.checkbox("Caucasian")
     current_or_history_smoking = st.checkbox("Current or past tobacco smoking")
-    family_hx_barretts = st.checkbox("Family history (1st degree) of Barrett's or esophageal cancer")
+    family_hx_barretts = st.checkbox(
+        "Family history (1st degree) of Barrett's or esophageal cancer"
+    )
     history_of_sleeve_gastrectomy = st.checkbox("History of sleeve gastrectomy")
     known_barretts_esophagus = st.checkbox("Known Barrett's esophagus")
     barretts_screen_positive = st.checkbox("Barrett's screening test already positive")
 
-    st.markdown("**Waist Measurements** *(for central obesity assessment)*")
-    waist_cm_input = st.number_input("Waist circumference (cm) — 0 = not measured", 0.0, 250.0, 0.0, step=0.5)
+    st.markdown("**Waist Measurements**")
+    waist_cm_input = st.number_input(
+        "Waist circumference (cm) — 0 = not measured",
+        0.0,
+        250.0,
+        0.0,
+        step=0.5,
+    )
     waist_cm = waist_cm_input if waist_cm_input > 0 else None
-    whr_input = st.number_input("Waist-hip ratio — 0 = not measured", 0.0, 3.0, 0.0, step=0.01)
+    whr_input = st.number_input(
+        "Waist-hip ratio — 0 = not measured", 0.0, 3.0, 0.0, step=0.01
+    )
     whr = whr_input if whr_input > 0 else None
 
     st.markdown("**5. Non-Pharmacological Therapy**")
-    st.caption("Non-pharmacological counselling is always recommended (smoking, diet, weight, meal timing).")
+    st.caption(
+        "Non-pharmacological counselling is always recommended (smoking, diet, weight, meal timing)."
+    )
 
     st.markdown("**6. Pharmacological Therapy**")
     ppi_od_done_sel = st.selectbox(
         "Once-daily PPI trial (4–8 weeks)",
         ["Not yet started", "Completed"],
+        index=["Not yet started", "Completed"].index(
+            st.session_state.pop("_go_ppiod", "Not yet started")
+        ),
     )
     ppi_od_done = ppi_od_done_sel == "Completed"
 
@@ -233,8 +321,12 @@ with left:
 
         if ppi_od_response is False:
             st.markdown("*PPI adherence check (before escalating):*")
-            ppi_adherence_correct = st.checkbox("PPI taken correctly — 30 min before breakfast", value=True)
-            ppi_adherence_adequate = st.checkbox("Patient adherence to daily PPI adequate", value=True)
+            ppi_adherence_correct = st.checkbox(
+                "PPI taken correctly — 30 min before breakfast", value=True
+            )
+            ppi_adherence_adequate = st.checkbox(
+                "Patient adherence to daily PPI adequate", value=True
+            )
 
             ppi_bid_done_sel = st.selectbox(
                 "Twice-daily (BID) PPI trial (4–8 weeks)",
@@ -242,7 +334,6 @@ with left:
                 key="ppi_bid_done_sel",
             )
             ppi_bid_done = ppi_bid_done_sel == "Completed"
-
             if ppi_bid_done:
                 ppi_bid_resp_sel = st.selectbox(
                     "Response to BID PPI",
@@ -257,15 +348,13 @@ with left:
 
     st.markdown("**7. Maintenance / Deprescribing**")
     symptoms_resolved_sel = st.selectbox(
-        "Symptoms resolved after PPI?",
-        ["Unknown", "Yes", "No"],
+        "Symptoms resolved after PPI?", ["Unknown", "Yes", "No"]
     )
     symptoms_resolved_map = {"Unknown": None, "Yes": True, "No": False}
     symptoms_resolved = symptoms_resolved_map[symptoms_resolved_sel]
 
     symptoms_return_sel = st.selectbox(
-        "Symptoms returned after taper/stop?",
-        ["Unknown", "Yes", "No"],
+        "Symptoms returned after taper/stop?", ["Unknown", "Yes", "No"]
     )
     symptoms_return_map = {"Unknown": None, "Yes": True, "No": False}
     symptoms_return = symptoms_return_map[symptoms_return_sel]
@@ -280,7 +369,9 @@ with left:
 
     advice_considered = None
     if unsatisfactory_response is True:
-        advice_considered = st.checkbox("Advice service already consulted / considered")
+        advice_considered = st.checkbox(
+            "Advice service already consulted / considered"
+        )
 
     run_clicked = st.button("▶ Run Pathway", type="primary", use_container_width=True)
     if run_clicked:
@@ -294,10 +385,12 @@ with left:
 
     override_panel = st.container()
 
+
 # ── RIGHT PANEL ──────────────────────────────────────────────────────────────
 with right:
-    if st.session_state.gerd_has_run:
-
+    if not st.session_state.gerd_has_run:
+        st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
+    else:
         patient_data = {
             "age": age,
             "sex": sex,
@@ -402,6 +495,30 @@ with right:
         active_bleeding_stop = any(
             isinstance(o, Stop) and "bleeding" in o.reason.lower() for o in outputs
         )
+
+        # ── Outbound buttons ────────────────────────────────────────────────
+        if is_dyspepsia_stop:
+            st.info(
+                "Engine indicates a **dyspeptic** phenotype – you can continue "
+                "assessment in the **Dyspepsia** pathway."
+            )
+            if st.button("→ Continue in Dyspepsia Pathway", key="gerd_to_dys"):
+                queue_handoff("3_Dyspepsia", patient_data)
+                st.switch_page("pages/3_Dyspepsia.py")
+
+        gerd_to_hp = any(
+            isinstance(o, Action)
+            and "h. pylori" in (o.label or "").lower()
+            for o in outputs
+        )
+        if gerd_to_hp:
+            st.info(
+                "Engine recommends H. pylori testing / treatment – you can "
+                "continue management in the **H. Pylori** pathway."
+            )
+            if st.button("→ Continue in H. Pylori Pathway", key="gerd_to_hp"):
+                queue_handoff("1_H._Pylori", patient_data)
+                st.switch_page("pages/1_H_Pylori.py")
 
         # ── SVG FLOWCHART ───────────────────────────────────────────────────
         C_MAIN = "#16a34a"; C_UNVISIT = "#475569"; C_DIAMOND = "#1d4ed8"
@@ -769,12 +886,14 @@ with right:
             svgt(lx + 16, ly, lbl, "#94a3b8", 10, anchor="start")
             lx += 110
         svg.append("</svg>")
-
-        st.subheader("🗺️ Pathway Followed")
+        svg_html = "".join(svg)
+        st.subheader("Pathway Followed")
         components.html(
-            '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
-            + "".join(svg) + "</div>",
-            height=990, scrolling=True,
+            f'<div style="background:{C_BG};padding:10px;border-radius:14px;'
+            f'overflow-x:auto;">{svg_html}</div>',
+            height=980,
+            scrolling=True,
+        )0, scrolling=True,
         )
 
         st.markdown("---")
