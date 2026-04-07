@@ -108,11 +108,12 @@ st.markdown("""
     border-radius: 10px; padding: 14px 18px;
     margin-bottom: 12px; font-size: 13.5px; line-height: 1.6;
 }
-.action-card.urgent  { background:#3b0a0a; border-left:5px solid #ef4444; color:#fecaca; }
-.action-card.routine { background:#052e16; border-left:5px solid #22c55e; color:#bbf7d0; }
-.action-card.info    { background:#0c1a2e; border-left:5px solid #3b82f6; color:#bfdbfe; }
-.action-card.warning { background:#2d1a00; border-left:5px solid #f59e0b; color:#fde68a; }
-.action-card.stop    { background:#2d0a0a; border-left:5px solid #ef4444; color:#fecaca; }
+.action-card.urgent   { background:#3b0a0a; border-left:5px solid #ef4444; color:#fecaca; }
+.action-card.routine  { background:#052e16; border-left:5px solid #22c55e; color:#bbf7d0; }
+.action-card.info     { background:#0c1a2e; border-left:5px solid #3b82f6; color:#bfdbfe; }
+.action-card.warning  { background:#2d1a00; border-left:5px solid #f59e0b; color:#fde68a; }
+.action-card.stop     { background:#2d0a0a; border-left:5px solid #ef4444; color:#fecaca; }
+.action-card.complete { background:#052e16; border-left:5px solid #16a34a; color:#bbf7d0; }
 .action-card h4 { margin:0 0 6px 0; font-size:14px; }
 .action-card ul { margin:6px 0 0 16px; padding:0; }
 .action-card li { margin-bottom:3px; }
@@ -121,11 +122,13 @@ st.markdown("""
     padding:2px 8px; border-radius:20px; margin-right:6px;
     text-transform:uppercase; letter-spacing:0.5px;
 }
-.badge.urgent  { background:#ef4444; color:#fff; }
-.badge.routine { background:#22c55e; color:#fff; }
-.badge.info    { background:#3b82f6; color:#fff; }
-.badge.warning { background:#f59e0b; color:#000; }
-.badge.stop    { background:#ef4444; color:#fff; }
+.badge.urgent   { background:#ef4444; color:#fff; }
+.badge.routine  { background:#22c55e; color:#fff; }
+.badge.info     { background:#3b82f6; color:#fff; }
+.badge.warning  { background:#f59e0b; color:#000; }
+.badge.stop     { background:#ef4444; color:#fff; }
+.badge.complete { background:#16a34a; color:#fff; }
+.badge.non-pharm { background:#0d9488; color:#fff; }
 .override-card {
     background:#1a1a2e; border:1px dashed #6366f1;
     border-radius:8px; padding:10px 14px; margin-top:8px;
@@ -861,12 +864,71 @@ with right:
             )
             if a.override_options:
                 override_candidates.append(a)
-
+                
         st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
+
+        # ── Group non-pharm counselling actions into a single card ───────────
+        NON_PHARM_CODES = {
+            "COUNSEL_SMOKING_CESSATION", "COUNSEL_WEIGHT_LOSS",
+            "COUNSEL_SMALLER_MEALS", "COUNSEL_MEAL_TIMING",
+            "COUNSEL_TRIGGER_LOG", "COUNSEL_HEAD_OF_BED",
+        }
+
+        # Support-only labels shown as a quiet inline note, not a full card
+        SUPPORT_ONLY_CODES = {
+            "NOT_DYSPEPSIA_PREDOMINANT",
+            "NO_ALARM_FEATURES",
+            "GERD_ENTRY_MET",
+        }
+
+        non_pharm_actions = [o for o in outputs if isinstance(o, Action) and o.code in NON_PHARM_CODES]
+        support_notes      = [o for o in outputs if isinstance(o, Action) and o.code in SUPPORT_ONLY_CODES]
+        rendered_codes     = set()
+
+        # ── Render support-only status strip ─────────────────────────────────
+        if support_notes:
+            pills = "".join(
+                f'<span style="display:inline-block;background:#0c2a1e;border:1px solid #166534;'
+                f'color:#86efac;border-radius:20px;padding:3px 10px;font-size:11px;margin:2px 4px 2px 0;">'
+                f'✓ {html.escape(a.label)}</span>'
+                for a in support_notes
+            )
+            st.markdown(
+                f'<div style="margin-bottom:10px;line-height:2">{pills}</div>',
+                unsafe_allow_html=True,
+            )
+            rendered_codes.update(a.code for a in support_notes)
+
+        # ── Render grouped non-pharm card ─────────────────────────────────────
+        if non_pharm_actions:
+            bullets_html = "".join(
+                f'<li style="margin-bottom:4px">{html.escape(a.label)}</li>'
+                for a in non_pharm_actions
+            )
+            st.markdown(
+                '<div class="action-card routine">'
+                '<h4><span class="badge routine">NON-PHARM</span>'
+                ' 🌿 Non-Pharmacological Therapy</h4>'
+                '<ul style="margin:8px 0 0 16px;padding:0;line-height:1.7">'
+                f'{bullets_html}'
+                '</ul>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            rendered_codes.update(a.code for a in non_pharm_actions)
+
+        # ── Render remaining outputs ───────────────────────────────────────────
+        seen_stop_complete = False  # deduplicate STOP + its echoed INFO action
 
         for output in outputs:
             if isinstance(output, Action):
+                if output.code in rendered_codes:
+                    continue
+                # Skip "Continue management in Medical Home" if already shown via STOP
+                if output.code in {"CONTINUE_MEDICAL_HOME", "MEDICAL_HOME"} and seen_stop_complete:
+                    continue
                 render_action(output)
+
             elif isinstance(output, DataRequest):
                 missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
                 msg_html = html.escape(output.message).replace("\n", "<br>")
@@ -875,18 +937,26 @@ with right:
                     f'<h4><span class="badge warning">DATA NEEDED</span>'
                     f' ⏳ {msg_html}</h4>'
                     f'<ul><li>Missing fields: {missing_str}</li></ul>'
-                    "</div>",
+                    '</div>',
                     unsafe_allow_html=True,
                 )
                 for sa in output.suggested_actions:
                     render_action(sa, extra_cls="info")
+
             elif isinstance(output, Stop):
                 reason_html = html.escape(output.reason).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
+                # Style complete vs urgent stops differently
+                is_complete = "complete" in output.reason.lower() or "medical home" in output.reason.lower()
+                stop_cls = "routine" if is_complete else "stop"
+                stop_icon = "✅" if is_complete else "🛑"
+                stop_label = "COMPLETE" if is_complete else "STOP"
+                if is_complete:
+                    seen_stop_complete = True
                 st.markdown(
-                    '<div class="action-card stop">'
-                    f'<h4><span class="badge stop">STOP</span>'
-                    f' 🛑 {reason_html}</h4>'
-                    "</div>",
+                    f'<div class="action-card {stop_cls}">'
+                    f'<h4><span class="badge {stop_cls}">{stop_label}</span>'
+                    f' {stop_icon} {reason_html}</h4>'
+                    '</div>',
                     unsafe_allow_html=True,
                 )
                 for a in output.actions:
