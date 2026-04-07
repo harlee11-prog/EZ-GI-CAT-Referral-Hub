@@ -9,7 +9,7 @@ from dyspepsia_engine import (
     run_dyspepsia_pathway, Action, DataRequest, Stop, Override,
 )
 
-st.set_page_config(page_title="Dyspepsia",layout="wide")
+st.set_page_config(page_title="Dyspepsia", layout="wide")
 
 
 # ── MARKDOWN HELPER ───────────────────────────────────────────────────────────
@@ -155,7 +155,6 @@ with left:
     age = st.number_input("Age", 1, 120, 45)
     sex = st.selectbox("Sex", ["male", "female"])
 
-    # ── 1. SUSPECTED DYSPEPSIA ───────────────────────────────────────────────
     st.markdown("**1. Suspected Dyspepsia** — Predominant symptoms (> 1 month)")
     symptom_duration_months = st.number_input(
         "Symptom duration (months)", min_value=0, max_value=240, value=2,
@@ -175,12 +174,10 @@ with left:
             help="Rome IV: onset ≥ 6 months ago",
         )
 
-    # ── 2. GERD SCREEN ───────────────────────────────────────────────────────
     st.markdown("**2. Is it GERD?** — Predominant heartburn ± regurgitation")
     predominant_heartburn     = st.checkbox("Predominant heartburn")
     predominant_regurgitation = st.checkbox("Predominant regurgitation")
 
-    # ── 3. ALARM FEATURES ────────────────────────────────────────────────────
     st.markdown("**3. Alarm Features**")
     actively_bleeding_now = st.checkbox("⚠️ Actively bleeding NOW (emergency)")
     al_fh_cancer          = st.checkbox("Family hx (1st-degree) esophageal / gastric cancer")
@@ -191,7 +188,6 @@ with left:
     al_black_stool        = st.checkbox("Black stool or blood in vomit")
     al_ida                = st.checkbox("Iron deficiency anemia")
 
-    # ── 4. MEDICATION & LIFESTYLE REVIEW ─────────────────────────────────────
     st.markdown("**4. Medication & Lifestyle Review**")
     medication_review_done   = st.checkbox("Medication review done (NSAIDs, steroids, metformin, iron…)")
     lifestyle_review_done    = st.checkbox("Lifestyle review done (alcohol, caffeine, smoking, stress)")
@@ -206,7 +202,6 @@ with left:
         "Not improved — continue pathway":        False,
     }
 
-    # ── 5. BASELINE INVESTIGATIONS ───────────────────────────────────────────
     st.markdown("**5. Baseline Investigations**")
     cbc_sel      = st.selectbox("CBC (mandatory)", ["Not done", "Done — normal", "Done — abnormal"])
     cbc_done_val = cbc_sel in ("Done — normal", "Done — abnormal")
@@ -229,7 +224,6 @@ with left:
 
     other_dx_found = st.checkbox("Other diagnosis identified on baseline investigations")
 
-    # ── 6. H. PYLORI TEST AND TREAT ──────────────────────────────────────────
     st.markdown("**6. Test and Treat — H. pylori** (HpSAT or UBT)")
     hp_done_sel  = st.selectbox("H. pylori test", ["Not yet done", "Done"])
     hp_done      = hp_done_sel == "Done"
@@ -238,7 +232,6 @@ with left:
         hp_result_sel = st.selectbox("H. pylori result", ["Negative", "Positive"])
         hp_positive   = hp_result_sel == "Positive"
 
-    # ── 7. PHARMACOLOGICAL THERAPY ───────────────────────────────────────────
     st.markdown("**7. Pharmacological Therapy**")
     ppi_od_sel = st.selectbox(
         "PPI once-daily trial (4–8 weeks)",
@@ -263,7 +256,6 @@ with left:
             False if ppi_bid_sel == "Trial done — inadequate response" else None
         )
 
-    # Maintenance / deprescribing (only after adequate PPI response)
     symptoms_resolved_after_ppi         = None
     symptoms_return_after_deprescribing = None
     if ppi_od_adequate is True or ppi_bid_adequate is True:
@@ -281,7 +273,6 @@ with left:
             return_map = {"Unknown / not tried": None, "Yes — returned": True, "No — still resolved": False}
             symptoms_return_after_deprescribing = return_map[return_sel]
 
-    # ── DOMPERIDONE SAFETY CHECK ──────────────────────────────────────────────
     ecg_qtc_ms       = None
     family_hx_scd    = None
     personal_cardiac = None
@@ -294,7 +285,6 @@ with left:
         personal_cardiac = st.checkbox("Personal cardiac history (e.g. heart failure)")
         qt_meds          = st.checkbox("Currently on QT-prolonging medications")
 
-    # ── OVERALL MANAGEMENT RESPONSE ──────────────────────────────────────────
     st.markdown("**Overall Management Response**")
     mgmt_sel = st.selectbox(
         "Response to overall dyspepsia management:",
@@ -309,7 +299,6 @@ with left:
     if mgmt_sel == "Unsatisfactory — further action needed":
         advice_considered = st.checkbox("Advice service already consulted before referring")
 
-    # ── BUTTONS ──────────────────────────────────────────────────────────────
     run_clicked = st.button("▶ Run Pathway", type="primary", use_container_width=True)
     if run_clicked:
         st.session_state.dys_has_run = True
@@ -322,7 +311,6 @@ with left:
 
     override_panel = st.container()
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # RIGHT PANEL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -330,11 +318,9 @@ with right:
     if not st.session_state.dys_has_run:
         st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
     else:
-        # ── patient_data dict — all Node-1 symptom fields must be non-None ────
         patient_data = {
             "age":  age,
             "sex":  sex,
-            # Node 1 — all three must be concrete booleans (not None) to avoid DataRequest block
             "predominant_epigastric_pain":           predominant_epigastric_pain,
             "predominant_epigastric_discomfort":     predominant_epigastric_discomfort,
             "predominant_upper_abdominal_bloating":  predominant_upper_abdominal_bloating,
@@ -344,10 +330,8 @@ with right:
             "epigastric_pain":                       epigastric_pain_rome or None,
             "epigastric_burning":                    epigastric_burning or None,
             "symptom_onset_months_ago":              symptom_onset_months_ago if symptom_onset_months_ago > 0 else None,
-            # Node 2
             "predominant_heartburn":                 predominant_heartburn,
             "predominant_regurgitation":             predominant_regurgitation,
-            # Node 3
             "actively_bleeding_now":                 actively_bleeding_now,
             "family_history_upper_gi_cancer_first_degree": al_fh_cancer,
             "symptom_onset_after_age_60":            al_onset_after_60,
@@ -356,12 +340,10 @@ with right:
             "persistent_vomiting":                   al_vomiting,
             "black_stool_or_blood_in_vomit":         al_black_stool,
             "iron_deficiency_anemia_present":        al_ida,
-            # Node 4
             "medication_review_done":                medication_review_done,
             "lifestyle_review_done":                 lifestyle_review_done,
             "diet_trigger_review_done":              diet_trigger_review_done,
             "symptoms_improved_after_med_lifestyle_review": improved_map[improved_sel],
-            # Node 5
             "cbc_done":                              cbc_done_val,
             "cbc_abnormal":                          cbc_abnormal,
             "ferritin_done":                         ferritin_map[ferritin_sel],
@@ -371,23 +353,18 @@ with right:
             "hepatobiliary_pancreatic_tests_done":   hepato_done,
             "hepatobiliary_pancreatic_workup_abnormal": hepato_abnormal,
             "other_diagnosis_found":                 other_dx_found,
-            # Node 6
             "h_pylori_test_done":                    hp_done,
             "h_pylori_result_positive":              hp_positive,
-            # Node 7
             "ppi_once_daily_trial_done":             ppi_od_done if ppi_od_done else None,
             "ppi_once_daily_response_adequate":      ppi_od_adequate,
             "ppi_bid_trial_done":                    ppi_bid_done,
             "ppi_bid_response_adequate":             ppi_bid_adequate,
-            # Maintenance
             "symptoms_resolved_after_ppi":           symptoms_resolved_after_ppi,
             "symptoms_return_after_deprescribing":   symptoms_return_after_deprescribing,
-            # Node 8 — Domperidone
             "ecg_qtc_ms":                            ecg_qtc_ms,
             "family_history_sudden_cardiac_death":   family_hx_scd,
             "personal_cardiac_history":              personal_cardiac,
             "qt_prolonging_medications_present":     qt_meds,
-            # Management response
             "unsatisfactory_response_to_management": mgmt_map[mgmt_sel],
             "advice_service_considered":             advice_considered or None,
         }
@@ -396,48 +373,45 @@ with right:
             patient_data, overrides=st.session_state.dys_overrides
         )
 
-        # ── Derive SVG state flags exclusively from engine output codes ────────
-        _action_codes     = {o.code for o in outputs if isinstance(o, Action)}
-        _stop_act_codes   = {a.code for o in outputs if isinstance(o, Stop) for a in o.actions}
+        _action_codes   = {o.code for o in outputs if isinstance(o, Action)}
+        _stop_act_codes = {a.code for o in outputs if isinstance(o, Stop) for a in o.actions}
 
-        # Node-reached flags (derived only from what the engine actually emitted)
-        entry_met       = "DYSPEPSIA_ENTRY_MET"           in _action_codes
-        entry_not_met   = "NOT_DYSPEPSIA"                 in _stop_act_codes
-        routed_gerd     = "ROUTE_GERD_PATHWAY"            in _stop_act_codes
-        has_alarm       = "URGENT_ENDOSCOPY_REFERRAL"     in _stop_act_codes
-        bleed_stop      = "EMERGENT_BLEEDING_ASSESSMENT"  in _stop_act_codes
-        improved_life   = "NO_FURTHER_ACTION_REQUIRED"    in _stop_act_codes
-        other_dx        = "OTHER_DIAGNOSIS_IDENTIFIED"    in _stop_act_codes
-        routed_hp       = "ROUTE_H_PYLORI_PATHWAY"        in _stop_act_codes
-        started_ppi     = "START_PPI_ONCE_DAILY"          in _action_codes
-        ppi_od_ok       = "PPI_ONCE_DAILY_SUCCESS"        in _action_codes
-        optimize_bid    = "OPTIMIZE_PPI_BID"              in _action_codes
-        ppi_bid_ok      = "PPI_BID_SUCCESS"               in _action_codes
-        tca_flag        = "CONSIDER_TCA"                  in _action_codes
-        dom_eligible    = "DOMPERIDONE_ELIGIBLE"          in _action_codes
-        dom_ineligible  = "DOMPERIDONE_NOT_ELIGIBLE"      in _action_codes
-        titrate_down    = "TITRATE_DOWN_PPI"              in _action_codes
-        ppi_maint       = "PPI_MAINTENANCE"               in _action_codes
-        pathway_done    = "CONTINUE_MEDICAL_HOME_CARE"    in _stop_act_codes
-        refer_endo      = "REFER_FAILED_MANAGEMENT"       in _stop_act_codes
+        entry_met      = "DYSPEPSIA_ENTRY_MET"           in _action_codes
+        entry_not_met  = "NOT_DYSPEPSIA"                 in _stop_act_codes
+        routed_gerd    = "ROUTE_GERD_PATHWAY"            in _stop_act_codes
+        has_alarm      = "URGENT_ENDOSCOPY_REFERRAL"     in _stop_act_codes
+        bleed_stop     = "EMERGENT_BLEEDING_ASSESSMENT"  in _stop_act_codes
+        improved_life  = "NO_FURTHER_ACTION_REQUIRED"    in _stop_act_codes
+        other_dx       = "OTHER_DIAGNOSIS_IDENTIFIED"    in _stop_act_codes
+        routed_hp      = "ROUTE_H_PYLORI_PATHWAY"        in _stop_act_codes
+        started_ppi    = "START_PPI_ONCE_DAILY"          in _action_codes
+        ppi_od_ok      = "PPI_ONCE_DAILY_SUCCESS"        in _action_codes
+        optimize_bid   = "OPTIMIZE_PPI_BID"              in _action_codes
+        ppi_bid_ok     = "PPI_BID_SUCCESS"               in _action_codes
+        tca_flag       = "CONSIDER_TCA"                  in _action_codes
+        dom_eligible   = "DOMPERIDONE_ELIGIBLE"          in _action_codes
+        dom_ineligible = "DOMPERIDONE_NOT_ELIGIBLE"      in _action_codes
+        titrate_down   = "TITRATE_DOWN_PPI"              in _action_codes
+        ppi_maint      = "PPI_MAINTENANCE"               in _action_codes
+        pathway_done   = "CONTINUE_MEDICAL_HOME_CARE"    in _stop_act_codes
+        refer_endo     = "REFER_FAILED_MANAGEMENT"       in _stop_act_codes
 
-        # Cascade: a node is "on the path" only if the engine walked there
-        v0  = True                                              # Patient Presents
-        v1  = v0                                                # diamond: Suspected Dyspepsia?
-        v2  = entry_met                                         # diamond: GERD?
-        v3  = v2 and not routed_gerd                            # diamond: Alarm Features?
-        v4  = v3 and not (has_alarm or bleed_stop)              # Node 4 rect
-        v5  = v4 and not improved_life                          # Node 5 rect
-        v6  = v5 and not other_dx                               # diamond: H pylori?
-        v7  = v6 and not routed_hp                              # Node 7 PPI OD rect
-        v7d = v7                                                # diamond: PPI OD adequate?
-        v8  = v7d and not ppi_od_ok and optimize_bid            # Node 8 Optimize PPI BID rect
-        v8d = v8                                                # diamond: PPI BID adequate?
-        v9  = v8d and not ppi_bid_ok and tca_flag               # Node 9 TCA/Dom rect
-        v10 = titrate_down or ppi_maint                         # Maintenance rect
-        v11 = pathway_done or refer_endo                        # terminal nodes
+        v0  = True
+        v1  = v0
+        v2  = entry_met
+        v3  = v2 and not routed_gerd
+        v4  = v3 and not (has_alarm or bleed_stop)
+        v5  = v4 and not improved_life
+        v6  = v5 and not other_dx
+        v7  = v6 and not routed_hp
+        v7d = v7
+        v8  = v7d and not ppi_od_ok and optimize_bid
+        v8d = v8
+        v9  = v8d and not ppi_bid_ok and tca_flag
+        v10 = titrate_down or ppi_maint
+        v11 = pathway_done or refer_endo
 
-        # ── SVG FLOWCHART ─────────────────────────────────────────────────────
+        # ── COLORS ────────────────────────────────────────────────────────────
         C_MAIN    = "#16a34a"
         C_UNVISIT = "#475569"
         C_DIAMOND = "#1d4ed8"
@@ -469,7 +443,8 @@ with right:
             return C_MAIN
 
         svg = []
-        W, H = 720, 1280
+        # Canvas: wider to accommodate left/right exit boxes comfortably
+        W, H = 820, 1380
         svg.append(
             f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="{H}" '
             f'viewBox="0 0 {W} {H}" '
@@ -525,15 +500,18 @@ with right:
             else:
                 svgt(x+w/2, y+h/2+4, line1, tc, 10, True)
 
-        def vline(x, y1, y2, vis, urgent=False, exit_=False, label=""):
+        def vline(x, y1, y2, vis, urgent=False, exit_=False, label="", label_side="right"):
             m = _mid(vis, urgent, exit_); s = _stroke(vis, urgent, exit_)
             dash = "" if vis else 'stroke-dasharray="5,3"'
             svg.append(f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" '
                         f'stroke="{s}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
             if label:
-                svgt(x+6, (y1+y2)/2-3, label, s, 10, True, "start")
+                lx = x + 6 if label_side == "right" else x - 6
+                anchor = "start" if label_side == "right" else "end"
+                svgt(lx, (y1+y2)/2-3, label, s, 10, True, anchor)
 
         def elbow(x1, y1, x2, y2, vis, urgent=False, exit_=False, label=""):
+            """Horizontal then vertical elbow (go right/left to x2, then up/down to y2)"""
             m = _mid(vis, urgent, exit_); s = _stroke(vis, urgent, exit_)
             dash = "" if vis else 'stroke-dasharray="5,3"'
             svg.append(f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" '
@@ -541,155 +519,234 @@ with right:
             if label:
                 svgt((x1+x2)/2, y1-5, label, s, 10, True)
 
-        # ── Layout ────────────────────────────────────────────────────────────
-        CX = 360
-        NW, NH = 178, 46
-        DW, DH = 194, 58
-        EW, EH = 146, 40
-        LX = 16           # left exit x-start
-        RX = W - 16 - EW  # right exit x-start
+        def elbow_down_right(x1, y1, x2, y2, vis, urgent=False, exit_=False, label=""):
+            """Vertical then horizontal elbow (go down to y2, then right/left to x2)"""
+            m = _mid(vis, urgent, exit_); s = _stroke(vis, urgent, exit_)
+            dash = "" if vis else 'stroke-dasharray="5,3"'
+            svg.append(f'<polyline points="{x1},{y1} {x1},{y2} {x2},{y2}" '
+                        f'fill="none" stroke="{s}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
+            if label:
+                svgt(x1+6, (y1+y2)/2, label, s, 10, True, "start")
 
-        # Y-position of top edge of each element
+        # ── LAYOUT CONSTANTS ──────────────────────────────────────────────────
+        CX = 410          # horizontal centre of main spine
+        NW, NH = 200, 48  # main rect node width/height
+        DW, DH = 210, 62  # diamond width/height
+        EW, EH = 155, 42  # exit/side box width/height
+
+        # left exit boxes start x
+        LX = 12
+        # right exit boxes start x
+        RX = W - 12 - EW
+
+        # Y positions (top edge of each element)
         Y = {
-            "start":     12,
-            "d1":        76,    # 1. Suspected Dyspepsia?
-            "d2":       182,    # 2. Is it GERD?
-            "d3":       286,    # 3. Alarm Features?
-            "n4":       390,    # 4. Med/Lifestyle Review (rect)
-            "d4":       454,    # Improved after review? (diamond)
-            "n5":       556,    # 5. Baseline Investigations (rect)
-            "d6":       618,    # 6. H. pylori (diamond)
-            "n7":       718,    # 7. PPI OD trial (rect)
-            "d7":       780,    # PPI OD adequate? (diamond)
-            "n8":       876,    # Optimize PPI BID (rect)
-            "d8":       938,    # PPI BID adequate? (diamond)
-            "n9":      1034,    # TCA / Domperidone (rect)
-            "n10":     1104,    # Maintenance / Deprescribing (rect)
-            "term":    1190,    # terminal row
+            "d1":    12,    # 1. Suspected Dyspepsia? (diamond)
+            "d2":   120,    # 2. Is it GERD? (diamond)
+            "d3":   228,    # 3. Alarm Features? (diamond)
+            "n4":   336,    # 4. Med/Lifestyle Review (rect)
+            "d4":   406,    # Symptoms Improved? (diamond)
+            "n5":   506,    # 5. Baseline Investigations (rect)
+            "n6":   590,    # 6. H. pylori (rect — shown as diamond in PDF but used as rect action)
+            "d6":   590,    # 6. H. pylori (diamond)
+            "n7":   700,    # 7. PPI OD trial (rect)
+            "d7":   768,    # PPI OD adequate? (diamond)
+            "n8":   876,    # Optimize PPI BID (rect)
+            "d8":   944,    # PPI BID adequate? (diamond)
+            "n9":  1052,    # TCA / Domperidone optional (rect)
+            "n10": 1140,    # PPI Maintenance / Deprescribing (rect)
+            "term":1230,    # terminal row (Pathway Complete / Refer)
         }
 
-        # Node 0 — start
-        rect_node(CX-NW/2, Y["start"], NW, NH, nc(v0), "Patient Presents", sub="Epigastric / upper GI symptoms")
-
-        # ── 1. Suspected Dyspepsia? ───────────────────────────────────────────
-        vline(CX, Y["start"]+NH, Y["d1"], v0)
+        # ── NODE 1: Suspected Dyspepsia ───────────────────────────────────────
         diamond_node(CX, Y["d1"]+DH/2, DW, DH, dc(v1), "1. Suspected", "Dyspepsia?")
         # Left exit: criteria not met
-        exit_node(LX, Y["d1"]+(DH-EH)/2, EW, EH, nc(entry_not_met, exit_=True), "Criteria", "Not Met")
-        elbow(CX-DW/2, Y["d1"]+DH/2, LX+EW, Y["d1"]+(DH-EH)/2+EH/2, entry_not_met, exit_=True, label="No")
+        exit_node(LX, Y["d1"]+(DH-EH)//2, EW, EH, nc(entry_not_met, exit_=True), "Criteria", "Not Met")
+        elbow(CX-DW/2, Y["d1"]+DH/2, LX+EW, Y["d1"]+(DH-EH)//2+EH//2, entry_not_met, exit_=True, label="No")
 
         vline(CX, Y["d1"]+DH, Y["d2"], v2, label="Yes")
 
-        # ── 2. Is it GERD? ────────────────────────────────────────────────────
+        # ── NODE 2: Is it GERD? ───────────────────────────────────────────────
         diamond_node(CX, Y["d2"]+DH/2, DW, DH, dc(v2), "2. Is it GERD?", "Heartburn / regurgitation?")
         # Right exit: GERD pathway
-        exit_node(RX, Y["d2"]+(DH-EH)/2, EW, EH, nc(routed_gerd, exit_=True), "→ GERD", "Pathway")
-        elbow(CX+DW/2, Y["d2"]+DH/2, RX, Y["d2"]+(DH-EH)/2+EH/2, routed_gerd, exit_=True, label="Yes")
+        exit_node(RX, Y["d2"]+(DH-EH)//2, EW, EH, nc(routed_gerd, exit_=True), "→ GERD", "Pathway")
+        elbow(CX+DW/2, Y["d2"]+DH/2, RX, Y["d2"]+(DH-EH)//2+EH//2, routed_gerd, exit_=True, label="Yes")
 
         vline(CX, Y["d2"]+DH, Y["d3"], v3, label="No")
 
-        # ── 3. Alarm Features? ────────────────────────────────────────────────
-        diamond_node(CX, Y["d3"]+DH/2, DW, DH, dc(v3), "3. Alarm Features?", "")
-        # Right exit: urgent referral
-        exit_node(RX, Y["d3"]+(DH-EH)/2, EW, EH, nc(has_alarm or bleed_stop, urgent=True), "⚠ Urgent Refer", "Endoscopy / ED")
-        elbow(CX+DW/2, Y["d3"]+DH/2, RX, Y["d3"]+(DH-EH)/2+EH/2, has_alarm or bleed_stop, urgent=True, label="Yes")
+        # ── NODE 3: Alarm Features? ───────────────────────────────────────────
+        diamond_node(CX, Y["d3"]+DH/2, DW, DH, dc(v3), "3. Alarm Features?")
+        # Right exit: urgent endoscopy
+        exit_node(RX, Y["d3"]+(DH-EH)//2, EW, EH, nc(has_alarm or bleed_stop, urgent=True), "⚠ Urgent Refer", "Endoscopy / ED")
+        elbow(CX+DW/2, Y["d3"]+DH/2, RX, Y["d3"]+(DH-EH)//2+EH//2, has_alarm or bleed_stop, urgent=True, label="Yes")
 
         vline(CX, Y["d3"]+DH, Y["n4"], v4, label="No")
 
-        # ── 4. Medication & Lifestyle Review ─────────────────────────────────
-        rect_node(CX-NW/2, Y["n4"], NW, NH, nc(v4), "4. Medication &", "Lifestyle Review")
+        # ── NODE 4: Medication & Lifestyle Review ─────────────────────────────
+        rect_node(CX-NW//2, Y["n4"], NW, NH, nc(v4), "4. Medication &", "Lifestyle Review")
         vline(CX, Y["n4"]+NH, Y["d4"], v4)
         diamond_node(CX, Y["d4"]+DH/2, DW, DH, dc(v4), "Symptoms", "Improved?")
         # Right exit: no further action
-        exit_node(RX, Y["d4"]+(DH-EH)/2, EW, EH, nc(improved_life, exit_=True), "No Further", "Action Req'd")
-        elbow(CX+DW/2, Y["d4"]+DH/2, RX, Y["d4"]+(DH-EH)/2+EH/2, improved_life, exit_=True, label="Yes")
+        exit_node(RX, Y["d4"]+(DH-EH)//2, EW, EH, nc(improved_life, exit_=True), "No Further", "Action Req'd")
+        elbow(CX+DW/2, Y["d4"]+DH/2, RX, Y["d4"]+(DH-EH)//2+EH//2, improved_life, exit_=True, label="Yes")
 
         vline(CX, Y["d4"]+DH, Y["n5"], v5, label="No")
 
-        # ── 5. Baseline Investigations ────────────────────────────────────────
-        rect_node(CX-NW/2, Y["n5"], NW, NH, nc(v5), "5. Baseline", "Investigations")
-        # Left exit: other diagnosis
-        exit_node(LX, Y["n5"]+(NH-EH)/2, EW, EH, nc(other_dx, exit_=True), "Other Dx Found", "Treat / Refer")
-        elbow(CX-NW/2, Y["n5"]+NH/2, LX+EW, Y["n5"]+(NH-EH)/2+EH/2, other_dx, exit_=True, label="Abnormal")
+        # ── NODE 5: Baseline Investigations ──────────────────────────────────
+        rect_node(CX-NW//2, Y["n5"], NW, NH, nc(v5), "5. Baseline", "Investigations")
+        # Left exit: abnormal → other dx
+        exit_node(LX, Y["n5"]+(NH-EH)//2, EW, EH, nc(other_dx, exit_=True), "Other Dx Found", "Treat / Refer")
+        elbow(CX-NW//2, Y["n5"]+NH//2, LX+EW, Y["n5"]+(NH-EH)//2+EH//2, other_dx, exit_=True, label="Abnormal")
 
         vline(CX, Y["n5"]+NH, Y["d6"], v6)
 
-        # ── 6. H. pylori Test & Treat ─────────────────────────────────────────
+        # ── NODE 6: H. pylori Test & Treat ────────────────────────────────────
         diamond_node(CX, Y["d6"]+DH/2, DW, DH, dc(v6), "6. H. pylori", "Test & Treat")
         # Right exit: positive → H. pylori pathway
-        exit_node(RX, Y["d6"]+(DH-EH)/2, EW, EH, nc(routed_hp, exit_=True), "→ H. pylori", "Pathway")
-        elbow(CX+DW/2, Y["d6"]+DH/2, RX, Y["d6"]+(DH-EH)/2+EH/2, routed_hp, exit_=True, label="+ve")
+        exit_node(RX, Y["d6"]+(DH-EH)//2, EW, EH, nc(routed_hp, exit_=True), "→ H. pylori", "Pathway")
+        elbow(CX+DW/2, Y["d6"]+DH/2, RX, Y["d6"]+(DH-EH)//2+EH//2, routed_hp, exit_=True, label="+ve")
 
         vline(CX, Y["d6"]+DH, Y["n7"], v7, label="−ve")
 
-        # ── 7. PPI Once-Daily Trial ───────────────────────────────────────────
-        rect_node(CX-NW/2, Y["n7"], NW, NH, nc(v7), "7. PPI Trial", "Once Daily  4–8 wks")
+        # ── NODE 7: PPI Once-Daily Trial ──────────────────────────────────────
+        rect_node(CX-NW//2, Y["n7"], NW, NH, nc(v7), "7. PPI Trial", "Once Daily  4–8 wks")
         vline(CX, Y["n7"]+NH, Y["d7"], v7d)
+
+        # PPI OD adequate? (diamond)
         diamond_node(CX, Y["d7"]+DH/2, DW, DH, dc(v7d), "PPI OD", "Adequate Response?")
-        # Left exit: adequate → titrate
-        exit_node(LX, Y["d7"]+(DH-EH)/2, EW, EH, nc(ppi_od_ok, exit_=True), "Titrate Down /", "Maintain PPI")
-        elbow(CX-DW/2, Y["d7"]+DH/2, LX+EW, Y["d7"]+(DH-EH)/2+EH/2, ppi_od_ok, exit_=True, label="Yes")
+
+        # LEFT exit: PPI OD adequate → "Titrate Down / Maintain PPI"
+        # This box sits to the LEFT at the same Y as the diamond
+        titrate_od_y = Y["d7"] + (DH - EH) // 2
+        exit_node(LX, titrate_od_y, EW, EH, nc(ppi_od_ok, exit_=True), "Titrate Down /", "Maintain PPI")
+        elbow(CX-DW//2, Y["d7"]+DH//2, LX+EW, titrate_od_y+EH//2, ppi_od_ok, exit_=True, label="Yes")
+
+        # "Titrate Down" → connects DOWN and then RIGHT into Maintenance node (n10)
+        # Uses vertical drop from bottom of exit box, then horizontal to left edge of n10
+        if ppi_od_ok:
+            s = C_EXIT; m = "mo"
+        else:
+            s = "#64748b"; m = "ma"
+        maint_mid_y = Y["n10"] + NH // 2
+        maint_left_x = CX - NW // 2
+        titrate_od_bottom = titrate_od_y + EH
+        titrate_od_cx = LX + EW // 2
+        svg.append(
+            f'<polyline points="'
+            f'{titrate_od_cx},{titrate_od_bottom} '
+            f'{titrate_od_cx},{maint_mid_y} '
+            f'{maint_left_x},{maint_mid_y}" '
+            f'fill="none" stroke="{s}" stroke-width="2" '
+            f'{"" if ppi_od_ok else "stroke-dasharray=\"5,3\""} '
+            f'marker-end="url(#{m})"/>'
+        )
 
         vline(CX, Y["d7"]+DH, Y["n8"], v8, label="No — optimize")
 
-        # ── Optimize PPI BID ──────────────────────────────────────────────────
-        rect_node(CX-NW/2, Y["n8"], NW, NH, nc(v8), "Optimize PPI", "Twice Daily  4–8 wks")
+        # ── NODE 8: Optimize PPI BID ──────────────────────────────────────────
+        rect_node(CX-NW//2, Y["n8"], NW, NH, nc(v8), "Optimize PPI", "Twice Daily  4–8 wks")
         vline(CX, Y["n8"]+NH, Y["d8"], v8d)
+
+        # PPI BID adequate? (diamond)
         diamond_node(CX, Y["d8"]+DH/2, DW, DH, dc(v8d), "PPI BID", "Adequate Response?")
-        # Left exit: adequate → titrate
-        exit_node(LX, Y["d8"]+(DH-EH)/2, EW, EH, nc(ppi_bid_ok, exit_=True), "Titrate Down /", "Maintain PPI")
-        elbow(CX-DW/2, Y["d8"]+DH/2, LX+EW, Y["d8"]+(DH-EH)/2+EH/2, ppi_bid_ok, exit_=True, label="Yes")
+
+        # LEFT exit: PPI BID adequate → "Titrate Down / Maintain PPI"
+        titrate_bid_y = Y["d8"] + (DH - EH) // 2
+        exit_node(LX, titrate_bid_y, EW, EH, nc(ppi_bid_ok, exit_=True), "Titrate Down /", "Maintain PPI")
+        elbow(CX-DW//2, Y["d8"]+DH//2, LX+EW, titrate_bid_y+EH//2, ppi_bid_ok, exit_=True, label="Yes")
+
+        # "Titrate Down (BID)" → connects to Maintenance node from left
+        if ppi_bid_ok:
+            s2 = C_EXIT; m2 = "mo"
+        else:
+            s2 = "#64748b"; m2 = "ma"
+        titrate_bid_bottom = titrate_bid_y + EH
+        titrate_bid_cx = LX + EW // 2
+        svg.append(
+            f'<polyline points="'
+            f'{titrate_bid_cx},{titrate_bid_bottom} '
+            f'{titrate_bid_cx},{maint_mid_y} '
+            f'{maint_left_x},{maint_mid_y}" '
+            f'fill="none" stroke="{s2}" stroke-width="2" '
+            f'{"" if ppi_bid_ok else "stroke-dasharray=\"5,3\""} '
+            f'marker-end="url(#{m2})"/>'
+        )
 
         vline(CX, Y["d8"]+DH, Y["n9"], v9, label="No")
 
-        # ── TCA / Domperidone ─────────────────────────────────────────────────
-        rect_node(CX-NW/2, Y["n9"], NW, NH, nc(v9), "TCA Trial", sub="Optional / while awaiting consult")
-        # Right side: domperidone eligibility flag
+        # ── NODE 9: TCA / Domperidone optional ───────────────────────────────
+        rect_node(CX-NW//2, Y["n9"], NW, NH, nc(v9), "TCA Trial", sub="Optional / while awaiting consult")
+        # Right side: domperidone eligibility
         dom_vis = v9 and (dom_eligible or dom_ineligible)
         dom_col = nc(dom_vis, exit_=dom_eligible) if dom_vis else C_UNVISIT
-        exit_node(RX, Y["n9"]+(NH-EH)/2, EW, EH, dom_col,
+        exit_node(RX, Y["n9"]+(NH-EH)//2, EW, EH, dom_col,
                   "Domperidone", "Eligible" if dom_eligible else ("Ineligible" if dom_ineligible else "?"))
-        elbow(CX+NW/2, Y["n9"]+NH/2, RX, Y["n9"]+(NH-EH)/2+EH/2, dom_vis, exit_=dom_eligible, label="Check")
+        elbow(CX+NW//2, Y["n9"]+NH//2, RX, Y["n9"]+(NH-EH)//2+EH//2, dom_vis, exit_=dom_eligible, label="Check")
 
         vline(CX, Y["n9"]+NH, Y["n10"], v10)
 
-        # ── Maintenance / Deprescribing ───────────────────────────────────────
-        rect_node(CX-NW/2, Y["n10"], NW, NH, nc(v10), "PPI Maintenance /", "Deprescribing")
+        # ── NODE 10: PPI Maintenance / Deprescribing ──────────────────────────
+        rect_node(CX-NW//2, Y["n10"], NW, NH, nc(v10), "PPI Maintenance /", "Deprescribing")
 
+        # Maintenance → dashed split to two terminal nodes
         vline(CX, Y["n10"]+NH, Y["term"], v11)
 
-        # ── Terminal nodes ────────────────────────────────────────────────────
-        term_half = NW // 2 - 4
-        # Left: pathway complete
-        exit_node(CX - term_half - EW - 4, Y["term"], EW, EH,
-                  nc(pathway_done, exit_=True), "Pathway Complete", "Medical Home")
-        elbow(CX, Y["term"]-4, CX - term_half - 4, Y["term"]+EH/2,
-              pathway_done, exit_=True)
-        # Right: refer for consultation / endoscopy
-        exit_node(CX + term_half + 4, Y["term"], EW + 10, EH,
-                  nc(refer_endo, urgent=True), "8. Refer", "Consult / Endoscopy")
-        elbow(CX, Y["term"]-4, CX + term_half + 4, Y["term"]+EH/2,
-              refer_endo, urgent=True)
+        # ── TERMINAL ROW ──────────────────────────────────────────────────────
+        term_EW = 175
+        gap = 20
+        # Left terminal: Pathway Complete / Medical Home
+        left_term_x  = CX - gap//2 - term_EW
+        right_term_x = CX + gap//2
 
-        # ── Legend ────────────────────────────────────────────────────────────
-        ly = H - 16; lx = 16
+        exit_node(left_term_x, Y["term"], term_EW, EH, nc(pathway_done, exit_=True),
+                  "Pathway Complete", "Medical Home")
+        exit_node(right_term_x, Y["term"], term_EW, EH, nc(refer_endo, urgent=True),
+                  "8. Refer", "Consult / Endoscopy")
+
+        # Connector from spine into each terminal box
+        spine_bottom = Y["term"]
+        if v11:
+            # horizontal T-bar at spine_bottom connecting to both boxes
+            s_t = C_MAIN if pathway_done or refer_endo else "#64748b"
+            m_t = "mg" if pathway_done or refer_endo else "ma"
+            # Left branch
+            sl = C_EXIT if pathway_done else "#64748b"
+            ml = "mo" if pathway_done else "ma"
+            svg.append(
+                f'<polyline points="{CX},{spine_bottom} {CX},{spine_bottom+18} '
+                f'{left_term_x+term_EW//2},{spine_bottom+18} {left_term_x+term_EW//2},{Y["term"]}" '
+                f'fill="none" stroke="{sl}" stroke-width="2" '
+                f'{"" if pathway_done else "stroke-dasharray=\"5,3\""} marker-end="url(#{ml})"/>'
+            )
+            # Right branch
+            sr = C_URGENT if refer_endo else "#64748b"
+            mr = "mr" if refer_endo else "ma"
+            svg.append(
+                f'<polyline points="{CX},{spine_bottom} {CX},{spine_bottom+18} '
+                f'{right_term_x+term_EW//2},{spine_bottom+18} {right_term_x+term_EW//2},{Y["term"]}" '
+                f'fill="none" stroke="{sr}" stroke-width="2" '
+                f'{"" if refer_endo else "stroke-dasharray=\"5,3\""} marker-end="url(#{mr})"/>'
+            )
+
+        # ── LEGEND ────────────────────────────────────────────────────────────
+        ly = H - 18; lx = 14
         for col, lbl in [
             (C_MAIN, "Visited"), (C_DIAMOND, "Decision"),
             (C_URGENT, "Urgent"), (C_EXIT, "Exit / Off-ramp"), (C_UNVISIT, "Not reached"),
         ]:
             svg.append(f'<rect x="{lx}" y="{ly-11}" width="12" height="12" rx="2" fill="{col}"/>')
             svgt(lx+16, ly, lbl, "#94a3b8", 10, anchor="start")
-            lx += 126
+            lx += 140
         svg.append("</svg>")
 
         st.subheader("🗺️ Pathway Followed")
         components.html(
             f'<div style="background:{C_BG};padding:10px;border-radius:14px;overflow-x:auto">'
             + "".join(svg) + "</div>",
-            height=1310, scrolling=True,
+            height=H + 30, scrolling=True,
         )
 
-        # ── Clinical Recommendations ──────────────────────────────────────────
+        # ── CLINICAL RECOMMENDATIONS ──────────────────────────────────────────
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
@@ -806,7 +863,7 @@ with right:
                 for a in output.actions:
                     render_action(a)
 
-        # ── Clinician Notes ───────────────────────────────────────────────────
+        # ── CLINICIAN NOTES ───────────────────────────────────────────────────
         st.markdown('<p class="section-label">CLINICIAN NOTES</p>', unsafe_allow_html=True)
         st.caption("Optional free-text notes to be attached to the clinical recommendations.")
         st.session_state.dys_notes = st.text_area(
@@ -815,7 +872,7 @@ with right:
             height=180,
         )
 
-        # ── Save / Download ───────────────────────────────────────────────────
+        # ── SAVE / DOWNLOAD ───────────────────────────────────────────────────
         def _serialize(o):
             if isinstance(o, Action):
                 return {"type": "action", "code": o.code, "label": o.label, "urgency": o.urgency}
@@ -854,7 +911,7 @@ with right:
                 key="dys_dl_md",
             )
 
-        # ── Clinician Overrides Panel ─────────────────────────────────────────
+        # ── CLINICIAN OVERRIDES PANEL ─────────────────────────────────────────
         def _pretty(s: str) -> str:
             return s.replace("_", " ").title()
 
@@ -929,7 +986,7 @@ with right:
                         unsafe_allow_html=True,
                     )
 
-        # ── Decision Audit Log ────────────────────────────────────────────────
+        # ── DECISION AUDIT LOG ────────────────────────────────────────────────
         with st.expander("📋 Decision Audit Log"):
             for log in logs:
                 try:    ts = datetime.fromisoformat(log.timestamp).strftime("%H:%M:%S")
