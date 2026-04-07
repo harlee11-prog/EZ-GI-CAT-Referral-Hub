@@ -835,29 +835,143 @@ with right:
 
         st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
 
+        # ── Grouping logic ────────────────────────────────────────────────────
+        # 1) Status/support-only chips at the top
+        STATUS_CODES = {
+            "DYSPEPSIA_ENTRY_MET",
+            "NOT_PREDOMINANT_GERD",     # engine code NOTPREDOMINANTGERD
+            "NO_ALARM_FEATURES",        # engine code NOALARMFEATURES
+            "HPYLORI_NEGATIVE_OR_TREATED",  # engine code HPYLORINEGATIVEORTREATED
+            "MEDICATION_LIFESTYLE_REVIEWED",  # engine code MEDICATIONLIFESTYLEREVIEWED
+        }
+
+        # 2) Medication & lifestyle review suggestions
+        MED_LIFE_CODES = {
+            "REVIEW_MEDICATIONS",
+            "REVIEW_LIFESTYLE",
+            "REVIEW_DIET_TRIGGERS",
+        }
+
+        # 3) Baseline investigation suggestions
+        BASELINE_CODES = {
+            "CONSIDER_CBC",
+            "CONSIDER_FERRITIN",
+            "CONSIDER_TTG_IGA",
+            "CONSIDER_HEPATOBILIARY_PANCREATIC_TESTS",
+        }
+
+        # Map engine codes to these group keys
+        code_alias = {
+            "DYSPEPSIAENTRYMET": "DYSPEPSIA_ENTRY_MET",
+            "NOTPREDOMINANTGERD": "NOT_PREDOMINANT_GERD",
+            "NOALARMFEATURES": "NO_ALARM_FEATURES",
+            "HPYLORINEGATIVEORTREATED": "HPYLORI_NEGATIVE_OR_TREATED",
+            "MEDICATIONLIFESTYLEREVIEWED": "MEDICATION_LIFESTYLE_REVIEWED",
+            "REVIEWMEDICATIONS": "REVIEW_MEDICATIONS",
+            "REVIEWLIFESTYLE": "REVIEW_LIFESTYLE",
+            "REVIEWDIETTRIGGERS": "REVIEW_DIET_TRIGGERS",
+            "CONSIDERCBC": "CONSIDER_CBC",
+            "CONSIDERFERRITIN": "CONSIDER_FERRITIN",
+            "CONSIDERTTGIGA": "CONSIDER_TTG_IGA",
+            "CONSIDERHEPATOBILIARYPANCREATICTESTS": "CONSIDER_HEPATOBILIARY_PANCREATIC_TESTS",
+        }
+
+        status_actions = []
+        med_life_actions = []
+        baseline_actions = []
+        rendered_codes = set()
+
+        # Pre‑scan outputs to populate groups
+        for o in outputs:
+            if not isinstance(o, Action):
+                continue
+            key = code_alias.get(o.code)
+            if key in STATUS_CODES:
+                status_actions.append(o)
+                rendered_codes.add(o.code)
+            elif key in MED_LIFE_CODES:
+                med_life_actions.append(o)
+                rendered_codes.add(o.code)
+            elif key in BASELINE_CODES:
+                baseline_actions.append(o)
+                rendered_codes.add(o.code)
+
+        # ── Status chips (entry, “not GERD”, no alarms, H. pylori, etc.) ─────
+        if status_actions:
+            chips = ""
+            for a in status_actions:
+                chips += (
+                    '<span style="display:inline-block;'
+                    'background:#0c2a1e;border:1px solid #166534;'
+                    'color:#86efac;border-radius:20px;padding:3px 10px;'
+                    'font-size:11px;margin:2px 4px 2px 0;">'
+                    f'✓ {html.escape(a.label)}</span>'
+                )
+            st.markdown(
+                f'<div style="margin-bottom:10px;line-height:2">{chips}</div>',
+                unsafe_allow_html=True,
+            )
+
+        # ── Grouped card: Medication & lifestyle review ───────────────────────
+        if med_life_actions:
+            bullets = "".join(
+                f">{html.escape(a.label)}</li>" for a in med_life_actions
+            )
+            st.markdown(
+                '<div class="action-card routine">'
+                '<h4><span class="badge routine">INFO</span> '
+                '4. Medication & Lifestyle Review</h4>'
+                f'<ul style="margin:8px 0 0 16px;padding:0;line-height:1.7">{bullets}</ul>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
+        # ── Grouped card: Baseline investigations ─────────────────────────────
+        if baseline_actions:
+            bullets = "".join(
+                f">{html.escape(a.label)}</li>" for a in baseline_actions
+            )
+            st.markdown(
+                '<div class="action-card info">'
+                '<h4><span class="badge info">INFO</span> '
+                '5. Baseline Investigations</h4>'
+                f'<ul style="margin:8px 0 0 16px;padding:0;line-height:1.7">{bullets}</ul>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
+        # ── Render remaining outputs as usual ─────────────────────────────────
         for output in outputs:
             if isinstance(output, Action):
+                if output.code in rendered_codes:
+                    continue  # already shown in a group
                 render_action(output)
+
             elif isinstance(output, DataRequest):
                 missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
-                msg_html    = html.escape(output.message).replace("\n", "<br>")
+                msg_html = html.escape(output.message).replace("\\n", "<br>")
                 st.markdown(
                     '<div class="action-card warning">'
-                    f'<h4><span class="badge warning">DATA NEEDED</span> ⏳ {msg_html}</h4>'
-                    f'<ul><li>Missing fields: {missing_str}</li></ul></div>',
+                    f'<h4><span class="badge warning">DATA NEEDED</span>'
+                    f' ⏳ {msg_html}</h4>'
+                    f"<ul>>Missing fields: {missing_str}</li></ul>"
+                    "</div>",
                     unsafe_allow_html=True,
                 )
                 for sa in output.suggested_actions:
                     render_action(sa, extra_cls="info")
+
             elif isinstance(output, Stop):
                 reason_html = (
                     html.escape(output.reason)
-                    .replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;")
-                    .replace("\n", "<br>")
+                    .replace("\\n   ", "<br>&nbsp;&nbsp;&nbsp;")
+                    .replace("\\n", "<br>")
                 )
                 st.markdown(
                     '<div class="action-card stop">'
-                    f'<h4><span class="badge stop">STOP</span> 🛑 {reason_html}</h4></div>',
+                    f'<h4><span class="badge stop">STOP</span>'
+                    f" 🛑 {reason_html}</h4>"
+                    "</div>",
                     unsafe_allow_html=True,
                 )
                 for a in output.actions:
