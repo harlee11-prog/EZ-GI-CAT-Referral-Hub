@@ -3,7 +3,7 @@
 # Shared cross-pathway handoff helper for EZ-GI-CAT Referral Hub
 #
 # Usage (in each page file, at the top after imports):
-#   from pathway_handoff import apply_handoff, queue_handoff, HANDOFF_KEY
+#   from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner, HANDOFF_KEY
 #
 # How it works:
 #   • When an engine output triggers a route (e.g. ROUTE_HPYLORI_PATHWAY),
@@ -11,7 +11,12 @@
 #   • On the NEXT render of the TARGET page, apply_handoff() detects the
 #     queued payload, pre-fills session-state widget keys, and clears the
 #     queue so it only fires once.
+#
+# Python 3.9 compatible — uses typing module instead of PEP 604 (X | Y)
+#   and PEP 585 (list[str]) syntax so it works on all Streamlit Cloud versions.
 # ─────────────────────────────────────────────────────────────────────────────
+
+from typing import Dict, List, Optional, Any
 
 import streamlit as st
 
@@ -50,7 +55,8 @@ _COMMON_FIELDS = [
 ]
 
 
-def queue_handoff(target_page: str, patient_data: dict):
+def queue_handoff(target_page, patient_data):
+    # type: (str, Dict[str, Any]) -> None
     """
     Call this from a source page when a cross-pathway route is triggered.
 
@@ -63,13 +69,14 @@ def queue_handoff(target_page: str, patient_data: dict):
     }
 
 
-def apply_handoff(current_page: str) -> dict | None:
+def apply_handoff(current_page):
+    # type: (str) -> Optional[Dict[str, Any]]
     """
     Call this near the top of each page (before widgets are rendered).
 
     If a handoff payload is waiting for this page:
       • Returns the transferred patient_data dict
-      • Clears the handoff queue
+      • Clears the handoff queue so it only fires once
     Otherwise returns None.
 
     The caller should use the returned dict to pre-populate default values
@@ -83,15 +90,18 @@ def apply_handoff(current_page: str) -> dict | None:
     return None
 
 
-def show_handoff_banner(source_label: str, transferred_fields: list[str]):
+def show_handoff_banner(source_label, transferred_fields):
+    # type: (str, List[str]) -> None
     """Render a dismissible info banner when a handoff has just been applied."""
     if not transferred_fields:
         return
-    fields_str = ", ".join(f"`{f}`" for f in transferred_fields[:6])
+    fields_str = ", ".join("`{}`".format(f) for f in transferred_fields[:6])
     if len(transferred_fields) > 6:
-        fields_str += f" … (+{len(transferred_fields)-6} more)"
+        fields_str += " … (+{} more)".format(len(transferred_fields) - 6)
     st.info(
-        f"↩️ **Patient data carried over from {source_label} pathway.** "
-        f"Pre-filled fields: {fields_str}. Review and adjust as needed.",
+        "↩️ **Patient data carried over from {} pathway.** "
+        "Pre-filled fields: {}. Review and adjust as needed.".format(
+            source_label, fields_str
+        ),
         icon="🔗",
     )
