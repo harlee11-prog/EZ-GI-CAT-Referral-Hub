@@ -5,6 +5,7 @@ import html
 from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
+from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner, HANDOFF_KEY
 from h_pylori_engine_v2 import (
     run_h_pylori_pathway, Action, DataRequest, Stop, Override,
     REGIMEN_DETAILS,
