@@ -642,7 +642,10 @@ with right:
         v4 = v3 and is_positive and not has_alarm
         vline(CX, Y["d_result"]+DH, Y["d_preg"], v4, label="+")
         diamond_node(CX, Y["d_preg"]+DH/2, DW, DH, dc(v4), "Pregnancy /", "Nursing?")
-        v_preg = is_pregnant and is_positive and not has_alarm
+        v_preg = any(
+            isinstance(o, Stop) and "pregnancy" in o.reason.lower()
+            for o in outputs
+        )
         exit_node(REXT, Y["d_preg"]+(DH-EH)/2, EW, EH, nc(v_preg, urgent=True), "Do Not Treat", "Reassess postpartum")
         elbow_line(CX+DW/2, Y["d_preg"]+DH/2, REXT, Y["d_preg"]+(DH-EH)/2+EH/2, v_preg, urgent=True, label="Yes")
 
