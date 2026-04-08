@@ -18,7 +18,7 @@ from h_pylori_engine_v2 import (
     REGIMEN_DETAILS,
 )
 
-from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner, HANDOFF_KEY
+from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner
 
 
 st.set_page_config(page_title="H. Pylori", page_icon="", layout="wide")
@@ -414,12 +414,9 @@ with right:
             "pregnant": pregnant or None,
             "breastfeeding": breastfeeding or None,
             "dyspepsia_symptoms": dyspepsia or None,
-            "current_or_past_gastric_or_duodenal_ulcer_or_upper_gi_bleed": ulcer_hx
-            or None,
-            "personal_or_first_degree_relative_history_gastric_cancer": family_gastric
-            or None,
-            "first_generation_immigrant_high_prevalence_region": immigrant_prev
-            or None,
+            "current_or_past_gastric_or_duodenal_ulcer_or_upper_gi_bleed": ulcer_hx or None,
+            "personal_or_first_degree_relative_history_gastric_cancer": family_gastric or None,
+            "first_generation_immigrant_high_prevalence_region": immigrant_prev or None,
             "hp_test_type": hp_test_type if hp_result_map[hp_result_sel] else None,
             "hp_test_result": hp_result_map[hp_result_sel],
             "off_antibiotics_4_weeks_before_test": off_abx,
@@ -429,11 +426,9 @@ with right:
             "treatment_line": tx_map[tx_line_sel],
             "bubble_pack_used": not bubble_pack,
             "non_adherence_suspected": nonadherence or None,
-            "family_history_esophageal_or_gastric_cancer_first_degree": al_family_cancer
-            or None,
+            "family_history_esophageal_or_gastric_cancer_first_degree": al_family_cancer or None,
             "personal_history_peptic_ulcer_disease": al_ulcer_hx or None,
-            "age_over_60_new_persistent_symptoms_over_3_months": al_age_symptoms
-            or None,
+            "age_over_60_new_persistent_symptoms_over_3_months": al_age_symptoms or None,
             "unintended_weight_loss": al_weight_loss or None,
             "progressive_dysphagia": al_dysphagia or None,
             "persistent_vomiting": al_vomiting or None,
@@ -466,7 +461,6 @@ with right:
             if st.button("→ Continue in Dyspepsia Pathway", key="hp_to_dys"):
                 queue_handoff("3_Dyspepsia", patient_data)
                 st.switch_page("pages/3_Dyspepsia.py")
-    
 
         is_positive = patient_data.get("hp_test_result") == "positive"
         test_negative = patient_data.get("hp_test_result") == "negative"
@@ -779,7 +773,7 @@ with right:
                 cls = extra_cls
 
             badge_label = (a.urgency or "info").upper()
-            label_html = html.escape(a.label).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
+            label_html = html.escape(a.label).replace("\n    ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
             med_html = _med_table_html(a.details.get("regimen_key")) if isinstance(a.details, dict) else ""
             detail_html = _detail_html(a.details)
             override_html = (
@@ -817,7 +811,7 @@ with right:
                 for sa in output.suggested_actions:
                     render_action(sa, extra_cls="info")
             elif isinstance(output, Stop):
-                reason_html = html.escape(output.reason).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
+                reason_html = html.escape(output.reason).replace("\n    ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
                 st.markdown(
                     '<div class="action-card stop">'
                     f'<h4><span class="badge stop">STOP</span>'
