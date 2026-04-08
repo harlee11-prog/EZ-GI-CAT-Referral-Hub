@@ -342,16 +342,14 @@ with left:
     ttg_positive = ttg_sel == "Done positive"
 
     suspect_hepato = st.checkbox("Suspect hepatobiliary / pancreatic disease")
-    hepatodone = False
-    hepatoabnormal = False
+    hepato_done = False
+    hepato_abnormal = False
     if suspect_hepato:
-        hepatodone = st.checkbox(
-            "Hepatobiliary / pancreatic workup done (U/S, ALT, ALP, bilirubin, lipase)"
-        )
-        if hepatodone:
-            hepatoabnormal = st.checkbox("Hepatobiliary / pancreatic workup abnormal")
+        hepato_done = st.checkbox("Hepatobiliary / pancreatic workup done (U/S, ALT, ALP, bilirubin, lipase)")
+        if hepato_done:
+            hepato_abnormal = st.checkbox("Hepatobiliary / pancreatic workup abnormal")
+    other_dx_found = st.checkbox("Other diagnosis identified on baseline investigations")
 
-    otherdxfound = st.checkbox("Other diagnosis identified on baseline investigations")
 
     st.markdown("**6. Test and Treat — H. pylori (HpSAT or UBT)**")
     hp_done_sel = st.selectbox(
