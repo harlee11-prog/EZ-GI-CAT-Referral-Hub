@@ -783,6 +783,12 @@ with right:
             else:
                 med_html = ""
             detail_str = _detail_html(a.details)  # ← added this line
+            
+            if has_regimen and isinstance(a.details, dict):
+                filtered = {k: v for k, v in a.details.items() if k != "bullets"}
+                detail_str = _detail_html(filtered)
+            else:
+                detail_str = _detail_html(a.details)
             override_html = (
                 '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
                 "Override available — reason required</p>"
