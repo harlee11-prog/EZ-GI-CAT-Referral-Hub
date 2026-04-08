@@ -1300,5 +1300,3 @@ with right:
                 if log.used_inputs:
                     st.caption("  ".join(f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None))
 
-    else:
-        st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
