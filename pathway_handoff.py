@@ -1,21 +1,3 @@
-# pathway_handoff.py
-# ─────────────────────────────────────────────────────────────────────────────
-# Shared cross-pathway handoff helper for EZ-GI-CAT Referral Hub
-#
-# Usage (in each page file, at the top after imports):
-#   from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner, HANDOFF_KEY
-#
-# How it works:
-#   • When an engine output triggers a route (e.g. ROUTE_HPYLORI_PATHWAY),
-#     the SOURCE page calls queue_handoff(target_page, patient_data).
-#   • On the NEXT render of the TARGET page, apply_handoff() detects the
-#     queued payload, pre-fills session-state widget keys, and clears the
-#     queue so it only fires once.
-#
-# Python 3.9 compatible — uses typing module instead of PEP 604 (X | Y)
-#   and PEP 585 (list[str]) syntax so it works on all Streamlit Cloud versions.
-# ─────────────────────────────────────────────────────────────────────────────
-
 from typing import Dict, List, Optional, Any
 
 import streamlit as st
