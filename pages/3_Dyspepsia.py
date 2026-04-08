@@ -44,7 +44,7 @@ def build_dyspepsia_markdown(patient_data, outputs, overrides, notes: str) -> st
         ("symptom_onset_after_age_60",  "Onset after 60"),
         ("unintended_weight_loss",       "Weight loss >5%"),
         ("black_stool_or_blood_in_vomit","Black stool/blood in vomit"),
-        ("dysphagia",                   "Progressive dysphagia"),
+        ("dysphagia",                    "Progressive dysphagia"),
         ("persistent_vomiting",          "Persistent vomiting"),
         ("iron_deficiency_anemia_present","Iron deficiency anemia"),
     ]
@@ -544,6 +544,29 @@ with right:
             patient_data, overrides=st.session_state.dys_overrides
         )
 
+        _action_codes   = {o.code for o in outputs if isinstance(o, Action)}
+        _stop_act_codes = {a.code for o in outputs if isinstance(o, Stop) for a in o.actions}
+
+        entry_met      = "DYSPEPSIA_ENTRY_MET"           in _action_codes
+        entry_not_met  = "NOT_DYSPEPSIA"                  in _stop_act_codes
+        routed_gerd    = "ROUTE_GERD_PATHWAY"            in _stop_act_codes
+        has_alarm      = "URGENT_ENDOSCOPY_REFERRAL"     in _stop_act_codes
+        bleed_stop     = "EMERGENT_BLEEDING_ASSESSMENT"  in _stop_act_codes
+        improved_life  = "NO_FURTHER_ACTION_REQUIRED"    in _stop_act_codes
+        other_dx       = "OTHER_DIAGNOSIS_IDENTIFIED"    in _stop_act_codes
+        routed_hp      = "ROUTE_H_PYLORI_PATHWAY"        in _stop_act_codes
+        started_ppi    = "START_PPI_ONCE_DAILY"          in _action_codes
+        ppi_od_ok      = "PPI_ONCE_DAILY_SUCCESS"        in _action_codes
+        optimize_bid   = "OPTIMIZE_PPI_BID"              in _action_codes
+        ppi_bid_ok      = "PPI_BID_SUCCESS"               in _action_codes
+        tca_flag       = "CONSIDER_TCA"                  in _action_codes
+        dom_eligible   = "DOMPERIDONE_ELIGIBLE"          in _action_codes
+        dom_ineligible = "DOMPERIDONE_NOT_ELIGIBLE"      in _action_codes
+        titrate_down   = "TITRATE_DOWN_PPI"              in _action_codes
+        ppi_maint      = "PPI_MAINTENANCE"               in _action_codes
+        pathway_done   = "CONTINUE_MEDICAL_HOME_CARE"    in _stop_act_codes
+        refer_endo     = "REFER_FAILED_MANAGEMENT"        in _stop_act_codes
+
         # ── Outbound: Dyspepsia → H. Pylori ──────────────────────────────────
         if routed_hp:
             st.info(
@@ -563,29 +586,6 @@ with right:
             if st.button("→ Continue in GERD Pathway", key="dys_to_gerd"):
                 queue_handoff("2_GERD", patient_data)
                 st.switch_page("pages/2_GERD.py")
-
-        _action_codes   = {o.code for o in outputs if isinstance(o, Action)}
-        _stop_act_codes = {a.code for o in outputs if isinstance(o, Stop) for a in o.actions}
-
-        entry_met      = "DYSPEPSIA_ENTRY_MET"           in _action_codes
-        entry_not_met  = "NOT_DYSPEPSIA"                 in _stop_act_codes
-        routed_gerd    = "ROUTE_GERD_PATHWAY"            in _stop_act_codes
-        has_alarm      = "URGENT_ENDOSCOPY_REFERRAL"     in _stop_act_codes
-        bleed_stop     = "EMERGENT_BLEEDING_ASSESSMENT"  in _stop_act_codes
-        improved_life  = "NO_FURTHER_ACTION_REQUIRED"    in _stop_act_codes
-        other_dx       = "OTHER_DIAGNOSIS_IDENTIFIED"    in _stop_act_codes
-        routed_hp      = "ROUTE_H_PYLORI_PATHWAY"        in _stop_act_codes
-        started_ppi    = "START_PPI_ONCE_DAILY"          in _action_codes
-        ppi_od_ok      = "PPI_ONCE_DAILY_SUCCESS"        in _action_codes
-        optimize_bid   = "OPTIMIZE_PPI_BID"              in _action_codes
-        ppi_bid_ok      = "PPI_BID_SUCCESS"               in _action_codes
-        tca_flag       = "CONSIDER_TCA"                  in _action_codes
-        dom_eligible   = "DOMPERIDONE_ELIGIBLE"          in _action_codes
-        dom_ineligible = "DOMPERIDONE_NOT_ELIGIBLE"      in _action_codes
-        titrate_down   = "TITRATE_DOWN_PPI"              in _action_codes
-        ppi_maint      = "PPI_MAINTENANCE"               in _action_codes
-        pathway_done   = "CONTINUE_MEDICAL_HOME_CARE"    in _stop_act_codes
-        refer_endo     = "REFER_FAILED_MANAGEMENT"       in _stop_act_codes
 
         v0  = True
         v1  = v0
@@ -732,20 +732,20 @@ with right:
 
         # Y positions (top edge of each element)
         Y = {
-            "d1":     12,    # 1. Suspected Dyspepsia? (diamond)
-            "d2":    120,    # 2. Is it GERD? (diamond)
-            "d3":    228,    # 3. Alarm Features? (diamond)
-            "n4":    336,    # 4. Med/Lifestyle Review (rect)
-            "d4":    406,    # Symptoms Improved? (diamond)
-            "n5":    506,    # 5. Baseline Investigations (rect)
-            "n6":    590,    # 6. H. pylori (rect — shown as diamond in PDF but used as rect action)
-            "d6":    590,    # 6. H. pylori (diamond)
-            "n7":    700,    # 7. PPI OD trial (rect)
-            "d7":    768,    # PPI OD adequate? (diamond)
-            "n8":    876,    # Optimize PPI BID (rect)
-            "d8":    944,    # PPI BID adequate? (diamond)
-            "n9":   1052,    # TCA / Domperidone optional (rect)
-            "n10":  1140,    # PPI Maintenance / Deprescribing (rect)
+            "d1":      12,    # 1. Suspected Dyspepsia? (diamond)
+            "d2":     120,    # 2. Is it GERD? (diamond)
+            "d3":     228,    # 3. Alarm Features? (diamond)
+            "n4":     336,    # 4. Med/Lifestyle Review (rect)
+            "d4":     406,    # Symptoms Improved? (diamond)
+            "n5":     506,    # 5. Baseline Investigations (rect)
+            "n6":     590,    # 6. H. pylori (rect — shown as diamond in PDF but used as rect action)
+            "d6":     590,    # 6. H. pylori (diamond)
+            "n7":     700,    # 7. PPI OD trial (rect)
+            "d7":     768,    # PPI OD adequate? (diamond)
+            "n8":     876,    # Optimize PPI BID (rect)
+            "d8":     944,    # PPI BID adequate? (diamond)
+            "n9":    1052,    # TCA / Domperidone optional (rect)
+            "n10":   1140,    # PPI Maintenance / Deprescribing (rect)
             "term": 1230,    # terminal row (Pathway Complete / Refer)
         }
 
@@ -1072,7 +1072,7 @@ with right:
         baseline_actions = []
         rendered_codes = set()
 
-        # Pre‑scan outputs to populate groups
+        # Pre-scan outputs to populate groups
         for o in outputs:
             if not isinstance(o, Action):
                 continue
@@ -1294,9 +1294,8 @@ with right:
         # ── DECISION AUDIT LOG ────────────────────────────────────────────────
         with st.expander("📋 Decision Audit Log"):
             for log in logs:
-                try:    ts = datetime.fromisoformat(log.timestamp).strftime("%H:%M:%S")
+                try:   ts = datetime.fromisoformat(log.timestamp).strftime("%H:%M:%S")
                 except: ts = "—"
                 st.markdown(f"**[{ts}] {log.node}** → _{log.decision}_")
                 if log.used_inputs:
                     st.caption("  ".join(f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None))
-
