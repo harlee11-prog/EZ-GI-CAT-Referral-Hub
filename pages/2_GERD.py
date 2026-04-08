@@ -961,10 +961,10 @@ with right:
                 if a.override_options else ""
             )
             st.markdown(
-                f'<div class="action-card {cls}">'
-                f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5"><span class="badge {cls}">{badge_label}</span> {label_html}</p>'
-                f"{detail_html}{override_html}"
-                "</div>",
+                f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">'
+                f'<span class="badge {cls}">{badge_label}</span> {label_html}</p>'
+                f'{detail_html}{override_html}'
+                '</div>',
                 unsafe_allow_html=True,
             )
             if a.override_options:
@@ -1036,8 +1036,8 @@ with right:
                 msg_html = html.escape(output.message).replace("\n", "<br>")
                 st.markdown(
                     '<div class="action-card warning">'
-                    f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5"><span class="badge warning">DATA NEEDED</span>'
-                    f' ⏳ {msg_html}</p>'
+                    '<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">'
+                    f'<span class="badge warning">DATA NEEDED</span> ⏳ {msg_html}</p>'
                     f'<ul><li>Missing fields: {missing_str}</li></ul>'
                     '</div>',
                     unsafe_allow_html=True,
@@ -1054,8 +1054,9 @@ with right:
                 if is_complete:
                     seen_stop_complete = True
                 st.markdown(
-                    f'<div class="action-card {stop_cls}">'f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5"><span class="badge {stop_cls}">{stop_label}</span>
-                    f' {stop_icon} {reason_html}</p>'
+                    f'<div class="action-card {stop_cls}">'
+                    f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">'
+                    f'<span class="badge {stop_cls}">{stop_label}</span> {stop_icon} {reason_html}</p>'
                     '</div>',
                     unsafe_allow_html=True,
                 )
