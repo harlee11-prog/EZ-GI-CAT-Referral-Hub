@@ -1,14 +1,24 @@
-from typing import Dict, List, Optional, Any
+# pathway_handoff.py
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared cross-pathway handoff helper for EZ-GI-CAT Referral Hub
+#
+# Usage (in each page file, at the top after imports):
+#   from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner, HANDOFF_KEY
+#
+# How it works:
+#   • When an engine output triggers a route (e.g. ROUTE_HPYLORI_PATHWAY),
+#     the SOURCE page calls queue_handoff(target_page, patient_data).
+#   • On the NEXT render of the TARGET page, apply_handoff() detects the
+#     queued payload, pre-fills session-state widget keys, and clears the
+#     queue so it only fires once.
+# ─────────────────────────────────────────────────────────────────────────────
 
 import streamlit as st
 
 HANDOFF_KEY = "_cross_pathway_handoff"
 
-# ── Field mapping ─────────────────────────────────────────────────────────────
-# Maps generic patient-data dict keys → per-page session-state widget keys
-# Only fields that are SHARED between pathways need to appear here.
-
-# Fields that every pathway page reads from the patient_data dict
+# Fields that every pathway page reads from the patient_data dict.
+# (Kept for documentation; you do not have to use this list explicitly.)
 _COMMON_FIELDS = [
     "age", "sex",
     "pregnant", "breastfeeding",
@@ -38,7 +48,6 @@ _COMMON_FIELDS = [
 
 
 def queue_handoff(target_page, patient_data):
-    # type: (str, Dict[str, Any]) -> None
     """
     Call this from a source page when a cross-pathway route is triggered.
 
@@ -47,12 +56,12 @@ def queue_handoff(target_page, patient_data):
     """
     st.session_state[HANDOFF_KEY] = {
         "target": target_page,
+        # Only carry non-None values across
         "data": {k: v for k, v in patient_data.items() if v is not None},
     }
 
 
 def apply_handoff(current_page):
-    # type: (str) -> Optional[Dict[str, Any]]
     """
     Call this near the top of each page (before widgets are rendered).
 
@@ -60,30 +69,33 @@ def apply_handoff(current_page):
       • Returns the transferred patient_data dict
       • Clears the handoff queue so it only fires once
     Otherwise returns None.
-
-    The caller should use the returned dict to pre-populate default values
-    for st.number_input / st.selectbox / st.checkbox widgets via
-    st.session_state assignments BEFORE those widgets are defined.
     """
     payload = st.session_state.get(HANDOFF_KEY)
     if payload and payload.get("target") == current_page:
+        # One‑shot: clear after reading so we don't re-apply indefinitely
         del st.session_state[HANDOFF_KEY]
-        return payload["data"]
+        return payload.get("data", {})
     return None
 
 
 def show_handoff_banner(source_label, transferred_fields):
-    # type: (str, List[str]) -> None
-    """Render a dismissible info banner when a handoff has just been applied."""
+    """
+    Render an info banner when a handoff has just been applied.
+
+    source_label: human‑readable name of the source pathway
+    transferred_fields: list of field names that were carried over
+    """
     if not transferred_fields:
         return
-    fields_str = ", ".join("`{}`".format(f) for f in transferred_fields[:6])
+
+    # Show up to 6 field names inline, then "+N more" if longer.
+    fields_str = ", ".join("`%s`" % f for f in transferred_fields[:6])
     if len(transferred_fields) > 6:
-        fields_str += " … (+{} more)".format(len(transferred_fields) - 6)
+        fields_str += " … (+%d more)" % (len(transferred_fields) - 6)
+
     st.info(
-        "↩️ **Patient data carried over from {} pathway.** "
-        "Pre-filled fields: {}. Review and adjust as needed.".format(
-            source_label, fields_str
-        ),
+        "↩️ **Patient data carried over from %s pathway.** "
+        "Pre-filled fields: %s. Review and adjust as needed."
+        % (source_label, fields_str),
         icon="🔗",
     )
