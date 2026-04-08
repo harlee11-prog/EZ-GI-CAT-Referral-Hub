@@ -814,7 +814,7 @@ with right:
             if isinstance(output, Action):
                 render_action(output)
             elif isinstance(output, DataRequest):
-                missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
+                missing_str = ", ".join(_pretty(f) for f in output.missing_fields)
                 msg_html = html.escape(output.message).replace("\n", "<br>")
                 st.markdown(
                     '<div class="action-card warning">'
