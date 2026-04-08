@@ -183,8 +183,6 @@ if _gerd_handoff:
     show_handoff_banner("Dyspepsia / H. Pylori", transferred)
 
 
-left, right = st.columns([1, 1.5])
-
 # ── LEFT PANEL ───────────────────────────────────────────────────────────────
 with left:
     st.subheader("Patient Information")
@@ -249,7 +247,7 @@ with left:
     gerd_symptom_years_map = {
         "Unknown / <5 years": None,
         "5–10 years": 6,
-        ">10 years": 11,
+        " >10 years": 11,
     }
 
     symptoms_per_week_sel = st.selectbox(
@@ -394,14 +392,11 @@ with right:
         patient_data = {
             "age": age,
             "sex": sex,
-            # Entry
             "predominant_heartburn": predominant_heartburn or None,
             "predominant_regurgitation": predominant_regurgitation or None,
             "dominant_chest_pain": dominant_chest_pain or None,
-            # Dyspepsia
             "predominant_epigastric_pain": predominant_epigastric_pain or None,
             "predominant_upper_abdominal_bloating": predominant_upper_abdominal_bloating or None,
-            # Alarm
             "actively_bleeding_now": actively_bleeding_now or None,
             "unintended_weight_loss": al_weight_loss or None,
             "progressive_dysphagia": al_dysphagia or None,
@@ -410,7 +405,6 @@ with right:
             "black_stool_or_blood_in_vomit": al_gi_bleed or None,
             "iron_deficiency_anemia_present": al_ida or None,
             "abdominal_mass": al_mass or None,
-            # Barrett's
             "gerd_symptom_years": gerd_symptom_years_map[gerd_symptom_years_sel],
             "symptoms_per_week": spw_map[symptoms_per_week_sel],
             "caucasian": caucasian or None,
@@ -421,17 +415,14 @@ with right:
             "barretts_screen_positive": barretts_screen_positive or None,
             "waist_circumference_cm": waist_cm,
             "waist_hip_ratio": whr,
-            # Pharmacologic
             "ppi_once_daily_trial_done": ppi_od_done if ppi_od_done else None,
             "ppi_once_daily_response_adequate": ppi_od_response,
             "ppi_taken_correctly_before_breakfast": ppi_adherence_correct,
             "ppi_adherence_adequate": ppi_adherence_adequate,
             "ppi_bid_trial_done": ppi_bid_done,
             "ppi_bid_response_adequate": ppi_bid_response,
-            # Maintenance
             "symptoms_resolved_after_ppi": symptoms_resolved,
             "symptoms_return_after_taper": symptoms_return,
-            # Management response
             "unsatisfactory_response_to_pharmacologic_therapy": unsatisfactory_response,
             "advice_service_considered": advice_considered or None,
         }
@@ -480,7 +471,7 @@ with right:
             isinstance(o, Action) and o.code in {
                 "TITRATE_TO_LOWEST_EFFECTIVE_PPI", "PPI_MAINTENANCE",
                 "KNOWN_BARRETTS_LIFETIME_PPI",
-                "CAPTURE_PPI_RESOLUTION_STATUS",   # maintenance node reached, resolution status pending
+                "CAPTURE_PPI_RESOLUTION_STATUS",
             } for o in outputs
         )
         pathway_complete = any(
@@ -664,7 +655,7 @@ with right:
         # ── NODE 2: Dyspepsia screen ─────────────────────────────────────────
         d2_vis = gerd_entry_met or is_dyspepsia_stop
         diamond_node(CX, Y["d_dysp"] + DH/2, DW, DH,
-                     dc(d2_vis), "2. Is it Dyspepsia?", "Epigastric / bloating?")
+                      dc(d2_vis), "2. Is it Dyspepsia?", "Epigastric / bloating?")
         dysp_vis = is_dyspepsia_stop
         exit_node(REXT, Y["d_dysp"] + (DH - EH)//2, EW, EH,
                   nc(dysp_vis, exit_=True), "→ Dyspepsia", "Pathway")
@@ -677,7 +668,7 @@ with right:
 
         # ── NODE 3: Alarm features ───────────────────────────────────────────
         diamond_node(CX, Y["d_alarm"] + DH/2, DW, DH,
-                     dc(v_past_dysp), "3. Alarm Features?", "")
+                      dc(v_past_dysp), "3. Alarm Features?", "")
         alarm_exit_vis = (has_alarm or active_bleeding_stop) and v_past_dysp
         exit_node(REXT, Y["d_alarm"] + (DH - EH)//2, EW, EH,
                   nc(alarm_exit_vis, urgent=True), "⚠ Refer", "GI / Endoscopy")
@@ -690,7 +681,7 @@ with right:
 
         # ── NODE 4: Barrett's risk ───────────────────────────────────────────
         diamond_node(CX, Y["d_barre"] + DH/2, DW, DH,
-                     dc(v_past_alarm), "4. Barrett's Risk", "≥3 risk factors?")
+                      dc(v_past_alarm), "4. Barrett's Risk", "≥3 risk factors?")
         barrett_exit_vis = barretts_refer and v_past_alarm
         exit_node(REXT, Y["d_barre"] + (DH - EH)//2, EW, EH,
                   nc(barrett_exit_vis, exit_=True), "High Risk", "→ Screen / Refer")
@@ -717,7 +708,7 @@ with right:
         # ── NODE 6 Diamond: symptom frequency ───────────────────────────────
         freq_vis = went_pharm or (went_non_pharm and not went_pharm)
         diamond_node(CX, Y["d_freq"] + DH/2, DW, DH,
-                     dc(freq_vis), "6. Symptoms", "<2×/week?",
+                      dc(freq_vis), "6. Symptoms", "<2×/week?",
         )
         # LEFT EXIT: mild branch → H2RA / Antacids (terminal) ----------------
         h2ra_y = Y["d_freq"] + (DH - EH) // 2  # vertically aligned with diamond
@@ -825,9 +816,6 @@ with right:
             sub="Lowest dose · Annual taper",
         )
 
-        # Maintenance → Management Response (only coloured if Maintenance truly
-        # visited, so the arrow does not turn green just because a final stop
-        # was reached by another route)
         mgmt_node_vis = maint_vis or pathway_complete or refer_final
         vline(
             CX, Y["maint"] + NH, Y["mgmt"],
@@ -835,8 +823,6 @@ with right:
         )
 
         # ── H2RA → Maintenance connection (mild branch) ─────────────────────
-        # Route: H2RA bottom-centre → drop straight down to node 7 Maintenance
-        # left mid-height, entering from the LEFT side of node 7.
         if mild_branch:
             hx  = LEXT + EW / 2             # H2RA box horizontal centre
             hy_bot = h2ra_y + EH            # H2RA box bottom edge
@@ -892,7 +878,7 @@ with right:
             f'<div style="background:{C_BG};padding:10px;border-radius:14px;'
             f'overflow-x:auto;">{svg_html}</div>',
             height=980,
-            scrolling=True,
+            scrolling=True
         )
 
         st.markdown("---")
@@ -967,7 +953,7 @@ with right:
             if extra_cls:
                 cls = extra_cls
             badge_label = (a.urgency or "info").upper()
-            label_html = html.escape(a.label).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
+            label_html = html.escape(a.label).replace("\n    ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
             detail_html = _detail_html(a.details)
             override_html = (
                 '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
@@ -993,7 +979,6 @@ with right:
             "COUNSEL_TRIGGER_LOG", "COUNSEL_HEAD_OF_BED",
         }
 
-        # Support-only labels shown as a quiet inline note, not a full card
         SUPPORT_ONLY_CODES = {
             "NOT_DYSPEPSIA_PREDOMINANT",
             "NO_ALARM_FEATURES",
@@ -1037,13 +1022,12 @@ with right:
             rendered_codes.update(a.code for a in non_pharm_actions)
 
         # ── Render remaining outputs ───────────────────────────────────────────
-        seen_stop_complete = False  # deduplicate STOP + its echoed INFO action
+        seen_stop_complete = False
 
         for output in outputs:
             if isinstance(output, Action):
                 if output.code in rendered_codes:
                     continue
-                # Skip "Continue management in Medical Home" if already shown via STOP
                 if output.code in {"CONTINUE_MEDICAL_HOME", "MEDICAL_HOME"} and seen_stop_complete:
                     continue
                 render_action(output)
@@ -1063,8 +1047,7 @@ with right:
                     render_action(sa, extra_cls="info")
 
             elif isinstance(output, Stop):
-                reason_html = html.escape(output.reason).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
-                # Style complete vs urgent stops differently
+                reason_html = html.escape(output.reason).replace("\n    ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
                 is_complete = "complete" in output.reason.lower() or "medical home" in output.reason.lower()
                 stop_cls = "routine" if is_complete else "stop"
                 stop_icon = "✅" if is_complete else "🛑"
