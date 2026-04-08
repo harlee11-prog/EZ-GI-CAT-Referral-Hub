@@ -30,6 +30,8 @@ def _safe_text(text) -> str:
         return ""
     return " ".join(str(text).replace("\u00a0", " ").split())
 
+def _pretty(s: str) -> str:
+    return s.replace("_", " ").title()
 
 def build_h_pylori_markdown(patient_data, outputs, overrides, notes: str) -> str:
     lines = []
