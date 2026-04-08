@@ -770,30 +770,33 @@ with right:
             return f'<ul style="margin:6px 0 0 16px;padding:0">{items}</ul>' if items else ""
 
         def render_action(a: Action, extra_cls: str = "") -> None:
-            urgency_to_cls = {
-                "urgent": "urgent", "warning": "warning",
-                None: "routine", "": "routine",
-            }
+            urgency_to_cls = {"urgent": "urgent", "warning": "warning", None: "routine", "routine": "routine"}
             cls = urgency_to_cls.get(a.urgency or "", "routine")
             if extra_cls:
                 cls = extra_cls
 
             badge_label = (a.urgency or "info").upper()
-            label_html = html.escape(a.label).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
-            med_html = _med_table_html(a.details.get("regimen_key")) if isinstance(a.details, dict) else ""
-            detail_html = _detail_html(a.details)
+            label_html = html.escape(a.label).replace("\n", "<br>&nbsp;&nbsp;&nbsp;").replace("\\n", "<br>")
+            has_regimen = isinstance(a.details, dict) and a.details.get("regimen_key") in REGIMEN_DETAILS
+            if has_regimen:
+                med_html = medtablehtml(a.details["regimen_key"])
+            else:
+                med_html = ""
             override_html = (
                 '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
-                "🔒 Override available — reason required</p>"
+                "Override available — reason required</p>"
                 if a.override_options else ""
             )
 
             st.markdown(
-                f'<div class="action-card {cls}">'
-                f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5"><span class="badge {cls}">{badge_label}</span> {label_html}</p>'
-                f"{med_html}{detail_html}{override_html}"
-                "</div>",
+                f"""<div class="action-card {cls}">
+                <p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">
+                    <span class="badge {cls}">{badge_label}</span>&nbsp;&nbsp;&nbsp;{label_html}
+                </p>
+                {med_html}{detail_str}{override_html}
+                </div>""",
                 unsafe_allow_html=True,
+    )
             )
             if a.override_options:
                 override_candidates.append(a)
