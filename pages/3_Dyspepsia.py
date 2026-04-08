@@ -13,7 +13,7 @@ from dyspepsia_engine import (
     Override,
 )
 
-from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner
+from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner, HANDOFF_KEY
 
 st.set_page_config(page_title="Dyspepsia", layout="wide")
 
