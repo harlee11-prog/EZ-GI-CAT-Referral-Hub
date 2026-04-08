@@ -892,7 +892,8 @@ with right:
             f'<div style="background:{C_BG};padding:10px;border-radius:14px;'
             f'overflow-x:auto;">{svg_html}</div>',
             height=980,
-            scrolling=True,)
+            scrolling=True,
+        )
 
         st.markdown("---")
         st.subheader("Clinical Recommendations")
