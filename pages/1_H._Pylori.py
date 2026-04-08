@@ -790,7 +790,7 @@ with right:
 
             st.markdown(
                 f'<div class="action-card {cls}">'
-                f'<h4><span class="badge {cls}">{badge_label}</span> {label_html}</h4>'
+                f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5"><span class="badge {cls}">{badge_label}</span> {label_html}</p>'
                 f"{med_html}{detail_html}{override_html}"
                 "</div>",
                 unsafe_allow_html=True,
@@ -808,8 +808,8 @@ with right:
                 msg_html = html.escape(output.message).replace("\n", "<br>")
                 st.markdown(
                     '<div class="action-card warning">'
-                    f'<h4><span class="badge warning">DATA NEEDED</span>'
-                    f' ⏳ {msg_html}</h4>'
+                    f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5"><span class="badge warning">DATA NEEDED</span>'
+                    f' ⏳ {msg_html}</p>'
                     f'<ul><li>Missing fields: {missing_str}</li></ul>'
                     "</div>",
                     unsafe_allow_html=True,
@@ -820,8 +820,8 @@ with right:
                 reason_html = html.escape(output.reason).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
                 st.markdown(
                     '<div class="action-card stop">'
-                    f'<h4><span class="badge stop">STOP</span>'
-                    f' 🛑 {reason_html}</h4>'
+                    f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5"><span class="badge stop">STOP</span>'
+                    f' 🛑 {reason_html}</p>'
                     "</div>",
                     unsafe_allow_html=True,
                 )
