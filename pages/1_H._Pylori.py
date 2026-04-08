@@ -18,7 +18,7 @@ from h_pylori_engine_v2 import (
     REGIMEN_DETAILS,
 )
 
-from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner
+from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner, HANDOFF_KEY
 
 
 st.set_page_config(page_title="H. Pylori", page_icon="", layout="wide")
