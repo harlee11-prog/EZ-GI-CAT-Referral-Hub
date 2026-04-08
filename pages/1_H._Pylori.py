@@ -799,14 +799,12 @@ with right:
             )
 
             st.markdown(
-                f"""<div class="action-card {cls}">
-                <p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">
-                    <span class="badge {cls}">{badge_label}</span>&nbsp;&nbsp;&nbsp;{label_html}
-                </p>
-                {med_html}{detail_str}{override_html}
-                </div>""",
+                f'<div class="action-card {cls}">'
+                f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">'
+                f'<span class="badge {cls}">{badge_label}</span>&nbsp;&nbsp;&nbsp;{label_html}'
+                f'</p>{med_html}{detail_str}{override_html}</div>',
                 unsafe_allow_html=True,
-            )  # ← single closing paren, correct indent
+            )
             if a.override_options:
                 override_candidates.append(a)
 
