@@ -779,9 +779,10 @@ with right:
             label_html = html.escape(a.label).replace("\n", "<br>&nbsp;&nbsp;&nbsp;").replace("\\n", "<br>")
             has_regimen = isinstance(a.details, dict) and a.details.get("regimen_key") in REGIMEN_DETAILS
             if has_regimen:
-                med_html = medtablehtml(a.details["regimen_key"])
+                med_html = _med_table_html(a.details["regimen_key"])  # ← fixed name
             else:
                 med_html = ""
+            detail_str = _detail_html(a.details)  # ← added this line
             override_html = (
                 '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
                 "Override available — reason required</p>"
@@ -796,8 +797,7 @@ with right:
                 {med_html}{detail_str}{override_html}
                 </div>""",
                 unsafe_allow_html=True,
-    )
-            )
+            )  # ← single closing paren, correct indent
             if a.override_options:
                 override_candidates.append(a)
 
