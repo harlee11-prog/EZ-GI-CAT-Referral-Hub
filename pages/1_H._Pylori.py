@@ -649,7 +649,7 @@ with right:
         exit_node(REXT, Y["d_preg"]+(DH-EH)/2, EW, EH, nc(v_preg, urgent=True), "Do Not Treat", "Reassess postpartum")
         elbow_line(CX+DW/2, Y["d_preg"]+DH/2, REXT, Y["d_preg"]+(DH-EH)/2+EH/2, v_preg, urgent=True, label="Yes")
 
-        v5 = v4 and not is_pregnant
+        v5 = v4 and not v_preg
         vline(CX, Y["d_preg"]+DH, Y["washout"], v5, label="No")
         rect_node(CX-NW/2, Y["washout"], NW, NH, nc(v5), "Washout Verified", sub="Abx / PPI / Bismuth")
 
