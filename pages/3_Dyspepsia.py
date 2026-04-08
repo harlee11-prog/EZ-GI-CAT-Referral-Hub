@@ -580,7 +580,7 @@ with right:
         started_ppi    = "START_PPI_ONCE_DAILY"          in _action_codes
         ppi_od_ok      = "PPI_ONCE_DAILY_SUCCESS"        in _action_codes
         optimize_bid   = "OPTIMIZE_PPI_BID"              in _action_codes
-        ppi_bid_ok     = "PPI_BID_SUCCESS"               in _action_codes
+        ppi_bid_ok      = "PPI_BID_SUCCESS"               in _action_codes
         tca_flag       = "CONSIDER_TCA"                  in _action_codes
         dom_eligible   = "DOMPERIDONE_ELIGIBLE"          in _action_codes
         dom_ineligible = "DOMPERIDONE_NOT_ELIGIBLE"      in _action_codes
@@ -734,21 +734,21 @@ with right:
 
         # Y positions (top edge of each element)
         Y = {
-            "d1":    12,    # 1. Suspected Dyspepsia? (diamond)
-            "d2":   120,    # 2. Is it GERD? (diamond)
-            "d3":   228,    # 3. Alarm Features? (diamond)
-            "n4":   336,    # 4. Med/Lifestyle Review (rect)
-            "d4":   406,    # Symptoms Improved? (diamond)
-            "n5":   506,    # 5. Baseline Investigations (rect)
-            "n6":   590,    # 6. H. pylori (rect — shown as diamond in PDF but used as rect action)
-            "d6":   590,    # 6. H. pylori (diamond)
-            "n7":   700,    # 7. PPI OD trial (rect)
-            "d7":   768,    # PPI OD adequate? (diamond)
-            "n8":   876,    # Optimize PPI BID (rect)
-            "d8":   944,    # PPI BID adequate? (diamond)
-            "n9":  1052,    # TCA / Domperidone optional (rect)
-            "n10": 1140,    # PPI Maintenance / Deprescribing (rect)
-            "term":1230,    # terminal row (Pathway Complete / Refer)
+            "d1":     12,    # 1. Suspected Dyspepsia? (diamond)
+            "d2":    120,    # 2. Is it GERD? (diamond)
+            "d3":    228,    # 3. Alarm Features? (diamond)
+            "n4":    336,    # 4. Med/Lifestyle Review (rect)
+            "d4":    406,    # Symptoms Improved? (diamond)
+            "n5":    506,    # 5. Baseline Investigations (rect)
+            "n6":    590,    # 6. H. pylori (rect — shown as diamond in PDF but used as rect action)
+            "d6":    590,    # 6. H. pylori (diamond)
+            "n7":    700,    # 7. PPI OD trial (rect)
+            "d7":    768,    # PPI OD adequate? (diamond)
+            "n8":    876,    # Optimize PPI BID (rect)
+            "d8":    944,    # PPI BID adequate? (diamond)
+            "n9":   1052,    # TCA / Domperidone optional (rect)
+            "n10":  1140,    # PPI Maintenance / Deprescribing (rect)
+            "term": 1230,    # terminal row (Pathway Complete / Refer)
         }
 
         # ── NODE 1: Suspected Dyspepsia ───────────────────────────────────────
@@ -1010,7 +1010,7 @@ with right:
             cls = urgency_to_cls.get(a.urgency or "", "routine")
             if extra_cls: cls = extra_cls
             badge_label = (a.urgency or "info").upper()
-            label_html  = html.escape(a.label).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
+            label_html  = html.escape(a.label).replace("\n    ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
             detail_html = _detail_html(a.details)
             override_html = (
                 '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
@@ -1108,7 +1108,7 @@ with right:
         # ── Grouped card: Medication & lifestyle review ───────────────────────
         if med_life_actions:
             bullets = "".join(
-                f">{html.escape(a.label)}</li>" for a in med_life_actions
+                f"<li>{html.escape(a.label)}</li>" for a in med_life_actions
             )
             st.markdown(
                 '<div class="action-card routine">'
@@ -1122,7 +1122,7 @@ with right:
         # ── Grouped card: Baseline investigations ─────────────────────────────
         if baseline_actions:
             bullets = "".join(
-                f">{html.escape(a.label)}</li>" for a in baseline_actions
+                f"<li>{html.escape(a.label)}</li>" for a in baseline_actions
             )
             st.markdown(
                 '<div class="action-card info">'
@@ -1147,7 +1147,7 @@ with right:
                     '<div class="action-card warning">'
                     f'<h4><span class="badge warning">DATA NEEDED</span>'
                     f' ⏳ {msg_html}</h4>'
-                    f"<ul>>Missing fields: {missing_str}</li></ul>"
+                    f"<ul><li>Missing fields: {missing_str}</li></ul>"
                     "</div>",
                     unsafe_allow_html=True,
                 )
@@ -1157,7 +1157,7 @@ with right:
             elif isinstance(output, Stop):
                 reason_html = (
                     html.escape(output.reason)
-                    .replace("\\n   ", "<br>&nbsp;&nbsp;&nbsp;")
+                    .replace("\\n    ", "<br>&nbsp;&nbsp;&nbsp;")
                     .replace("\\n", "<br>")
                 )
                 st.markdown(
@@ -1193,7 +1193,7 @@ with right:
             "patient_context": patient_data,
             "clinical_recommendations": {
                 "engine_outputs":   [_serialize(o) for o in outputs],
-                "overrides":        [
+                "overrides":         [
                     {"node": o.target_node, "field": o.field,
                      "new_value": o.new_value, "reason": o.reason,
                      "created_at": o.created_at.isoformat()}
