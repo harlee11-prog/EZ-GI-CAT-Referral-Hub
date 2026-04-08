@@ -1011,8 +1011,7 @@ with right:
             )
             st.markdown(
                 '<div class="action-card routine">'
-                '<h4><span class="badge routine">NON-PHARM</span>'
-                ' 🌿 Non-Pharmacological Therapy</h4>'
+                ''<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5"><span class="badge routine">NON-PHARM</span> Non-Pharmacological Therapy</p>'
                 '<ul style="margin:8px 0 0 16px;padding:0;line-height:1.7">'
                 f'{bullets_html}'
                 '</ul>'
@@ -1055,9 +1054,8 @@ with right:
                 if is_complete:
                     seen_stop_complete = True
                 st.markdown(
-                    f'<div class="action-card {stop_cls}">'
-                    f'<h4><span class="badge {stop_cls}">{stop_label}</span>'
-                    f' {stop_icon} {reason_html}</h4>'
+                    f'<div class="action-card {stop_cls}">'f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5"><span class="badge {stop_cls}">{stop_label}</span>
+                    f' {stop_icon} {reason_html}</p>'
                     '</div>',
                     unsafe_allow_html=True,
                 )
