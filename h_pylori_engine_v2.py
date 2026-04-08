@@ -490,7 +490,10 @@ def h_pylori_build_engine() -> PathwayEngine:
         node_id = "Treatment"
 
         # Pregnancy / breastfeeding
-        if bool(ctx.get("pregnant")) or bool(ctx.get("breastfeeding")):
+        is_pregnant = bool(ctx.get("pregnant")) or bool(ctx.get("breastfeeding"))
+        is_pregnant = ctx.apply_override(node_id, "pregnancy_contraindication", is_pregnant)
+
+        if is_pregnant:
             stop = Stop(
                 reason="Pregnancy / breastfeeding — H. pylori treatment contraindicated.",
                 actions=[_action(
@@ -501,6 +504,12 @@ def h_pylori_build_engine() -> PathwayEngine:
                         "Reassess and initiate treatment postpartum when safe to do so.",
                     ],
                     role="primary_decision", sort_priority=40,
+                    override_options={
+                        "node": node_id,
+                        "field": "pregnancy_contraindication",
+                        "allowed": [True, False],
+                        "reason_required": True,
+                    },
                 )],
             )
             ctx.log(node_id, "PREGNANCY_STOP", {}, [stop])
