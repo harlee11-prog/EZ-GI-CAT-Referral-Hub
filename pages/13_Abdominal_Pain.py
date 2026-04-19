@@ -524,7 +524,7 @@ with right:
             return "mg"
 
         svg = []
-        W, H = 720, 800
+        W, H = 720, 880
         svg.append(
             '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="' + str(H) + '" '
             'viewBox="0 0 ' + str(W) + ' ' + str(H) + '" '
@@ -622,7 +622,7 @@ with right:
         REXT = W - 14 - EW
 
         # All Y positions derived sequentially — no gaps
-        GAP = 20   # vertical space between bottom of one node and top of next
+        GAP = 38   # vertical space between bottom of one node and top of next
         Y = {}
         Y["n1"]   = 16
         Y["d2"]   = Y["n1"] + NH + GAP          # diamond: Better Explained by GI?
@@ -784,7 +784,7 @@ with right:
         components.html(
             '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
             + "".join(svg) + "</div>",
-            height=840,
+            height=920,
             scrolling=True,
         )
 
