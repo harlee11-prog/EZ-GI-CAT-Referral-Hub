@@ -572,11 +572,13 @@ with right:
         # ── FIB-4 label badge ─────────────────────────────────────────────
         if fib4_computed is not None:
             badge_col = "#16a34a" if low_risk else "#dc2626"
+            fib4_y = Y["d_fib4"] - 22
+            fib4_ty = Y["d_fib4"] - 8
             svg.append(
-                f'<rect x="{CX-60}" y="{Y[\"d_fib4\"]-22}" width="120" height="20" '
+                f'<rect x="{CX-60}" y="{fib4_y}" width="120" height="20" '
                 f'rx="10" fill="{badge_col}" opacity="0.9"/>'
             )
-            svgt(CX, Y["d_fib4"]-8, fib4_label, "#ffffff", 10, True)
+            svgt(CX, fib4_ty, fib4_label, "#ffffff", 10, True)
 
         # ── Legend ─────────────────────────────────────────────────────────
         ly = H - 22; lx = 18
