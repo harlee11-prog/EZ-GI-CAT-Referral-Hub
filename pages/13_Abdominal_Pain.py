@@ -18,7 +18,8 @@ from chronic_abdominal_pain_engine import (
 )
 
 st.set_page_config(
-    page_title="Chronic Abdominal Pain / CAP",
+    page_title="Chronic Abdominal Pain / CAPS",
+    page_icon="🔴",
     layout="wide",
 )
 
@@ -36,7 +37,7 @@ def _pretty(s: str) -> str:
 
 def build_cap_markdown(patient_data, outputs, overrides, notes: str) -> str:
     lines = []
-    lines.append("# Chronic Abdominal Pain / CAP Pathway — Clinical Summary")
+    lines.append("# Chronic Abdominal Pain / CAPS Pathway — Clinical Summary")
     lines.append("")
     lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     lines.append("")
@@ -523,7 +524,7 @@ with right:
             return "mg"
 
         svg = []
-        W, H = 720, 1080
+        W, H = 720, 800
         svg.append(
             '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="' + str(H) + '" '
             'viewBox="0 0 ' + str(W) + ' ' + str(H) + '" '
@@ -620,19 +621,18 @@ with right:
         LEXT = 14
         REXT = W - 14 - EW
 
-        Y = {
-            "n1":   16,
-            "d2":  104,
-            "n3":  210,
-            "d3":  300,
-            "n4":  395,
-            "d4":  490,
-            "n5":  575,
-            "d5":  665,
-            "n6":  750,
-            "n7":  852,
-            "done": 958,
-        }
+        # All Y positions derived sequentially — no gaps
+        GAP = 20   # vertical space between bottom of one node and top of next
+        Y = {}
+        Y["n1"]   = 16
+        Y["d2"]   = Y["n1"] + NH + GAP          # diamond: Better Explained by GI?
+        Y["n3"]   = Y["d2"] + DH + GAP          # rect: Alarm Features?
+        Y["d3"]   = Y["n3"] + NH + GAP          # diamond: Alternate Diagnosis?
+        Y["n4"]   = Y["d3"] + DH + GAP          # rect: Optimize Alt Diagnosis
+        Y["n5"]   = Y["n4"] + NH + GAP          # rect: Baseline Investigations
+        Y["n6"]   = Y["n5"] + NH + GAP          # rect: CAPS Management
+        Y["n7"]   = Y["n6"] + NH + GAP          # rect: Reassessment
+        Y["done"] = Y["n7"] + NH + GAP          # rect: Continue Care
 
         # ── 1. Diagnostic Criteria ──────────────────────────────────────────────
         rect_node(
@@ -717,28 +717,25 @@ with right:
         )
 
         # ── 5. Baseline Investigations ─────────────────────────────────────────
-        vline(CX, Y["n4"] + NH, Y["d5"] - 10, n4_passed)
-
-        # Node 5 rect sits between n4 and d5
-        n5_y = Y["n4"] + NH + 8
+        vline(CX, Y["n4"] + NH, Y["n5"], n4_passed)
         rect_node(
-            CX - NW / 2, n5_y, NW, NH,
+            CX - NW / 2, Y["n5"], NW, NH,
             nc(n5_visited),
             "5. Baseline Investigations",
             sub="CBC, electrolytes, LFT, lipase, ferritin",
         )
 
         # Treat/Refer if abnormal baseline (right)
-        exit_node(REXT, n5_y + (NH - EH) / 2, EW, EH,
+        exit_node(REXT, Y["n5"] + (NH - EH) / 2, EW, EH,
                   nc(n5_abnormal, exit_=True), "Treat / Refer", "Organic Cause")
         elbow_line(
-            CX + NW / 2, n5_y + NH / 2,
-            REXT, n5_y + (NH - EH) / 2 + EH / 2,
+            CX + NW / 2, Y["n5"] + NH / 2,
+            REXT, Y["n5"] + (NH - EH) / 2 + EH / 2,
             n5_abnormal, exit_=True, label="Abnormal"
         )
 
         # ── 6. Management (CAPS) ───────────────────────────────────────────────
-        vline(CX, n5_y + NH, Y["n6"], n5_passed, label="Normal →\nCAPS Confirmed")
+        vline(CX, Y["n5"] + NH, Y["n6"], n5_passed, label="Normal → CAPS")
         rect_node(
             CX - NW / 2, Y["n6"], NW, NH,
             nc(n6_visited),
@@ -787,7 +784,7 @@ with right:
         components.html(
             '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
             + "".join(svg) + "</div>",
-            height=1120,
+            height=840,
             scrolling=True,
         )
 
