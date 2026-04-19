@@ -281,6 +281,7 @@ with left:
         st.session_state.hrrb_overrides = []
         if "hrrb_saved_output" in st.session_state:
             del st.session_state["hrrb_saved_output"]
+        st.rerun()
 
     override_panel = st.container()
 
@@ -614,8 +615,8 @@ with right:
             assigned_semi, semi=True, label="C",
         )
 
-        # No urgency criteria — bottom
-        no_urgency_y = Y["d_alarm"] + DH + 18
+        # No urgency criteria — bottom (only when no scenario met)
+        no_urgency_y = Y["d_alarm"] + DH + 90   # pushed down to clear urgent/semi boxes
         exit_node(
             CX - NW / 2, no_urgency_y, NW, 44,
             nc(no_urgency_criteria, exit_=True), "No Urgency Criteria",
@@ -626,23 +627,35 @@ with right:
             no_urgency_criteria, exit_=True, label="None",
         )
 
-        # ── Referral fax info box ──────────────────────────────────────────────
-        ref_y = no_urgency_y + 44 + 30
+        # ── Referral summary box — shown when urgency IS assigned ─────────────
+        # Placed below the urgent/semi exit nodes (at their bottom edge + gap)
+        urgent_semi_bottom = Y["d_alarm"] + (DH - EH) / 2 + 60 + EH + 8  # bottom of exit nodes
+        ref_y = int(urgent_semi_bottom) + 24
+
         if urgency_visited:
             urgency_col = C_URGENT if assigned_urgent else C_SEMI
             urgency_txt = "URGENT (<2 weeks)" if assigned_urgent else "SEMI-URGENT (<8 weeks)"
+            # Draw referral box
             svg.append(
-                f'<rect x="{CX - NW / 2}" y="{ref_y}" width="{NW}" height="58" '
-                f'rx="8" fill="{urgency_col}" stroke="#ffffff18" stroke-width="1.5"/>'
+                '<rect x="' + str(CX - NW / 2) + '" y="' + str(ref_y) + '" '
+                'width="' + str(NW) + '" height="58" '
+                'rx="8" fill="' + urgency_col + '" stroke="#ffffff18" stroke-width="1.5"/>'
             )
             svgt(CX, ref_y + 16, "6. Refer for Colonoscopy", C_TEXT, 11, True)
             svgt(CX, ref_y + 32, urgency_txt, C_TEXT, 10, False)
             svgt(CX, ref_y + 48, "FAST (Edm) / GI-CAT (Cgy)", C_TEXT + "cc", 9)
-            vline(
-                CX, no_urgency_y + 44, ref_y,
-                urgency_visited,
-                urgent=assigned_urgent, semi=assigned_semi,
-            )
+            # Converging arrows from left urgent and right semi boxes
+            urg_box_cy = Y["d_alarm"] + (DH - EH) / 2 + 60 + (EH + 8) / 2
+            if assigned_urgent:
+                elbow_line(
+                    LEXT + EW, urg_box_cy, CX - NW / 2, ref_y + 29,
+                    True, urgent=True,
+                )
+            if assigned_semi:
+                elbow_line(
+                    REXT, urg_box_cy, CX + NW / 2, ref_y + 29,
+                    True, semi=True,
+                )
 
         # ── Legend ────────────────────────────────────────────────────────────
         ly = H - 22
@@ -854,103 +867,104 @@ with right:
                     override_candidates.append(a)
 
             bullets = "".join(
-                f'<li style="margin-bottom:5px">{html.escape(a.label)}'
+                '<li style="margin-bottom:5px">' + html.escape(a.label)
                 + (
                     '<span style="font-size:10px;color:#a5b4fc;margin-left:8px">'
-                    "⚙ override available</span>"
-                    if a.override_options
-                    else ""
+                    '&#9881; override available</span>'
+                    if a.override_options else ""
                 )
                 + "</li>"
                 for a in actions
             )
 
-            st.markdown(
-                f'<div style="background:{bg};border-left:5px solid {border};'
-                f'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
-                f'<p style="margin:0 0 10px 0;font-size:13px;font-weight:700;'
-                f'color:#e2e8f0;letter-spacing:0.3px">'
-                f"{icon} {html.escape(label)}{pill}</p>"
-                f'<ul style="margin:0;padding-left:18px;color:#cbd5e1;'
-                f'font-size:13.5px;line-height:1.7">{bullets}</ul>'
-                f"</div>",
-                unsafe_allow_html=True,
+            card_html = (
+                '<div style="background:' + bg + ';border-left:5px solid ' + border + ';'
+                'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                '<p style="margin:0 0 10px 0;font-size:13px;font-weight:700;'
+                'color:#e2e8f0;letter-spacing:0.3px">'
+                + icon + ' ' + html.escape(label) + pill + '</p>'
+                '<ul style="margin:0;padding-left:18px;color:#cbd5e1;'
+                'font-size:13.5px;line-height:1.7">' + bullets + '</ul>'
+                '</div>'
             )
+            st.markdown(card_html, unsafe_allow_html=True)
 
         # ── Render blocking / stop cards ───────────────────────────────────────
         def render_stop_request(output) -> None:
             if isinstance(output, DataRequest):
                 missing_str = ", ".join(_pretty(f) for f in output.missing_fields)
                 msg_html = html.escape(output.message)
-                st.markdown(
+                card_html = (
                     '<div style="background:#2d1a00;border-left:5px solid #f59e0b;'
-                    "border-radius:10px;padding:14px 18px;margin-bottom:14px\">"
+                    'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
                     '<p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#fde68a">'
-                    "⏳ Data Required to Proceed</p>"
-                    f'<p style="margin:0 0 6px;font-size:13.5px;color:#fde68a">{msg_html}</p>'
-                    f'<p style="margin:0;font-size:12px;color:#94a3b8">'
-                    f'Missing: <code style="color:#fbbf24">{missing_str}</code></p>'
-                    "</div>",
-                    unsafe_allow_html=True,
+                    '&#9203; Data Required to Proceed</p>'
+                    '<p style="margin:0 0 6px;font-size:13.5px;color:#fde68a">' + msg_html + '</p>'
+                    '<p style="margin:0;font-size:12px;color:#94a3b8">'
+                    'Missing: <code style="color:#fbbf24">' + missing_str + '</code></p>'
+                    '</div>'
                 )
+                st.markdown(card_html, unsafe_allow_html=True)
+
             elif isinstance(output, Stop):
                 reason_lower = output.reason.lower()
-                is_urgent_complete    = "pathway complete" in reason_lower and assigned_urgent
-                is_semi_complete      = "pathway complete" in reason_lower and assigned_semi
-                is_no_hrrb           = "not met" in reason_lower or "high-risk rectal bleeding criteria" in reason_lower
-                is_no_urgency        = "no urgent or semi-urgent" in reason_lower
-                is_safety_stop       = "safety stop" in reason_lower
+                is_urgent_complete = "pathway complete" in reason_lower and assigned_urgent
+                is_semi_complete   = "pathway complete" in reason_lower and assigned_semi
+                is_no_hrrb         = ("not met" in reason_lower
+                                      or "high-risk rectal bleeding criteria" in reason_lower)
+                is_no_urgency      = "no urgent or semi-urgent" in reason_lower
+                is_safety_stop     = "safety stop" in reason_lower
 
                 if is_urgent_complete:
-                    bg, border, icon = "#3b0a0a", "#ef4444", "🚨"
-                    title = "Pathway Complete — URGENT Referral for Colonoscopy (<2 weeks)"
+                    bg, border, stop_icon = "#3b0a0a", "#ef4444", "&#128680;"
+                    title = "Pathway Complete &#8212; URGENT Referral for Colonoscopy (&lt;2 weeks)"
                     tcol = "#fecaca"
                 elif is_semi_complete:
-                    bg, border, icon = "#3b2200", "#f97316", "📋"
-                    title = "Pathway Complete — SEMI-URGENT Referral for Colonoscopy (<8 weeks)"
+                    bg, border, stop_icon = "#3b2200", "#f97316", "&#128203;"
+                    title = "Pathway Complete &#8212; SEMI-URGENT Referral for Colonoscopy (&lt;8 weeks)"
                     tcol = "#fed7aa"
                 elif is_no_hrrb:
-                    bg, border, icon = "#2d1a00", "#f59e0b", "ℹ️"
-                    title = "HRRB Criteria Not Met — Low-Risk Pathway (under development)"
+                    bg, border, stop_icon = "#2d1a00", "#f59e0b", "&#8505;&#65039;"
+                    title = "HRRB Criteria Not Met &#8212; Low-Risk Pathway (under development)"
                     tcol = "#fde68a"
                 elif is_no_urgency:
-                    bg, border, icon = "#1e2e1e", "#6366f1", "🔄"
-                    title = "HRRB Present — No Urgency Scenario Identified; Monitor & Re-evaluate"
+                    bg, border, stop_icon = "#1e2e1e", "#6366f1", "&#128260;"
+                    title = "HRRB Present &#8212; No Urgency Scenario Identified; Monitor &amp; Re-evaluate"
                     tcol = "#c7d2fe"
                 elif is_safety_stop:
-                    bg, border, icon = "#2d0a0a", "#ef4444", "⛔"
-                    title = output.reason
+                    bg, border, stop_icon = "#2d0a0a", "#ef4444", "&#9940;"
+                    title = html.escape(output.reason)
                     tcol = "#fecaca"
                 else:
-                    bg, border, icon = "#1e1e2e", "#6366f1", "ℹ️"
-                    title = output.reason
+                    bg, border, stop_icon = "#1e1e2e", "#6366f1", "&#8505;&#65039;"
+                    title = html.escape(output.reason)
                     tcol = "#c7d2fe"
 
                 action_bullets = "".join(
-                    f'<li style="margin-bottom:5px">{html.escape(a.label)}'
+                    '<li style="margin-bottom:5px">' + html.escape(a.label)
                     + (
                         '<span style="font-size:10px;color:#a5b4fc;margin-left:8px">'
-                        "⚙ override available</span>"
-                        if a.override_options
-                        else ""
+                        '&#9881; override available</span>'
+                        if a.override_options else ""
                     )
                     + "</li>"
                     for a in output.actions
                 )
+                _top_margin = "6px" if action_bullets else "0"
                 action_block = (
-                    f'<ul style="margin:10px 0 0;padding-left:18px;color:#cbd5e1;'
-                    f"font-size:13.5px;line-height:1.7\">{action_bullets}</ul>"
-                    if action_bullets
-                    else ""
+                    '<ul style="margin:10px 0 0;padding-left:18px;color:#cbd5e1;'
+                    'font-size:13.5px;line-height:1.7">' + action_bullets + '</ul>'
+                    if action_bullets else ""
                 )
-                st.markdown(
-                    f'<div style="background:{bg};border-left:5px solid {border};'
-                    f"border-radius:10px;padding:14px 18px;margin-bottom:14px\">"
-                    f'<p style="margin:0 0 {"6px" if action_block else "0"};font-size:13px;'
-                    f'font-weight:700;color:{tcol}">{icon} {html.escape(title)}</p>'
-                    f"{action_block}</div>",
-                    unsafe_allow_html=True,
+                card_html = (
+                    '<div style="background:' + bg + ';border-left:5px solid ' + border + ';'
+                    'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                    '<p style="margin:0 0 ' + _top_margin + ';font-size:13px;'
+                    'font-weight:700;color:' + tcol + '">'
+                    + stop_icon + ' ' + title + '</p>'
+                    + action_block + '</div>'
                 )
+                st.markdown(card_html, unsafe_allow_html=True)
 
         # ── Render everything ──────────────────────────────────────────────────
         st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
