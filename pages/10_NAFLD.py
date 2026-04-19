@@ -622,81 +622,265 @@ with right:
 
         override_candidates = []
 
-        def _detail_html(details) -> str:
-            if not details:
-                return ""
-            items = ""
-            if isinstance(details, dict):
-                for bullet in details.get("bullets", []):
-                    items += f"<li>{html.escape(str(bullet))}</li>"
-                for note in details.get("notes", []):
-                    items += f'<li style="color:#fde68a">⚠️ {html.escape(str(note))}</li>'
-                skip = {"bullets", "notes"}
-                for k, v in details.items():
-                    if k in skip:
-                        continue
-                    if isinstance(v, list) and v:
-                        items += "".join(f"<li>{html.escape(str(i))}</li>" for i in v)
-                    elif v not in (None, False, "", []):
-                        items += f"<li><b>{html.escape(str(k))}:</b> {html.escape(str(v))}</li>"
-            elif isinstance(details, list):
-                items = "".join(f"<li>{html.escape(str(d))}</li>" for d in details if str(d).strip())
-            return f'<ul style="margin:6px 0 0 16px;padding:0">{items}</ul>' if items else ""
+        # ── Step grouping map ──────────────────────────────────────────────
+        STEP_GROUPS = {
+            "step1": {
+                "label": "Step 1 — Suspected NAFLD",
+                "icon": "🔍",
+                "cls": "routine",
+                "codes": {
+                    "SUSPECTED_NAFLD_ENTRY_MET",
+                    "METABOLIC_RISK_FACTORS_SUPPORT_NAFLD",
+                    "NOT_SUSPECTED_NAFLD",
+                },
+            },
+            "step2a": {
+                "label": "Step 2 — ALT Persistence Check",
+                "icon": "📊",
+                "cls": "routine",
+                "codes": {
+                    "DEEPER_RULE_OUT_REQUIRED",
+                    "NO_DEEPER_RULE_OUT_TRIGGER",
+                },
+            },
+            "step2b": {
+                "label": "Step 2 — Rule Out Other Causes",
+                "icon": "🧪",
+                "cls": "routine",
+                "codes": {
+                    "CHECK_HBSAG", "CHECK_ANTI_HCV", "CHECK_AUTOIMMUNE_MARKERS",
+                    "CHECK_IRON_STUDIES", "CHECK_CELIAC_SCREEN", "CHECK_CERULOPLASMIN",
+                    "OTHER_CAUSES_EXCLUDED", "TREAT_OR_REFER_NON_NAFLD_CAUSE",
+                },
+            },
+            "step3": {
+                "label": "Step 3 — Medication & Lifestyle Review",
+                "icon": "💊",
+                "cls": "routine",
+                "codes": {
+                    "COMPLETE_MEDICATION_REVIEW", "REPEAT_LIVER_TESTS_3_TO_6_MONTHS",
+                    "REVIEW_AND_ADDRESS_ALCOHOL_USE", "HEPATOTOXIC_MEDICATION_FLAG",
+                    "PHYSICAL_INACTIVITY_FLAG", "HIGH_RISK_DIET_FLAG",
+                },
+            },
+            "step4": {
+                "label": "Step 4 — Baseline Investigations",
+                "icon": "🩸",
+                "cls": "routine",
+                "codes": {
+                    "COMPLETE_BASELINE_INVESTIGATIONS", "BASELINE_INVESTIGATIONS_COMPLETE",
+                    "CHECK_INR_BILIRUBIN_ALBUMIN", "ALP_RECORDED", "GGT_RECORDED",
+                    "HBA1C_RECORDED", "LIPID_PROFILE_RECORDED",
+                },
+            },
+            "step5": {
+                "label": "Step 5 — NAFLD Diagnosis",
+                "icon": "✅",
+                "cls": "routine",
+                "codes": {"NAFLD_DIAGNOSED", "NAFLD_NOT_DIAGNOSED"},
+            },
+            "step6": {
+                "label": "Step 6 — FIB-4 Risk Assessment",
+                "icon": "📐",
+                "cls": "routine",
+                "codes": {
+                    "FIB4_CALCULATED", "INVALID_FIB4_INPUTS",
+                    "CAPTURE_FIB4_INPUTS",
+                },
+            },
+            "step6b": {
+                "label": "Step 6b — Specialist Referral Required",
+                "icon": "🏥",
+                "cls": "urgent",
+                "codes": {"REFER_LIVER_DISEASE_SPECIALIST"},
+            },
+            "step6a": {
+                "label": "Step 6a — Care in the Patient Medical Home",
+                "icon": "🏠",
+                "cls": "info",
+                "codes": {
+                    "PHYSICAL_ACTIVITY_COUNSELLING", "DIET_WEIGHT_LOSS_COUNSELLING",
+                    "SCREEN_AND_OPTIMIZE_CARDIOMETABOLIC_RISK", "ENCOURAGE_SMOKING_CESSATION",
+                    "LIMIT_ALCOHOL_INTAKE", "CONSIDER_HEP_A_B_IMMUNIZATION",
+                    "RECALCULATE_FIB4_2_TO_3_YEARS", "EXERCISE_COUNSELLING_DOCUMENTED",
+                    "DIET_COUNSELLING_DOCUMENTED", "WEIGHT_LOSS_GOAL_DOCUMENTED",
+                    "SMOKING_STATUS_RECORDED", "ALCOHOL_COUNSELLING_DOCUMENTED",
+                    "HEP_A_STATUS_RECORDED", "HEP_B_STATUS_RECORDED",
+                    "FIB4_RECHECK_INTERVAL_DOCUMENTED", "FOLLOWUP_PLAN_DOCUMENTED",
+                },
+            },
+        }
 
-        def render_action(a: Action, extra_cls: str = "") -> None:
-            urgency_to_cls = {"urgent": "urgent", "warning": "warning", None: "routine", "routine": "routine"}
-            cls = urgency_to_cls.get(a.urgency or "", "routine")
-            if extra_cls:
-                cls = extra_cls
-            badge_label = (a.urgency or "info").upper()
-            label_html = html.escape(a.label).replace("\n", "<br>&nbsp;&nbsp;&nbsp;")
-            detail_str = _detail_html(a.details)
-            override_html = (
-                '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
-                "Override available — reason required</p>"
-                if a.override_options else ""
-            )
-            st.markdown(
-                f'<div class="action-card {cls}">'
-                f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">'
-                f'<span class="badge {cls}">{badge_label}</span>&nbsp;&nbsp;&nbsp;{label_html}'
-                f'</p>{detail_str}{override_html}</div>',
-                unsafe_allow_html=True,
-            )
-            if a.override_options:
-                override_candidates.append(a)
+        # Build code → group lookup
+        code_to_group = {}
+        for gkey, gdata in STEP_GROUPS.items():
+            for c in gdata["codes"]:
+                code_to_group[c] = gkey
 
-        st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
+        # Classify all outputs
+        grouped: dict = {k: [] for k in STEP_GROUPS}
+        stops_and_requests = []
 
         for output in outputs:
-            if isinstance(output, Action):
-                render_action(output)
-            elif isinstance(output, DataRequest):
-                missing_str = ", ".join(_pretty(f) for f in output.missing_fields)
-                msg_html = html.escape(output.message).replace("\n", "<br>")
-                st.markdown(
-                    '<div class="action-card warning">'
-                    f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">'
-                    f'<span class="badge warning">DATA NEEDED</span>'
-                    f' ⏳ {msg_html}</p>'
-                    f'<ul><li>Missing fields: {missing_str}</li></ul>'
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
-                for sa in output.suggested_actions:
-                    render_action(sa, extra_cls="info")
-            elif isinstance(output, Stop):
-                reason_html = html.escape(output.reason).replace("\n", "<br>")
-                st.markdown(
-                    '<div class="action-card stop">'
-                    f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">'
-                    f'<span class="badge stop">STOP</span>'
-                    f' 🛑 {reason_html}</p>'
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
+            if isinstance(output, (Stop, DataRequest)):
+                stops_and_requests.append(output)
+            elif isinstance(output, Action):
+                gkey = code_to_group.get(output.code)
+                if gkey:
+                    grouped[gkey].append(output)
+                # actions inside Stop handled separately
+
+        # Also collect Stop.actions for override candidates
+        for output in outputs:
+            if isinstance(output, Stop):
                 for a in output.actions:
-                    render_action(a)
+                    if a.override_options:
+                        override_candidates.append(a)
+
+        # ── FIB-4 pill helper ─────────────────────────────────────────────
+        def _fib4_pill() -> str:
+            if fib4_computed is None:
+                return ""
+            col = "#16a34a" if low_risk else "#dc2626"
+            label = f"FIB-4 = {fib4_computed:.2f} — {'Low Risk &lt; 1.30' if low_risk else 'High Risk ≥ 1.30'}"
+            return (
+                f'<span style="background:{col};color:#fff;font-size:11px;font-weight:700;'
+                f'padding:3px 10px;border-radius:20px;margin-left:8px">{label}</span>'
+            )
+
+        # ── Render a group card ────────────────────────────────────────────
+        def render_group(gkey: str, actions: list) -> None:
+            if not actions:
+                return
+            g = STEP_GROUPS[gkey]
+            cls = g["cls"]
+            icon = g["icon"]
+            label = g["label"]
+            pill = _fib4_pill() if gkey == "step6" else ""
+
+            border_colors = {
+                "routine": "#22c55e", "info": "#3b82f6",
+                "urgent": "#ef4444", "warning": "#f59e0b",
+            }
+            bg_colors = {
+                "routine": "#052e16", "info": "#0c1a2e",
+                "urgent": "#3b0a0a", "warning": "#2d1a00",
+            }
+            border = border_colors.get(cls, "#22c55e")
+            bg = bg_colors.get(cls, "#052e16")
+
+            # Collect override-bearing actions
+            for a in actions:
+                if a.override_options:
+                    override_candidates.append(a)
+
+            bullets = "".join(
+                f'<li style="margin-bottom:5px">{html.escape(a.label)}'
+                + (
+                    '<span style="font-size:10px;color:#a5b4fc;margin-left:8px">'
+                    '⚙ override available</span>'
+                    if a.override_options else ""
+                )
+                + "</li>"
+                for a in actions
+            )
+
+            st.markdown(
+                f'<div style="background:{bg};border-left:5px solid {border};'
+                f'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                f'<p style="margin:0 0 10px 0;font-size:13px;font-weight:700;'
+                f'color:#e2e8f0;letter-spacing:0.3px">'
+                f'{icon} {html.escape(label)}{pill}</p>'
+                f'<ul style="margin:0;padding-left:18px;color:#cbd5e1;'
+                f'font-size:13.5px;line-height:1.7">{bullets}</ul>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        # ── Render blocking / stop cards ───────────────────────────────────
+        def render_stop_request(output) -> None:
+            if isinstance(output, DataRequest):
+                missing_str = ", ".join(_pretty(f) for f in output.missing_fields)
+                msg_html = html.escape(output.message)
+                st.markdown(
+                    '<div style="background:#2d1a00;border-left:5px solid #f59e0b;'
+                    'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                    '<p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#fde68a">'
+                    '⏳ Data Required to Proceed</p>'
+                    f'<p style="margin:0 0 6px;font-size:13.5px;color:#fde68a">{msg_html}</p>'
+                    f'<p style="margin:0;font-size:12px;color:#94a3b8">'
+                    f'Missing: <code style="color:#fbbf24">{missing_str}</code></p>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+            elif isinstance(output, Stop):
+                # Determine if this is a positive stop (complete) or a blocker
+                is_complete = "low-risk" in output.reason.lower() or "medical home" in output.reason.lower()
+                is_refer = "specialist" in output.reason.lower() or "fibrosis" in output.reason.lower()
+                is_alcohol = "alcohol" in output.reason.lower()
+                is_not_nafld = "not established" in output.reason.lower() or "alternative" in output.reason.lower()
+
+                if is_complete:
+                    bg, border, icon = "#052e16", "#22c55e", "✅"
+                    title = "Pathway Complete — Continue Care in Patient Medical Home"
+                    tcol = "#bbf7d0"
+                elif is_refer:
+                    bg, border, icon = "#3b0a0a", "#ef4444", "🏥"
+                    title = "Referral Required — FIB-4 Indeterminate/High Risk"
+                    tcol = "#fecaca"
+                elif is_alcohol:
+                    bg, border, icon = "#3b0a0a", "#ef4444", "⚠️"
+                    title = "Pathway Not Applicable — Significant Alcohol Use"
+                    tcol = "#fecaca"
+                elif is_not_nafld:
+                    bg, border, icon = "#2d1a00", "#f59e0b", "🔄"
+                    title = "NAFLD Not Established — Alternative Cause or Incomplete Workup"
+                    tcol = "#fde68a"
+                else:
+                    bg, border, icon = "#1e1e2e", "#6366f1", "ℹ️"
+                    title = output.reason
+                    tcol = "#c7d2fe"
+
+                action_bullets = "".join(
+                    f'<li style="margin-bottom:5px">{html.escape(a.label)}'
+                    + (
+                        '<span style="font-size:10px;color:#a5b4fc;margin-left:8px">'
+                        '⚙ override available</span>'
+                        if a.override_options else ""
+                    )
+                    + "</li>"
+                    for a in output.actions
+                )
+                action_block = (
+                    f'<ul style="margin:10px 0 0;padding-left:18px;color:#cbd5e1;'
+                    f'font-size:13.5px;line-height:1.7">{action_bullets}</ul>'
+                    if action_bullets else ""
+                )
+                st.markdown(
+                    f'<div style="background:{bg};border-left:5px solid {border};'
+                    f'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                    f'<p style="margin:0 0 {"6px" if action_block else "0"};font-size:13px;'
+                    f'font-weight:700;color:{tcol}">{icon} {html.escape(title)}</p>'
+                    f'{action_block}</div>',
+                    unsafe_allow_html=True,
+                )
+
+        # ── Render everything ──────────────────────────────────────────────
+        st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
+
+        # Priority stops / data requests first (blocking)
+        blocking = [o for o in stops_and_requests if isinstance(o, DataRequest)]
+        for o in blocking:
+            render_stop_request(o)
+
+        # Grouped action steps in order
+        for gkey in STEP_GROUPS:
+            render_group(gkey, grouped[gkey])
+
+        # Non-blocking stops (end-of-pathway outcomes) last
+        terminal = [o for o in stops_and_requests if isinstance(o, Stop)]
+        for o in terminal:
+            render_stop_request(o)
 
         # ── Clinician Notes ────────────────────────────────────────────────
         st.markdown('<p class="section-label">CLINICIAN NOTES</p>', unsafe_allow_html=True)
