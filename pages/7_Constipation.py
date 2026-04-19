@@ -148,14 +148,11 @@ with left:
     )
 
     st.markdown("**Symptom Frequencies** (% of defecations):")
-    col1, col2 = st.columns(2)
-    with col1:
-        hard_stool = st.slider("Hard/lumpy stool (Bristol 1-2)", 0, 100, 0)
-        straining  = st.slider("Straining", 0, 100, 0)
-        incomplete = st.slider("Incomplete evacuation", 0, 100, 0)
-    with col2:
-        blockage = st.slider("Anorectal blockage sensation", 0, 100, 0)
-        manual   = st.slider("Manual maneuvers needed", 0, 100, 0)
+    hard_stool = st.number_input("Hard/lumpy stool (Bristol 1-2) %", min_value=0, max_value=100, value=0, step=5)
+    straining  = st.number_input("Straining %", min_value=0, max_value=100, value=0, step=5)
+    incomplete = st.number_input("Incomplete evacuation %", min_value=0, max_value=100, value=0, step=5)
+    blockage   = st.number_input("Anorectal blockage sensation %", min_value=0, max_value=100, value=0, step=5)
+    manual     = st.number_input("Manual maneuvers needed %", min_value=0, max_value=100, value=0, step=5)
 
     st.markdown("**IBS-C Screen**")
     predominant_pain_sel = st.selectbox(
