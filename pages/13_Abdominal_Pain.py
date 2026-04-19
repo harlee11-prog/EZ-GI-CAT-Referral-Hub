@@ -18,7 +18,7 @@ from chronic_abdominal_pain_engine import (
 )
 
 st.set_page_config(
-    page_title="Chronic Abdominal Pain / CAPS",
+    page_title="Chronic Abdominal Pain / CAP",
     layout="wide",
 )
 
@@ -36,7 +36,7 @@ def _pretty(s: str) -> str:
 
 def build_cap_markdown(patient_data, outputs, overrides, notes: str) -> str:
     lines = []
-    lines.append("# Chronic Abdominal Pain / CAPS Pathway — Clinical Summary")
+    lines.append("# Chronic Abdominal Pain / CAP Pathway — Clinical Summary")
     lines.append("")
     lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     lines.append("")
