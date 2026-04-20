@@ -417,28 +417,22 @@ with right:
         C_BG = "#0f172a"
 
         def nc(vis, urgent=False, exit_=False):
-            if not vis:
-                return C_UNVISIT
-            if urgent:
-                return C_URGENT
-            if exit_:
-                return C_EXIT
+            if not vis: return C_UNVISIT
+            if urgent: return C_URGENT
+            if exit_: return C_EXIT
             return C_MAIN
 
         def dc(vis):
             return C_DIAMOND if vis else C_UNVISIT
 
         def mid(vis, urgent=False, exit_=False):
-            if not vis:
-                return "ma"
-            if urgent:
-                return "mr"
-            if exit_:
-                return "mo"
+            if not vis: return "ma"
+            if urgent: return "mr"
+            if exit_: return "mo"
             return "mg"
 
         svg = []
-        W, H = 1060, 1450
+        W, H = 1280, 1450
         svg.append(
             f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="{H}" '
             f'viewBox="0 0 {W} {H}" style="background:{C_BG};border-radius:12px;font-family:Arial,sans-serif">'
@@ -459,10 +453,7 @@ with right:
 
         def rect_node(x, y, w, h, color, line1, line2="", sub="", rx=8):
             tc = C_TEXT if color != C_UNVISIT else C_DIM
-            svg.append(
-                f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
-                f'fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
-            )
+            svg.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
             if line2:
                 svgt(x + w/2, y + h/2 - 8, line1, tc, 11, True)
                 svgt(x + w/2, y + h/2 + 7, line2, tc, 11, True)
@@ -475,9 +466,7 @@ with right:
             tc = C_TEXT if color != C_UNVISIT else C_DIM
             hw, hh = w / 2, h / 2
             pts = f"{cx},{cy-hh} {cx+hw},{cy} {cx},{cy+hh} {cx-hw},{cy}"
-            svg.append(
-                f'<polygon points="{pts}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
-            )
+            svg.append(f'<polygon points="{pts}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
             if line2:
                 svgt(cx, cy - 7, line1, tc, 10, True)
                 svgt(cx, cy + 8, line2, tc, 10, True)
@@ -486,10 +475,7 @@ with right:
 
         def exit_node(x, y, w, h, color, line1, line2="", rx=7):
             tc = C_TEXT if color != C_UNVISIT else C_DIM
-            svg.append(
-                f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
-                f'fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
-            )
+            svg.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
             if line2:
                 svgt(x + w/2, y + h/2 - 7, line1, tc, 10, True)
                 svgt(x + w/2, y + h/2 + 7, line2, tc, 9)
@@ -500,10 +486,7 @@ with right:
             m = mid(vis, urgent, exit_)
             stroke = {"mg": "#16a34a", "mr": "#dc2626", "mo": "#d97706"}.get(m, "#64748b")
             dash = "" if vis else 'stroke-dasharray="5,3"'
-            svg.append(
-                f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" '
-                f'stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>'
-            )
+            svg.append(f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
             if label:
                 svgt(x + 8, (y1 + y2) / 2 - 3, label, stroke, 10, True, "start")
 
@@ -511,35 +494,32 @@ with right:
             m = mid(vis, urgent, exit_)
             stroke = {"mg": "#16a34a", "mr": "#dc2626", "mo": "#d97706"}.get(m, "#64748b")
             dash = "" if vis else 'stroke-dasharray="5,3"'
-            svg.append(
-                f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" '
-                f'fill="none" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>'
-            )
+            svg.append(f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" fill="none" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
             if label:
                 svgt((x1 + x2) / 2, y1 - 6, label, stroke, 10, True)
 
-        # Updated Layout Coordinates
-        CX = 530
-        COL_L = 280
-        COL_R = 780
-        NW, NH = 230, 52
-        DW, DH = 220, 60
-        EW, EH = 160, 48
-        LEXT = 20
-        REXT = W - 20 - EW # 880
+        # ── PATHWAY LAYOUT CONFIGURATION ──────────────────────────────────────
+        CX = 640
+        COL_L = 340
+        COL_R = 940
+        NW, NH = 260, 64
+        DW, DH = 220, 64
+        EW, EH = 160, 50
+        LEXT = 30
+        REXT = 1090
 
         Y = {
             "suspected": 20,
-            "rome": 120,
-            "baseline": 240,
-            "alarm": 360,
-            "general": 480,
-            "subtype": 600,
-            "sub_boxes": 720,
-            "ibd_susp": 860,
-            "fcp": 1000,
-            "response": 1160,
-            "complete": 1300,
+            "rome": 130,
+            "baseline": 260,
+            "alarm": 390,
+            "general": 520,
+            "subtype": 650,
+            "sub_boxes": 780,
+            "ibd_susp": 910,
+            "fcp": 1040,
+            "response": 1200,
+            "complete": 1340,
         }
 
         # 1. Suspected IBS
@@ -554,8 +534,8 @@ with right:
 
         # Baseline
         rect_node(CX - NW/2, Y["baseline"], NW, NH, nc(rome_met), "2. Baseline Investigations", sub="Hx/PE, CBC, ferritin, celiac")
-        exit_node(REXT, Y["baseline"] + 2, EW, EH, nc(rome_met and celiac_positive, urgent=True), "6. Refer", "Positive celiac")
-        elbow_line(CX + NW/2, Y["baseline"] + NH/2, REXT, Y["baseline"] + 2 + EH/2, rome_met and celiac_positive, urgent=True, label="Positive")
+        exit_node(REXT, Y["baseline"] + (NH - EH)/2, EW, EH, nc(rome_met and celiac_positive, urgent=True), "6. Refer", "Positive celiac")
+        elbow_line(CX + NW/2, Y["baseline"] + NH/2, REXT, Y["baseline"] + (NH - EH)/2 + EH/2, rome_met and celiac_positive, urgent=True, label="Positive")
         vline(CX, Y["baseline"] + NH, Y["alarm"], rome_met and baseline_complete and not celiac_positive, label="Complete")
 
         # Alarm
@@ -571,7 +551,7 @@ with right:
         # Subtype decision
         diamond_node(CX, Y["subtype"] + DH/2, DW, DH, dc(presumed_ibs), "5. IBS Subtype", "?")
 
-        # Subtype boxes & branching
+        # ── SUBTYPE BRANCHING ────────────────────────────────────────────────
         subtype_active = presumed_ibs
         ibsd_vis = subtype_active and is_ibsd
         ibsmu_vis = subtype_active and is_ibsmu
@@ -579,40 +559,41 @@ with right:
 
         # Left Branch (IBS-D)
         elbow_line(CX - DW/2, Y["subtype"] + DH/2, COL_L, Y["sub_boxes"], ibsd_vis, label="IBS-D")
-        rect_node(COL_L - 110, Y["sub_boxes"], 220, 60, nc(ibsd_vis), "IBS-D", "Loperamide / TCA / FODMAP", sub="Rifaximin (2nd line)")
-        
+        rect_node(COL_L - NW/2, Y["sub_boxes"], NW, NH, nc(ibsd_vis), "IBS-D", "Loperamide / TCA / FODMAP", sub="Rifaximin / Probiotic")
+
         # Middle Branch (IBS-M/U)
         vline(CX, Y["subtype"] + DH, Y["sub_boxes"], ibsmu_vis, label="IBS-M/U")
-        rect_node(CX - 110, Y["sub_boxes"], 220, 60, nc(ibsmu_vis), "IBS-M / IBS-U", "Lifestyle / Probiotic / FODMAP", sub="TCA")
-        vline(CX, Y["sub_boxes"] + 60, Y["response"], ibsmu_vis) # Route directly down to Response
+        rect_node(CX - NW/2, Y["sub_boxes"], NW, NH, nc(ibsmu_vis), "IBS-M / IBS-U", "Lifestyle / Probiotic / FODMAP", sub="TCA")
+        vline(CX, Y["sub_boxes"] + NH, Y["response"], ibsmu_vis) 
 
         # Right Branch (IBS-C)
         elbow_line(CX + DW/2, Y["subtype"] + DH/2, COL_R, Y["sub_boxes"], ibsc_vis, label="IBS-C")
-        rect_node(COL_R - 110, Y["sub_boxes"], 220, 60, nc(ibsc_vis), "IBS-C", "Fibre / Laxatives / Linaclotide", sub="Prucalopride / Tenapanor / SSRIs")
+        rect_node(COL_R - NW/2, Y["sub_boxes"], NW, NH, nc(ibsc_vis), "IBS-C", "Fibre / Laxatives / Linaclotide", sub="Prucalopride / Tenapanor / SSRIs")
 
         dash_c = "" if ibsc_vis else 'stroke-dasharray="5,3"'
         stroke_c = C_MAIN if ibsc_vis else "#64748b"
         mid_c = mid(ibsc_vis)
-        svg.append(f'<polyline points="{COL_R},{Y["sub_boxes"] + 60} {COL_R},{Y["response"] - 20} {CX},{Y["response"] - 20} {CX},{Y["response"]}" fill="none" stroke="{stroke_c}" stroke-width="2" {dash_c} marker-end="url(#{mid_c})"/>')
+        svg.append(f'<polyline points="{COL_R},{Y["sub_boxes"] + NH} {COL_R},{Y["response"] - 25} {CX},{Y["response"] - 25} {CX},{Y["response"]}" fill="none" stroke="{stroke_c}" stroke-width="2" {dash_c} marker-end="url(#{mid_c})"/>')
 
         # IBD Suspicion (Left Column)
-        vline(COL_L, Y["sub_boxes"] + 60, Y["ibd_susp"], ibsd_vis)
+        vline(COL_L, Y["sub_boxes"] + NH, Y["ibd_susp"], ibsd_vis)
         diamond_node(COL_L, Y["ibd_susp"] + DH/2, DW, DH, dc(ibsd_vis), "High IBD", "Suspicion?")
 
         # IBD Suspicion = Yes -> FCP
         vline(COL_L, Y["ibd_susp"] + DH, Y["fcp"], ibsd_vis and high_suspicion_ibd is True, label="Yes")
-        
+
         # IBD Suspicion = No -> Bypass FCP, route to Response
         ibsd_no_ibd = (ibsd_vis and high_suspicion_ibd is False)
         dash_ibsd = "" if ibsd_no_ibd else 'stroke-dasharray="5,3"'
         stroke_ibsd = C_MAIN if ibsd_no_ibd else "#64748b"
         mid_ibsd = mid(ibsd_no_ibd)
-        
-        px1, py1 = COL_L - DW/2, Y["ibd_susp"] + DH/2
-        px2, py2 = 80, Y["ibd_susp"] + DH/2
-        px3, py3 = 80, Y["response"] - 20
-        svg.append(f'<polyline points="{px1},{py1} {px2},{py2} {px3},{py3} {CX},{py3} {CX},{Y["response"]}" fill="none" stroke="{stroke_ibsd}" stroke-width="2" {dash_ibsd} marker-end="url(#{mid_ibsd})"/>')
-        svgt(px1 - 10, py1 - 5, "No", stroke_ibsd, 10, True, "end")
+
+        px1, py1 = COL_L + DW/2, Y["ibd_susp"] + DH/2
+        px2, py2 = px1 + 30, py1
+        px3, py3 = px2, Y["response"] - 40
+        px4, py4 = CX, py3
+        svg.append(f'<polyline points="{px1},{py1} {px2},{py2} {px3},{py3} {px4},{py4} {CX},{Y["response"]}" fill="none" stroke="{stroke_ibsd}" stroke-width="2" {dash_ibsd} marker-end="url(#{mid_ibsd})"/>')
+        svgt(px1 + 15, py1 - 5, "No", stroke_ibsd, 10, True)
 
         # FCP Diamond
         diamond_node(COL_L, Y["fcp"] + DH/2, DW, DH, dc(ibsd_vis and high_suspicion_ibd is True), "Fecal Calprotectin", "≥ 120 µg/g?")
@@ -623,21 +604,24 @@ with right:
         elbow_line(COL_L - DW/2, Y["fcp"] + DH/2, LEXT + EW, Y["fcp"] + DH/2, fcp_high_vis, urgent=True, label="Yes")
 
         # FCP = No -> Merge to Response
-        dash_fcp = "" if fcp_no else 'stroke-dasharray="5,3"'
-        stroke_fcp = C_MAIN if fcp_no else "#64748b"
-        mid_fcp = mid(fcp_no)
-        svg.append(f'<polyline points="{COL_L},{Y["fcp"] + DH} {COL_L},{Y["response"] - 20} {CX},{Y["response"] - 20} {CX},{Y["response"]}" fill="none" stroke="{stroke_fcp}" stroke-width="2" {dash_fcp} marker-end="url(#{mid_fcp})"/>')
-        svgt(COL_L + 10, Y["fcp"] + DH + 15, "No", stroke_fcp, 10, True, "start")
+        fcp_no_vis = (ibsd_vis and high_suspicion_ibd is True and fcp_no)
+        dash_fcp = "" if fcp_no_vis else 'stroke-dasharray="5,3"'
+        stroke_fcp = C_MAIN if fcp_no_vis else "#64748b"
+        mid_fcp = mid(fcp_no_vis)
+        svg.append(f'<polyline points="{COL_L},{Y["fcp"] + DH} {COL_L},{Y["response"] - 25} {CX},{Y["response"] - 25} {CX},{Y["response"]}" fill="none" stroke="{stroke_fcp}" stroke-width="2" {dash_fcp} marker-end="url(#{mid_fcp})"/>')
+        svgt(COL_L + 12, Y["fcp"] + DH + 15, "No", stroke_fcp, 10, True, "start")
 
+        # ── MERGED OUTCOME ───────────────────────────────────────────────────
         # Response Decision
         diamond_node(CX, Y["response"] + DH/2, DW, DH, dc(response_ready), "Response to", "Treatment?")
         exit_node(REXT, Y["response"] + (DH - EH)/2, EW, EH, nc(advice_exit, exit_=True), "Advice / Refer", "Unsatisfactory response")
         elbow_line(CX + DW/2, Y["response"] + DH/2, REXT, Y["response"] + (DH - EH)/2 + EH/2, advice_exit, exit_=True, label="Unsatisfactory")
-        
+
         # Complete
         vline(CX, Y["response"] + DH, Y["complete"], complete_in_home, label="Satisfactory")
         rect_node(CX - NW/2, Y["complete"], NW, NH, nc(complete_in_home, exit_=True), "Continue Care in", "Medical Home")
 
+        # ── LEGEND ────────────────────────────────────────────────────────────
         ly = H - 24
         lx = 18
         for col, lbl in [
@@ -654,7 +638,7 @@ with right:
 
         st.subheader("🗺️ Pathway Followed")
         st.markdown(
-            f'<div style="background:{C_BG};padding:10px;border-radius:14px;overflow-x:auto;height:1365px;overflow-y:auto;">'
+            f'<div style="background:{C_BG};padding:10px;border-radius:14px;overflow-x:auto;height:1450px;overflow-y:auto;">'
             + "".join(svg) + "</div>",
             unsafe_allow_html=True,
         )
