@@ -1,4 +1,5 @@
-import os, sys
+import os
+import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import html
@@ -6,21 +7,56 @@ from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
 
-# Import from the IBS engine module
 from ibs_engine import (
-    run_ibs_pathway, Action, DataRequest, Stop, Override,
+    run_ibs_pathway,
+    Action,
+    DataRequest,
+    Stop,
+    Override,
 )
-
-# Empty dict to satisfy the regimen UI logic if expanded later
-REGIMEN_DETAILS = {}
 
 st.set_page_config(page_title="IBS Pathway", layout="wide")
 
-# ── MARKDOWN / PDF HELPERS ──────────────────────────────────────────────────
+
+# ── HELPERS ──────────────────────────────────────────────────────────────────
 def _safe_text(text) -> str:
     if text is None:
         return ""
     return " ".join(str(text).replace("\u00a0", " ").split())
+
+
+def _pretty(s: str) -> str:
+    return s.replace("_", " ").title()
+
+
+def _yn_select(label: str, *, index: int = 0, key: str | None = None):
+    choice = st.selectbox(label, ["Unknown / Not assessed", "Yes", "No"], index=index, key=key)
+    if choice == "Yes":
+        return True
+    if choice == "No":
+        return False
+    return None
+
+
+def _num_or_none(v, allow_zero: bool = False):
+    if v is None:
+        return None
+    if allow_zero:
+        return v
+    return None if v == 0 else v
+
+
+def determine_ibs_subtype(hard_pct, loose_pct) -> str:
+    if hard_pct is None or loose_pct is None:
+        return "Unknown"
+    if hard_pct >= 25 and loose_pct < 25:
+        return "IBS-C"
+    if loose_pct >= 25 and hard_pct < 25:
+        return "IBS-D"
+    if hard_pct >= 25 and loose_pct >= 25:
+        return "IBS-M"
+    return "IBS-U"
+
 
 def build_ibs_markdown(patient_data, outputs, overrides, notes: str) -> str:
     lines = []
@@ -29,13 +65,20 @@ def build_ibs_markdown(patient_data, outputs, overrides, notes: str) -> str:
     lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     lines.append("")
 
+    subtype = determine_ibs_subtype(
+        patient_data.get("hard_stool_percent"),
+        patient_data.get("loose_stool_percent"),
+    )
+
     lines.append("## Patient Context")
-    skip_keys = {"cbc_done", "ferritin_done", "celiac_screen_done"}
-    for k, v in patient_data.items():
-        if k in skip_keys or v is None:
-            continue
-        label = k.replace("_", " ").capitalize()
-        lines.append(f"- **{label}:** {_safe_text(v)}")
+    lines.append(f"- **Age / Sex:** {patient_data.get('age', 'N/A')} / {str(patient_data.get('sex', 'N/A')).capitalize()}")
+    lines.append(f"- **Abdominal pain days/week:** {patient_data.get('abdominal_pain_days_per_week', 'Not documented')}")
+    lines.append(f"- **Symptom months present:** {patient_data.get('symptom_months_present', 'Not documented')}")
+    lines.append(f"- **Rome IV supporting features present:** {sum(1 for x in [patient_data.get('pain_related_to_defecation'), patient_data.get('pain_with_change_in_stool_frequency'), patient_data.get('pain_with_change_in_stool_form')] if x is True)} / 3")
+    lines.append(f"- **IBS subtype:** {subtype}")
+    lines.append(f"- **High suspicion of IBD:** {patient_data.get('high_suspicion_ibd')}")
+    lines.append(f"- **Fecal calprotectin (µg/g):** {patient_data.get('fecal_calprotectin_ug_g', 'Not documented')}")
+    lines.append(f"- **Unsatisfactory response:** {patient_data.get('unsatisfactory_response_to_treatment')}")
     lines.append("")
 
     lines.append("## Clinical Recommendations")
@@ -45,32 +88,34 @@ def build_ibs_markdown(patient_data, outputs, overrides, notes: str) -> str:
         for o in outputs:
             if isinstance(o, Action):
                 urgency = (o.urgency or "info").upper()
-                label = _safe_text(o.label)
-                lines.append(f"- **[{urgency}]** {label}")
-                
+                lines.append(f"- **[{urgency}]** {_safe_text(o.label)}")
                 if isinstance(o.details, dict):
+                    for bullet in o.details.get("bullets", []):
+                        lines.append(f"  - {_safe_text(bullet)}")
+                    for note in o.details.get("notes", []):
+                        lines.append(f"  - Note: {_safe_text(note)}")
+                    for support in o.details.get("supported_by", []):
+                        lines.append(f"  - Support: {_safe_text(support)}")
+                    skip = {"bullets", "notes", "supported_by", "options", "regimen_key"}
                     for k, v in o.details.items():
+                        if k in skip:
+                            continue
                         if isinstance(v, list):
                             for item in v:
-                                lines.append(f"  - {_safe_text(k).replace('_', ' ').title()}: {_safe_text(item)}")
+                                lines.append(f"  - {_pretty(k)}: {_safe_text(item)}")
                         elif v not in (None, False, "", []):
-                            lines.append(f"  - {_safe_text(k).replace('_', ' ').title()}: {_safe_text(v)}")
+                            lines.append(f"  - {_pretty(k)}: {_safe_text(v)}")
 
             elif isinstance(o, Stop):
-                reason = _safe_text(o.reason)
-                lines.append(f"- **[STOP]** {reason}")
-                if getattr(o, "actions", None):
-                    for a in o.actions:
-                        lines.append(f"  - Follow-up: {_safe_text(a.label)}")
+                lines.append(f"- **[STOP]** {_safe_text(o.reason)}")
+                for a in getattr(o, "actions", []) or []:
+                    lines.append(f"  - Follow-up: {_safe_text(a.label)}")
 
             elif isinstance(o, DataRequest):
-                msg = _safe_text(o.message)
-                missing = ", ".join(field for field in o.missing_fields)
-                lines.append(f"- **[DATA NEEDED]** {msg}")
-                lines.append(f"  - Missing fields: {missing}")
-                if getattr(o, "suggested_actions", None):
-                    for a in o.suggested_actions:
-                        lines.append(f"  - Suggested action: {_safe_text(a.label)}")
+                lines.append(f"- **[DATA NEEDED]** {_safe_text(o.message)}")
+                lines.append(f"  - Missing fields: {', '.join(o.missing_fields)}")
+                for a in getattr(o, "suggested_actions", []) or []:
+                    lines.append(f"  - Suggested action: {_safe_text(a.label)}")
 
     lines.append("")
     lines.append("## Active Overrides")
@@ -82,17 +127,51 @@ def build_ibs_markdown(patient_data, outputs, overrides, notes: str) -> str:
             )
     else:
         lines.append("- No active overrides.")
-    lines.append("")
 
+    lines.append("")
     lines.append("## Clinician Notes")
     lines.append(notes.strip() if notes and notes.strip() else "No clinician notes entered.")
     lines.append("")
-
     return "\n".join(lines)
 
 
+def classify_action(action: Action) -> str:
+    txt = f"{getattr(action, 'code', '')} {action.label}".lower()
+
+    if any(k in txt for k in ["rome", "criteria", "suspected ibs", "diagnostic criteria"]):
+        return "step1"
+
+    if any(k in txt for k in ["cbc", "ferritin", "celiac", "baseline", "medical history", "physical exam", "secondary cause", "medication review"]):
+        return "step2"
+
+    if any(k in txt for k in ["alarm", "family history", "visible blood", "nocturnal", "iron deficiency", "onset after age 50"]):
+        return "step3"
+
+    if any(k in txt for k in ["diet", "fibre", "fiber", "physical activity", "psychological", "peppermint", "antispas", "counselling", "hypnotherapy", "cbt", "reassurance"]):
+        return "step4"
+
+    if any(k in txt for k in ["ibs-d", "ibs-c", "ibs-m", "ibs-u", "subtype", "loperamide", "tca", "tricyclic", "probiotic", "fodmap", "rifaximin", "osmotic", "linaclotide", "prucalopride", "tenapanor", "plecanatide", "ssri"]):
+        return "step5"
+
+    if any(k in txt for k in ["calprotectin", "refer", "consult", "endoscopy", "advice service", "unsatisfactory", "specialist"]):
+        return "step6"
+
+    return "step4"
+
+
+def serialize_output(o):
+    if isinstance(o, Action):
+        return {"type": "action", "code": getattr(o, "code", None), "label": o.label, "urgency": o.urgency}
+    if isinstance(o, Stop):
+        return {"type": "stop", "reason": o.reason, "urgency": getattr(o, "urgency", None)}
+    if isinstance(o, DataRequest):
+        return {"type": "data_request", "message": o.message, "missing_fields": o.missing_fields}
+    return {"type": "other", "repr": repr(o)}
+
+
 # ── GLOBAL CSS ───────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <style>
 .ctx-card {
     background: #1e3a5f; border: 1px solid #2e5c8a;
@@ -132,18 +211,18 @@ st.markdown("""
     font-size:13px; color:#c7d2fe;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-st.title("IBS Pathway")
+st.title("Irritable Bowel Syndrome (IBS)")
 st.markdown("---")
 
 # ── SESSION STATE ────────────────────────────────────────────────────────────
 if "ibs_overrides" not in st.session_state:
     st.session_state.ibs_overrides = []
-
 if "ibs_has_run" not in st.session_state:
     st.session_state.ibs_has_run = False
-
 if "ibs_notes" not in st.session_state:
     st.session_state.ibs_notes = ""
 
@@ -151,50 +230,74 @@ left, right = st.columns([1, 1.5])
 
 # ── LEFT PANEL ───────────────────────────────────────────────────────────────
 with left:
-    def yn_map(val):
-        if val == "Yes": return True
-        if val == "No": return False
-        return None
-
     st.subheader("Patient Information")
-    age = st.number_input("Age", 1, 120, 52)
+    age = st.number_input("Age", min_value=1, max_value=120, value=35, step=1)
     sex = st.selectbox("Sex", ["male", "female"])
 
-    st.markdown("**1. IBS Diagnostic Criteria (Rome IV)**")
-    pain_days = st.number_input("Abdominal pain days per week", min_value=0, max_value=7, value=None)
-    months = st.number_input("Symptom months present", min_value=0, max_value=120, value=None)
-    related = yn_map(st.selectbox("Pain related to defecation?", ["Select...", "Yes", "No"]))
-    freq_change = yn_map(st.selectbox("Pain associated with change in stool frequency?", ["Select...", "Yes", "No"]))
-    form_change = yn_map(st.selectbox("Pain associated with change in stool form?", ["Select...", "Yes", "No"]))
+    st.markdown("**IBS Diagnostic Criteria (Rome IV)**")
+    pain_days = st.number_input(
+        "Abdominal pain days per week",
+        min_value=0,
+        max_value=7,
+        value=1,
+        step=1,
+        help="Rome IV requires recurrent abdominal pain at least 1 day/week on average in the last 3 months.",
+    )
+    symptom_months = st.number_input(
+        "Symptom months present",
+        min_value=0,
+        max_value=120,
+        value=3,
+        step=1,
+        help="Rome IV requires symptoms present for at least 3 months.",
+    )
+    pain_related_to_defecation = _yn_select("Pain related to defecation?")
+    pain_freq_change = _yn_select("Pain associated with change in stool frequency?")
+    pain_form_change = _yn_select("Pain associated with change in stool form?")
 
-    st.markdown("**2. Baseline Investigations**")
-    cbc = yn_map(st.selectbox("CBC done?", ["Select...", "Yes", "No"]))
-    ferritin = yn_map(st.selectbox("Ferritin done?", ["Select...", "Yes", "No"]))
-    celiac = yn_map(st.selectbox("Celiac screen done?", ["Select...", "Yes", "No"]))
-    celiac_pos = st.checkbox("Celiac screen positive", disabled=not celiac)
+    st.markdown("**Baseline Investigations**")
+    medical_history_done = st.checkbox("Detailed history / physical exam completed", value=True)
+    medication_review_done = st.checkbox("Medication / secondary cause review completed", value=True)
+    cbc_done = _yn_select("CBC completed?")
+    ferritin_done = _yn_select("Ferritin completed?")
+    celiac_screen_done = _yn_select("Celiac screen completed?")
+    celiac_screen_positive = st.checkbox("Celiac screen POSITIVE", disabled=(celiac_screen_done is not True))
 
-    st.markdown("**3. Alarm Features**")
-    fh_crc = st.checkbox("Family history (1st degree) of CRC")
-    fh_ibd = st.checkbox("Family history (1st degree) of IBD")
-    age_50 = st.checkbox("Symptom onset after age 50")
-    blood = st.checkbox("Visible blood in stool")
-    nocturnal = st.checkbox("Nocturnal symptoms")
-    ida = st.checkbox("Iron deficiency anemia")
-    weight_loss = st.number_input("Unintended weight loss % (6-12 months)", min_value=0.0, max_value=100.0, value=0.0)
+    st.markdown("**Alarm Features**")
+    family_history_crc = st.checkbox("Family history (1st degree) of CRC")
+    family_history_ibd = st.checkbox("Family history (1st degree) of IBD")
+    symptom_onset_after_50 = st.checkbox("Symptom onset after age 50")
+    visible_blood = st.checkbox("Visible blood in stool")
+    nocturnal_symptoms = st.checkbox("Nocturnal symptoms")
+    iron_deficiency_anemia = st.checkbox("Iron deficiency anemia")
+    unintended_weight_loss = st.number_input(
+        "Unintended weight loss % (6-12 months)",
+        min_value=0.0,
+        max_value=100.0,
+        value=0.0,
+        step=1.0,
+    )
 
-    st.markdown("**4. Stool Form (Bristol)**")
-    hard = st.number_input("% Hard stools (Types 1-2)", min_value=0, max_value=100, value=None)
-    loose = st.number_input("% Loose stools (Types 6-7)", min_value=0, max_value=100, value=None)
+    st.markdown("**Subtype Inputs (Bristol Pattern)**")
+    hard_stool_percent = st.slider("% Hard stools (Types 1-2)", min_value=0, max_value=100, value=25, step=5)
+    loose_stool_percent = st.slider("% Loose stools (Types 6-7)", min_value=0, max_value=100, value=0, step=5)
 
-    st.markdown("**6. & 7. Advanced Screening**")
-    high_ibd = yn_map(st.selectbox("High clinical suspicion of IBD?", ["Select...", "Yes", "No"]))
-    if high_ibd:
-        calprotectin = st.number_input("Fecal calprotectin (ug/g)", min_value=0, value=None)
-    else:
-        calprotectin = None
+    st.markdown("**IBS-D / IBD Escalation**")
+    high_suspicion_ibd = _yn_select("High clinical suspicion of IBD?")
+    history_cholecystectomy = st.checkbox("History of cholecystectomy")
+    fecal_calprotectin = None
+    if high_suspicion_ibd is True:
+        fecal_calprotectin = st.number_input(
+            "Fecal calprotectin (µg/g)",
+            min_value=0,
+            value=0,
+            step=10,
+            help="Use when IBS-D and high clinical suspicion of IBD.",
+        )
 
-    st.markdown("**8. Management Follow-up**")
-    unsatisfactory = yn_map(st.selectbox("Unsatisfactory response to treatment?", ["Select...", "Yes", "No"]))
+    st.markdown("**Management Follow-up**")
+    unsatisfactory_response = _yn_select("Unsatisfactory response to treatment?")
+    advice_service_considered = st.checkbox("Advice service considered before referral")
 
     run_clicked = st.button("▶ Run Pathway", type="primary", use_container_width=True)
     if run_clicked:
@@ -210,69 +313,139 @@ with left:
 
 # ── RIGHT PANEL ──────────────────────────────────────────────────────────────
 with right:
-    if st.session_state.ibs_has_run:
+    if not st.session_state.ibs_has_run:
+        st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
+    else:
         patient_data = {
-            "abdominal_pain_days_per_week": pain_days,
-            "symptom_months_present": months,
-            "pain_related_to_defecation": related,
-            "pain_with_change_in_stool_frequency": freq_change,
-            "pain_with_change_in_stool_form": form_change,
-            "cbc_done": cbc,
-            "ferritin_done": ferritin,
-            "celiac_screen_done": celiac,
-            "celiac_screen_positive": celiac_pos,
-            "family_history_crc_first_degree": fh_crc,
-            "family_history_ibd_first_degree": fh_ibd,
-            "symptom_onset_after_age_50": age_50,
-            "visible_blood_in_stool": blood,
-            "nocturnal_symptoms": nocturnal,
-            "iron_deficiency_anemia_present": ida,
-            "unintended_weight_loss_percent_6_to_12_months": weight_loss,
-            "hard_stool_percent": hard,
-            "loose_stool_percent": loose,
-            "high_suspicion_ibd": high_ibd,
-            "fecal_calprotectin_ug_g": calprotectin,
-            "unsatisfactory_response_to_treatment": unsatisfactory,
+            "age": age,
+            "sex": sex,
+            "abdominal_pain_days_per_week": _num_or_none(pain_days, allow_zero=False),
+            "symptom_months_present": _num_or_none(symptom_months, allow_zero=False),
+            "pain_related_to_defecation": pain_related_to_defecation,
+            "pain_with_change_in_stool_frequency": pain_freq_change,
+            "pain_with_change_in_stool_form": pain_form_change,
+            "medical_history_done": medical_history_done or None,
+            "medication_review_done": medication_review_done or None,
+            "cbc_done": cbc_done,
+            "ferritin_done": ferritin_done,
+            "celiac_screen_done": celiac_screen_done,
+            "celiac_screen_positive": celiac_screen_positive if celiac_screen_done is True else None,
+            "family_history_crc_first_degree": family_history_crc or None,
+            "family_history_ibd_first_degree": family_history_ibd or None,
+            "symptom_onset_after_age_50": symptom_onset_after_50 or None,
+            "visible_blood_in_stool": visible_blood or None,
+            "nocturnal_symptoms": nocturnal_symptoms or None,
+            "iron_deficiency_anemia_present": iron_deficiency_anemia or None,
+            "unintended_weight_loss_percent_6_to_12_months": unintended_weight_loss,
+            "hard_stool_percent": hard_stool_percent,
+            "loose_stool_percent": loose_stool_percent,
+            "high_suspicion_ibd": high_suspicion_ibd,
+            "fecal_calprotectin_ug_g": _num_or_none(fecal_calprotectin, allow_zero=False),
+            "history_of_cholecystectomy": history_cholecystectomy or None,
+            "unsatisfactory_response_to_treatment": unsatisfactory_response,
+            "advice_service_considered": advice_service_considered or None,
         }
 
         outputs, logs, applied_overrides = run_ibs_pathway(
-            patient_data, overrides=st.session_state.ibs_overrides
+            patient_data,
+            overrides=st.session_state.ibs_overrides,
         )
 
-        # Pre-compute layout logic based on engine node conditions
-        feature_count = sum([1 for f in [related, freq_change, form_change] if f is True])
-        ibs_criteria = (pain_days is not None and pain_days >= 1) and (months is not None and months >= 3) and (feature_count >= 2)
-        missing_base = (cbc is None or ferritin is None or celiac is None)
-        alarm_present = any([fh_crc, fh_ibd, age_50, blood, nocturnal, ida, weight_loss > 5.0])
-        missing_subtype = hard is None or loose is None
-        missing_ibd = high_ibd is None
-        missing_cal = high_ibd and calprotectin is None
-        high_cal = calprotectin is not None and calprotectin > 120
-        missing_resp = unsatisfactory is None
+        # ── DERIVED STATE FOR VISUAL / CONTEXT ───────────────────────────────
+        rome_feature_count = sum(
+            1 for x in [
+                pain_related_to_defecation,
+                pain_freq_change,
+                pain_form_change,
+            ] if x is True
+        )
+        rome_met = (
+            patient_data["abdominal_pain_days_per_week"] is not None
+            and patient_data["abdominal_pain_days_per_week"] >= 1
+            and patient_data["symptom_months_present"] is not None
+            and patient_data["symptom_months_present"] >= 3
+            and rome_feature_count >= 2
+        )
 
-        # SVGs Layout
-        C_MAIN = "#16a34a"; C_UNVISIT = "#475569"; C_DIAMOND = "#1d4ed8"
-        C_URGENT = "#dc2626"; C_EXIT = "#d97706"
-        C_TEXT = "#ffffff"; C_DIM = "#94a3b8"; C_BG = "#0f172a"
+        baseline_complete = (
+            cbc_done is True
+            and ferritin_done is True
+            and celiac_screen_done is True
+        )
+        celiac_positive = celiac_screen_done is True and celiac_screen_positive is True
+
+        alarm_present = any([
+            family_history_crc,
+            family_history_ibd,
+            symptom_onset_after_50,
+            visible_blood,
+            nocturnal_symptoms,
+            iron_deficiency_anemia,
+            unintended_weight_loss > 5.0,
+        ])
+
+        subtype = determine_ibs_subtype(hard_stool_percent, loose_stool_percent)
+        presumed_ibs = rome_met and baseline_complete and not celiac_positive and not alarm_present
+
+        is_ibsd = subtype == "IBS-D"
+        is_ibsmu = subtype in ["IBS-M", "IBS-U"]
+        is_ibsc = subtype == "IBS-C"
+
+        fcp_high = (
+            high_suspicion_ibd is True
+            and patient_data["fecal_calprotectin_ug_g"] is not None
+            and patient_data["fecal_calprotectin_ug_g"] >= 120
+        )
+
+        response_ready = False
+        if presumed_ibs:
+            if not is_ibsd:
+                response_ready = True
+            elif high_suspicion_ibd is False:
+                response_ready = True
+            elif high_suspicion_ibd is True and patient_data["fecal_calprotectin_ug_g"] is not None and not fcp_high:
+                response_ready = True
+
+        complete_in_home = response_ready and unsatisfactory_response is False
+        advice_exit = response_ready and unsatisfactory_response is True
+
+        # ── SVG COLORS ────────────────────────────────────────────────────────
+        C_MAIN = "#16a34a"
+        C_UNVISIT = "#475569"
+        C_DIAMOND = "#1d4ed8"
+        C_URGENT = "#dc2626"
+        C_EXIT = "#d97706"
+        C_TEXT = "#ffffff"
+        C_DIM = "#94a3b8"
+        C_BG = "#0f172a"
 
         def nc(vis, urgent=False, exit_=False):
-            if not vis: return C_UNVISIT
-            if urgent: return C_URGENT
-            if exit_: return C_EXIT
+            if not vis:
+                return C_UNVISIT
+            if urgent:
+                return C_URGENT
+            if exit_:
+                return C_EXIT
             return C_MAIN
 
         def dc(vis):
             return C_DIAMOND if vis else C_UNVISIT
 
         def mid(vis, urgent=False, exit_=False):
-            if not vis: return "ma"
-            if urgent: return "mr"
-            if exit_: return "mo"
+            if not vis:
+                return "ma"
+            if urgent:
+                return "mr"
+            if exit_:
+                return "mo"
             return "mg"
 
         svg = []
-        W, H = 700, 950
-        svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="{H}" viewBox="0 0 {W} {H}" style="background:{C_BG};border-radius:12px;font-family:Arial,sans-serif">')
+        W, H = 880, 1360
+        svg.append(
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="{H}" '
+            f'viewBox="0 0 {W} {H}" style="background:{C_BG};border-radius:12px;font-family:Arial,sans-serif">'
+        )
         svg.append("<defs>")
         svg.append('<marker id="ma" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>')
         svg.append('<marker id="mg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#16a34a"/></marker>')
@@ -282,174 +455,269 @@ with right:
 
         def svgt(x, y, text, fill, size=11, bold=False, anchor="middle"):
             w = "bold" if bold else "normal"
-            svg.append(f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="{fill}" font-size="{size}" font-weight="{w}">{html.escape(str(text))}</text>')
+            svg.append(
+                f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="{fill}" '
+                f'font-size="{size}" font-weight="{w}">{html.escape(str(text))}</text>'
+            )
 
         def rect_node(x, y, w, h, color, line1, line2="", sub="", rx=8):
             tc = C_TEXT if color != C_UNVISIT else C_DIM
-            svg.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
+            svg.append(
+                f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
+                f'fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
+            )
             if line2:
-                svgt(x+w/2, y+h/2-8, line1, tc, 11, True)
-                svgt(x+w/2, y+h/2+7, line2, tc, 11, True)
+                svgt(x + w/2, y + h/2 - 8, line1, tc, 11, True)
+                svgt(x + w/2, y + h/2 + 7, line2, tc, 11, True)
             else:
-                svgt(x+w/2, y+h/2+4, line1, tc, 11, True)
+                svgt(x + w/2, y + h/2 + 4, line1, tc, 11, True)
             if sub:
-                svgt(x+w/2, y+h-8, sub, tc+"99", 9)
+                svgt(x + w/2, y + h - 8, sub, tc + "99", 9)
 
         def diamond_node(cx, cy, w, h, color, line1, line2=""):
             tc = C_TEXT if color != C_UNVISIT else C_DIM
-            hw, hh = w/2, h/2
+            hw, hh = w / 2, h / 2
             pts = f"{cx},{cy-hh} {cx+hw},{cy} {cx},{cy+hh} {cx-hw},{cy}"
-            svg.append(f'<polygon points="{pts}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
+            svg.append(
+                f'<polygon points="{pts}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
+            )
             if line2:
-                svgt(cx, cy-7, line1, tc, 10, True)
-                svgt(cx, cy+8, line2, tc, 10, True)
+                svgt(cx, cy - 7, line1, tc, 10, True)
+                svgt(cx, cy + 8, line2, tc, 10, True)
             else:
-                svgt(cx, cy+4, line1, tc, 10, True)
+                svgt(cx, cy + 4, line1, tc, 10, True)
 
         def exit_node(x, y, w, h, color, line1, line2="", rx=7):
             tc = C_TEXT if color != C_UNVISIT else C_DIM
-            svg.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>')
+            svg.append(
+                f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
+                f'fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
+            )
             if line2:
-                svgt(x+w/2, y+h/2-7, line1, tc, 10, True)
-                svgt(x+w/2, y+h/2+7, line2, tc, 9)
+                svgt(x + w/2, y + h/2 - 7, line1, tc, 10, True)
+                svgt(x + w/2, y + h/2 + 7, line2, tc, 9)
             else:
-                svgt(x+w/2, y+h/2+4, line1, tc, 10, True)
+                svgt(x + w/2, y + h/2 + 4, line1, tc, 10, True)
 
         def vline(x, y1, y2, vis, urgent=False, exit_=False, label=""):
             m = mid(vis, urgent, exit_)
             stroke = {"mg": "#16a34a", "mr": "#dc2626", "mo": "#d97706"}.get(m, "#64748b")
             dash = "" if vis else 'stroke-dasharray="5,3"'
-            svg.append(f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
+            svg.append(
+                f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" '
+                f'stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>'
+            )
             if label:
-                svgt(x+6, (y1+y2)/2-3, label, stroke, 10, True, "start")
+                svgt(x + 8, (y1 + y2) / 2 - 3, label, stroke, 10, True, "start")
 
         def elbow_line(x1, y1, x2, y2, vis, urgent=False, exit_=False, label=""):
             m = mid(vis, urgent, exit_)
             stroke = {"mg": "#16a34a", "mr": "#dc2626", "mo": "#d97706"}.get(m, "#64748b")
             dash = "" if vis else 'stroke-dasharray="5,3"'
-            svg.append(f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" fill="none" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
+            svg.append(
+                f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" '
+                f'fill="none" stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>'
+            )
             if label:
-                svgt((x1+x2)/2, y1-5, label, stroke, 10, True)
+                svgt((x1 + x2) / 2, y1 - 6, label, stroke, 10, True)
 
-        CX = 350; NW, NH = 170, 50; DW, DH = 180, 58; EW, EH = 140, 46
-        LEXT = 30; REXT = W - 30 - EW
+        CX = 440
+        NW, NH = 230, 52
+        DW, DH = 220, 60
+        EW, EH = 160, 48
+        LEXT = 30
+        REXT = W - 30 - EW
+
         Y = {
-            "present": 18, "d_crit": 100, "d_base": 202,
-            "d_alarm": 304, "d_sub": 406, "d_ibd": 508,
-            "d_cal": 610, "d_resp": 712, "complete": 814,
+            "suspected": 20,
+            "rome": 118,
+            "baseline": 245,
+            "alarm": 390,
+            "general": 520,
+            "subtype": 645,
+            "sub_d": 765,
+            "sub_mu": 860,
+            "sub_c": 765,
+            "ibd_susp": 945,
+            "fcp": 1045,
+            "response": 1145,
+            "complete": 1260,
         }
 
-        rect_node(CX-NW/2, Y["present"], NW, NH, nc(True), "Suspected IBS")
-        vline(CX, Y["present"]+NH, Y["d_crit"], True)
-        
-        # 1. Criteria
-        diamond_node(CX, Y["d_crit"]+DH/2, DW, DH, dc(True), "1. Rome IV Criteria", "Met?")
-        exit_node(LEXT, Y["d_crit"]+(DH-EH)/2, EW, EH, nc(not ibs_criteria, exit_=True), "Criteria Not Met", "Stop Pathway")
-        elbow_line(CX-DW/2, Y["d_crit"]+DH/2, LEXT+EW, Y["d_crit"]+(DH-EH)/2+EH/2, not ibs_criteria, exit_=True, label="No")
+        # Top node
+        rect_node(CX - NW/2, Y["suspected"], NW, NH, nc(True), "1. Suspected IBS", sub="Recurrent abdominal pain + Rome IV features")
+        vline(CX, Y["suspected"] + NH, Y["rome"], True)
 
-        # 2. Baseline
-        v_base = ibs_criteria
-        vline(CX, Y["d_crit"]+DH, Y["d_base"], v_base, label="Yes")
-        diamond_node(CX, Y["d_base"]+DH/2, DW, DH, dc(v_base), "2. Baseline", "Investigations?")
-        exit_node(REXT, Y["d_base"]+(DH-EH)/2, EW, EH, nc(v_base and celiac_pos, urgent=True), "Celiac Positive", "Refer GI")
-        elbow_line(CX+DW/2, Y["d_base"]+DH/2, REXT, Y["d_base"]+(DH-EH)/2+EH/2, v_base and celiac_pos, urgent=True, label="Pos")
+        # Rome IV decision
+        diamond_node(CX, Y["rome"] + DH/2, DW, DH, dc(True), "Rome IV Criteria", "Met?")
+        exit_node(LEXT, Y["rome"] + (DH - EH)/2, EW, EH, nc(not rome_met, exit_=True), "Criteria Not Met", "Stop / reassess")
+        elbow_line(CX - DW/2, Y["rome"] + DH/2, LEXT + EW, Y["rome"] + (DH - EH)/2 + EH/2, not rome_met, exit_=True, label="No")
+        vline(CX, Y["rome"] + DH, Y["baseline"], rome_met, label="Yes")
 
-        # 3. Alarm
-        v_alarm = v_base and not celiac_pos and not missing_base
-        vline(CX, Y["d_base"]+DH, Y["d_alarm"], v_alarm, label="Complete")
-        diamond_node(CX, Y["d_alarm"]+DH/2, DW, DH, dc(v_alarm), "3. Alarm", "Features?")
-        exit_node(REXT, Y["d_alarm"]+(DH-EH)/2, EW, EH, nc(v_alarm and alarm_present, urgent=True), "Urgent Refer", "Endoscopy")
-        elbow_line(CX+DW/2, Y["d_alarm"]+DH/2, REXT, Y["d_alarm"]+(DH-EH)/2+EH/2, v_alarm and alarm_present, urgent=True, label="Yes")
+        # Baseline
+        rect_node(CX - NW/2, Y["baseline"], NW, NH, nc(rome_met), "2. Baseline Investigations", sub="Hx/PE, CBC, ferritin, celiac")
+        exit_node(REXT, Y["baseline"] + 2, EW, EH, nc(rome_met and celiac_positive, urgent=True), "6. Refer", "Positive celiac")
+        elbow_line(CX + NW/2, Y["baseline"] + NH/2, REXT, Y["baseline"] + 2 + EH/2, rome_met and celiac_positive, urgent=True, label="Positive")
+        vline(CX, Y["baseline"] + NH, Y["alarm"], rome_met and baseline_complete and not celiac_positive, label="Complete")
 
-        # 4. Subtype
-        v_sub = v_alarm and not alarm_present
-        vline(CX, Y["d_alarm"]+DH, Y["d_sub"], v_sub, label="No")
-        rect_node(CX-NW/2, Y["d_sub"], NW, NH, nc(v_sub), "4. & 5. IBS Subtype", sub="Determine & Treat")
+        # Alarm
+        diamond_node(CX, Y["alarm"] + DH/2, DW, DH, dc(rome_met and baseline_complete and not celiac_positive), "3. Alarm Features", "Present?")
+        exit_node(REXT, Y["alarm"] + (DH - EH)/2, EW, EH, nc(rome_met and baseline_complete and not celiac_positive and alarm_present, urgent=True), "6. Refer", "Consult / endoscopy")
+        elbow_line(CX + DW/2, Y["alarm"] + DH/2, REXT, Y["alarm"] + (DH - EH)/2 + EH/2, rome_met and baseline_complete and not celiac_positive and alarm_present, urgent=True, label="Yes")
+        vline(CX, Y["alarm"] + DH, Y["general"], presumed_ibs, label="No")
 
-        # 6. IBD Check
-        v_ibd = v_sub and not missing_subtype
-        vline(CX, Y["d_sub"]+NH, Y["d_ibd"], v_ibd)
-        diamond_node(CX, Y["d_ibd"]+DH/2, DW, DH, dc(v_ibd), "6. Suspicion", "of IBD?")
+        # Core treatment
+        rect_node(CX - NW/2, Y["general"], NW, NH, nc(presumed_ibs), "4. Potential Approaches", "All IBS Subtypes", sub="Diet, activity, psychological tx, antispasmodics / peppermint")
+        vline(CX, Y["general"] + NH, Y["subtype"], presumed_ibs)
 
-        # 7. Fecal Calprotectin
-        v_cal = v_ibd and high_ibd
-        vline(CX, Y["d_ibd"]+DH, Y["d_cal"], v_cal, label="Yes")
-        diamond_node(CX, Y["d_cal"]+DH/2, DW, DH, dc(v_cal), "7. Fecal Calprotectin", "> 120 ug/g?")
-        exit_node(REXT, Y["d_cal"]+(DH-EH)/2, EW, EH, nc(v_cal and high_cal, urgent=True), "Elevated FCP", "Refer GI")
-        elbow_line(CX+DW/2, Y["d_cal"]+DH/2, REXT, Y["d_cal"]+(DH-EH)/2+EH/2, v_cal and high_cal, urgent=True, label="Yes")
+        # Subtype decision
+        diamond_node(CX, Y["subtype"] + DH/2, DW, DH, dc(presumed_ibs), "5. IBS Subtype", "?")
 
-        # Bypass rendering for "No" High IBD to Response
-        v_resp_from_ibd = v_ibd and not missing_ibd and not high_ibd
-        if v_resp_from_ibd:
-            svg.append(f'<polyline points="{CX-DW/2},{Y["d_ibd"]+DH/2} {CX-DW/2-40},{Y["d_ibd"]+DH/2} {CX-DW/2-40},{Y["d_resp"]} {CX},{Y["d_resp"]}" fill="none" stroke="{C_MAIN}" stroke-width="2" marker-end="url(#mg)"/>')
-            svgt(CX-DW/2-20, Y["d_ibd"]+DH/2-5, "No", C_MAIN, 10, True)
-        elif not v_ibd:
-            svg.append(f'<polyline points="{CX-DW/2},{Y["d_ibd"]+DH/2} {CX-DW/2-40},{Y["d_ibd"]+DH/2} {CX-DW/2-40},{Y["d_resp"]} {CX},{Y["d_resp"]}" fill="none" stroke="{C_UNVISIT}" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#ma)"/>')
-            svgt(CX-DW/2-20, Y["d_ibd"]+DH/2-5, "No", C_UNVISIT, 10, True)
+        # Subtype boxes
+        subtype_active = presumed_ibs
+        ibsd_vis = subtype_active and is_ibsd
+        ibsmu_vis = subtype_active and is_ibsmu
+        ibsc_vis = subtype_active and is_ibsc
 
-        v_resp_from_cal = v_cal and not missing_cal and not high_cal
-        if v_cal:
-            vline(CX, Y["d_cal"]+DH, Y["d_resp"], v_resp_from_cal, label="No")
-        else:
-            vline(CX, Y["d_cal"]+DH, Y["d_resp"], False)
+        # Left IBS-D
+        exit_node(60, Y["sub_d"], 180, 58, nc(ibsd_vis, exit_=True), "IBS-D", "Loperamide / TCA / probiotic / low FODMAP / rifaximin")
+        elbow_line(CX - DW/2, Y["subtype"] + DH/2, 240, Y["sub_d"] + 29, ibsd_vis, exit_=True, label="IBS-D")
 
-        # 8. Management Response
-        v_resp = v_resp_from_ibd or v_resp_from_cal
-        diamond_node(CX, Y["d_resp"]+DH/2, DW, DH, dc(v_resp), "8. Treatment", "Response?")
-        exit_node(REXT, Y["d_resp"]+(DH-EH)/2, EW, EH, nc(v_resp and unsatisfactory, exit_=True), "Unsatisfactory", "Advice Service")
-        elbow_line(CX+DW/2, Y["d_resp"]+DH/2, REXT, Y["d_resp"]+(DH-EH)/2+EH/2, v_resp and unsatisfactory, exit_=True, label="Unsatisfactory")
+        # Middle IBS-M/U
+        exit_node(CX - 90, Y["sub_mu"], 180, 58, nc(ibsmu_vis, exit_=True), "IBS-M / IBS-U", "Lifestyle / probiotic / low FODMAP / TCA")
+        vline(CX, Y["subtype"] + DH, Y["sub_mu"], ibsmu_vis, label="IBS-M/U")
 
-        # Complete
-        v_comp = v_resp and not missing_resp and not unsatisfactory
-        vline(CX, Y["d_resp"]+DH, Y["complete"], v_comp, exit_=v_comp, label="Satisfactory")
-        rect_node(CX-NW/2, Y["complete"], NW, NH, nc(v_comp, exit_=v_comp), "Pathway Complete", sub="Medical Home Management")
+        # Right IBS-C
+        exit_node(W - 240, Y["sub_c"], 180, 58, nc(ibsc_vis, exit_=True), "IBS-C", "Fibre / fluids / laxatives / secretagogues / SSRIs")
+        elbow_line(CX + DW/2, Y["subtype"] + DH/2, W - 240, Y["sub_c"] + 29, ibsc_vis, exit_=True, label="IBS-C")
 
-        ly = H - 22; lx = 18
+        # IBS-D IBD suspicion branch
+        diamond_node(150, Y["ibd_susp"] + DH/2, 170, 56, dc(ibsd_vis), "High IBD", "Suspicion?")
+        vline(150, Y["sub_d"] + 58, Y["ibd_susp"], ibsd_vis)
+
+        # No high suspicion joins response
+        svg.append(
+            f'<polyline points="65,{Y["ibd_susp"] + DH/2} 35,{Y["ibd_susp"] + DH/2} 35,{Y["response"] + DH/2} 330,{Y["response"] + DH/2}" '
+            f'fill="none" stroke="{"#16a34a" if (ibsd_vis and high_suspicion_ibd is False) else "#64748b"}" stroke-width="2" '
+            f'{" " if (ibsd_vis and high_suspicion_ibd is False) else "stroke-dasharray=\\"5,3\\"" } marker-end="url(#{mid(ibsd_vis and high_suspicion_ibd is False)})"/>'
+        )
+        svgt(50, Y["ibd_susp"] + DH/2 - 8, "No", "#16a34a" if (ibsd_vis and high_suspicion_ibd is False) else "#64748b", 10, True)
+
+        # Yes high suspicion -> FCP
+        elbow_line(235, Y["ibd_susp"] + DH/2, 325, Y["fcp"] + DH/2, ibsd_vis and high_suspicion_ibd is True, label="Yes")
+        diamond_node(410, Y["fcp"] + DH/2, 180, 56, dc(ibsd_vis and high_suspicion_ibd is True), "Fecal Calprotectin", "≥ 120 µg/g?")
+        exit_node(REXT, Y["fcp"] + 4, EW, EH, nc(fcp_high, urgent=True), "6. Refer", "Elevated FCP")
+        elbow_line(500, Y["fcp"] + DH/2, REXT, Y["fcp"] + 4 + EH/2, fcp_high, urgent=True, label="Yes")
+
+        # FCP negative joins response
+        elbow_line(410, Y["fcp"] + DH, CX, Y["response"], ibsd_vis and high_suspicion_ibd is True and not fcp_high and patient_data["fecal_calprotectin_ug_g"] is not None, label="No")
+
+        # M/U and C direct joins response
+        svg.append(
+            f'<line x1="{CX}" y1="{Y["sub_mu"] + 58}" x2="{CX}" y2="{Y["response"]}" '
+            f'stroke="{"#16a34a" if ibsmu_vis else "#64748b"}" stroke-width="2" '
+            f'{" " if ibsmu_vis else "stroke-dasharray=\\"5,3\\"" } marker-end="url(#{mid(ibsmu_vis)})"/>'
+        )
+        svg.append(
+            f'<polyline points="{W - 150},{Y["sub_c"] + 58} {W - 150},{Y["response"] + 30} {CX + 20},{Y["response"] + 30}" '
+            f'fill="none" stroke="{"#16a34a" if ibsc_vis else "#64748b"}" stroke-width="2" '
+            f'{" " if ibsc_vis else "stroke-dasharray=\\"5,3\\"" } marker-end="url(#{mid(ibsc_vis)})"/>'
+        )
+
+        # Response decision
+        diamond_node(CX, Y["response"] + DH/2, DW, DH, dc(response_ready), "Response to", "Treatment?")
+        exit_node(REXT, Y["response"] + (DH - EH)/2, EW, EH, nc(advice_exit, exit_=True), "Advice / Refer", "Unsatisfactory response")
+        elbow_line(CX + DW/2, Y["response"] + DH/2, REXT, Y["response"] + (DH - EH)/2 + EH/2, advice_exit, exit_=True, label="Unsatisfactory")
+        vline(CX, Y["response"] + DH, Y["complete"], complete_in_home, label="Satisfactory")
+        rect_node(CX - NW/2, Y["complete"], NW, NH, nc(complete_in_home, exit_=True), "Continue Care in", "Medical Home")
+
+        ly = H - 24
+        lx = 18
         for col, lbl in [
-            (C_MAIN, "Visited"), (C_DIAMOND, "Decision"),
-            (C_URGENT, "Urgent"), (C_EXIT, "Exit/Off-ramp"), (C_UNVISIT, "Not reached"),
+            (C_MAIN, "Visited"),
+            (C_DIAMOND, "Decision"),
+            (C_URGENT, "Urgent"),
+            (C_EXIT, "Exit/Off-ramp"),
+            (C_UNVISIT, "Not reached"),
         ]:
             svg.append(f'<rect x="{lx}" y="{ly-11}" width="12" height="12" rx="2" fill="{col}"/>')
-            svgt(lx+16, ly, lbl, "#94a3b8", 10, anchor="start")
-            lx += 110
+            svgt(lx + 16, ly, lbl, "#94a3b8", 10, anchor="start")
+            lx += 145
         svg.append("</svg>")
 
         st.subheader("🗺️ Pathway Followed")
         components.html(
-            '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
-            + "".join(svg) + "</div>",
-            height=980, scrolling=True,
+            '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">' + "".join(svg) + "</div>",
+            height=1365,
+            scrolling=True,
         )
 
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
-        st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
-        alarm_fields = [
-            ("family_history_crc_first_degree", "Family hx CRC"),
-            ("family_history_ibd_first_degree", "Family hx IBD"),
-            ("symptom_onset_after_age_50", "Onset > 50yrs"),
-            ("visible_blood_in_stool", "Visible blood"),
-            ("nocturnal_symptoms", "Nocturnal symptoms"),
-            ("iron_deficiency_anemia_present", "IDA"),
-        ]
-        active_alarms = [label for key, label in alarm_fields if patient_data.get(key)]
-        if patient_data.get("unintended_weight_loss_percent_6_to_12_months", 0) > 5.0:
-            active_alarms.append("Weight loss > 5%")
-            
-        alarm_str = ", ".join(active_alarms) if active_alarms else "None"
-        crit_met = "Yes" if ibs_criteria else "No/Unknown"
+        # ── CONTEXT CARD ──────────────────────────────────────────────────────
+        active_alarms = []
+        if family_history_crc:
+            active_alarms.append("Family hx CRC")
+        if family_history_ibd:
+            active_alarms.append("Family hx IBD")
+        if symptom_onset_after_50:
+            active_alarms.append("Onset >50")
+        if visible_blood:
+            active_alarms.append("Visible blood")
+        if nocturnal_symptoms:
+            active_alarms.append("Nocturnal symptoms")
+        if iron_deficiency_anemia:
+            active_alarms.append("IDA")
+        if unintended_weight_loss > 5:
+            active_alarms.append(f"Weight loss {unintended_weight_loss}%")
 
+        alarm_str = ", ".join(active_alarms) if active_alarms else "None"
+        fcp_str = (
+            f"{patient_data['fecal_calprotectin_ug_g']} µg/g"
+            if patient_data["fecal_calprotectin_ug_g"] is not None else "Not done / not recorded"
+        )
+
+        st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
         st.markdown(
             '<div class="ctx-card">'
             f'<span><b>Age / Sex:</b> {age} / {sex.capitalize()}</span><br>'
-            f'<span><b>Criteria Met:</b> {crit_met}</span><br>'
+            f'<span><b>Rome IV Features:</b> {rome_feature_count}/3 | <b>Criteria Met:</b> {"Yes" if rome_met else "No/Unknown"}</span><br>'
+            f'<span><b>Subtype:</b> {subtype} | <b>High IBD Suspicion:</b> {"Yes" if high_suspicion_ibd is True else "No" if high_suspicion_ibd is False else "Unknown"}</span><br>'
+            f'<span><b>Fecal Calprotectin:</b> {fcp_str}</span><br>'
             f'<span><b>Alarm Features:</b> {alarm_str}</span>'
-            "</div>",
+            '</div>',
             unsafe_allow_html=True,
         )
 
+        # ── GROUP ACTIONS LIKE NAFLD PAGE ─────────────────────────────────────
+        STEPGROUPS = {
+            "step1": {"label": "Step 1 — Rome IV Diagnostic Criteria", "icon": "🧠", "cls": "routine"},
+            "step2": {"label": "Step 2 — Baseline Investigations", "icon": "🧪", "cls": "routine"},
+            "step3": {"label": "Step 3 — Alarm Features", "icon": "🚨", "cls": "urgent"},
+            "step4": {"label": "Step 4 — Core IBS Management", "icon": "📘", "cls": "routine"},
+            "step5": {"label": "Step 5 — Subtype-Specific Treatment", "icon": "🧭", "cls": "info"},
+            "step6": {"label": "Step 6 — Escalation / Referral", "icon": "📌", "cls": "warning"},
+        }
+
+        grouped = {k: [] for k in STEPGROUPS}
+        stops_and_requests = []
         override_candidates = []
+
+        for output in outputs:
+            if isinstance(output, (Stop, DataRequest)):
+                stops_and_requests.append(output)
+            elif isinstance(output, Action):
+                g = classify_action(output)
+                grouped[g].append(output)
+                if getattr(output, "override_options", None):
+                    override_candidates.append(output)
+
+        for output in outputs:
+            if isinstance(output, Stop):
+                for a in getattr(output, "actions", []) or []:
+                    if getattr(a, "override_options", None):
+                        override_candidates.append(a)
 
         def _detail_html(details) -> str:
             if not details:
@@ -458,36 +726,40 @@ with right:
             if isinstance(details, dict):
                 for bullet in details.get("bullets", []):
                     items += f"<li>{html.escape(str(bullet))}</li>"
+                for src in details.get("supported_by", []):
+                    items += f"<li>📌 {html.escape(str(src))}</li>"
+                for opt in details.get("options", []):
+                    items += f"<li>🔹 {html.escape(str(opt))}</li>"
                 for note in details.get("notes", []):
                     items += f'<li style="color:#fde68a">⚠️ {html.escape(str(note))}</li>'
-                skip = {"bullets", "notes", "supported_by", "regimen_key"}
+                skip = {"bullets", "supported_by", "options", "notes", "regimen_key"}
                 for k, v in details.items():
-                    if k in skip: continue
+                    if k in skip:
+                        continue
                     if isinstance(v, list) and v:
                         items += "".join(f"<li>{html.escape(str(i))}</li>" for i in v)
                     elif v not in (None, False, "", []):
-                        items += f"<li><b>{html.escape(str(k))}:</b> {html.escape(str(v))}</li>"
+                        items += f"<li><b>{html.escape(_pretty(k))}:</b> {html.escape(str(v))}</li>"
             elif isinstance(details, list):
                 items = "".join(f"<li>{html.escape(str(d))}</li>" for d in details if str(d).strip())
             return f'<ul style="margin:6px 0 0 16px;padding:0">{items}</ul>' if items else ""
 
         def render_action(a: Action, extra_cls: str = "") -> None:
             urgency_to_cls = {
-                "urgent": "urgent", "warning": "warning",
-                None: "routine", "": "routine",
+                "urgent": "urgent",
+                "warning": "warning",
+                None: "routine",
+                "": "routine",
+                "info": "info",
             }
-            cls = urgency_to_cls.get(a.urgency or "", "routine")
-            if extra_cls: cls = extra_cls
-
+            cls = extra_cls or urgency_to_cls.get(a.urgency or "", "routine")
             badge_label = (a.urgency or "info").upper()
             label_html = html.escape(a.label).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
             detail_html = _detail_html(a.details)
             override_html = (
-                '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
-                "🔒 Override available — reason required</p>"
-                if a.override_options else ""
+                '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">🔒 Override available — reason required</p>'
+                if getattr(a, "override_options", None) else ""
             )
-
             st.markdown(
                 f'<div class="action-card {cls}">'
                 f'<h4><span class="badge {cls}">{badge_label}</span> {label_html}</h4>'
@@ -495,40 +767,90 @@ with right:
                 "</div>",
                 unsafe_allow_html=True,
             )
-            if a.override_options:
-                override_candidates.append(a)
+
+        def render_group(gkey: str, actions: list) -> None:
+            if not actions:
+                return
+            g = STEPGROUPS[gkey]
+            cls = g["cls"]
+            icon = g["icon"]
+            label = g["label"]
+            border_colors = {"routine": "#22c55e", "info": "#3b82f6", "urgent": "#ef4444", "warning": "#f59e0b"}
+            bg_colors = {"routine": "#052e16", "info": "#0c1a2e", "urgent": "#3b0a0a", "warning": "#2d1a00"}
+            border = border_colors.get(cls, "#22c55e")
+            bg = bg_colors.get(cls, "#052e16")
+
+            bullets = ""
+            for a in actions:
+                bullets += f'<li style="margin-bottom:5px">{html.escape(a.label)}</li>'
+
+            st.markdown(
+                f'<div style="background:{bg};border-left:5px solid {border};border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                f'<p style="margin:0 0 10px 0;font-size:13px;font-weight:700;color:#e2e8f0;letter-spacing:0.3px">{icon} {html.escape(label)}</p>'
+                f'<ul style="margin:0;padding-left:18px;color:#cbd5e1;font-size:13.5px;line-height:1.7">{bullets}</ul>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        def render_stop_request(output) -> None:
+            if isinstance(output, DataRequest):
+                missing_str = ", ".join(_pretty(f) for f in output.missing_fields)
+                msg_html = html.escape(output.message)
+                st.markdown(
+                    '<div style="background:#2d1a00;border-left:5px solid #f59e0b;border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                    '<p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#fde68a">⏳ Data Required to Proceed</p>'
+                    f'<p style="margin:0 0 6px;font-size:13.5px;color:#fde68a">{msg_html}</p>'
+                    f'<p style="margin:0;font-size:12px;color:#94a3b8">Missing: <code style="color:#fbbf24">{html.escape(missing_str)}</code></p>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+                for sa in getattr(output, "suggested_actions", []) or []:
+                    render_action(sa, extra_cls="info")
+            elif isinstance(output, Stop):
+                reason = output.reason.lower()
+                if any(k in reason for k in ["consult", "endoscopy", "refer", "calprotectin", "celiac"]):
+                    bg, border, tcol = "#3b0a0a", "#ef4444", "#fecaca"
+                elif any(k in reason for k in ["advice", "unsatisfactory", "criteria not met", "not met"]):
+                    bg, border, tcol = "#2d1a00", "#f59e0b", "#fde68a"
+                else:
+                    bg, border, tcol = "#1e1e2e", "#6366f1", "#c7d2fe"
+
+                action_bullets = ""
+                for a in getattr(output, "actions", []) or []:
+                    if getattr(a, "override_options", None) and a not in override_candidates:
+                        override_candidates.append(a)
+                    action_bullets += f'<li style="margin-bottom:5px">{html.escape(a.label)}</li>'
+
+                action_block = (
+                    f'<ul style="margin:10px 0 0;padding-left:18px;color:#cbd5e1;font-size:13.5px;line-height:1.7">{action_bullets}</ul>'
+                    if action_bullets else ""
+                )
+
+                st.markdown(
+                    f'<div style="background:{bg};border-left:5px solid {border};border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                    f'<p style="margin:0 0 6px;font-size:13px;font-weight:700;color:{tcol}">🛑 {html.escape(output.reason)}</p>'
+                    f'{action_block}'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
 
         st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
 
-        for output in outputs:
-            if isinstance(output, Action):
-                render_action(output)
-            elif isinstance(output, DataRequest):
-                missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
-                msg_html = html.escape(output.message).replace("\n", "<br>")
-                st.markdown(
-                    '<div class="action-card warning">'
-                    f'<h4><span class="badge warning">DATA NEEDED</span>'
-                    f' ⏳ {msg_html}</h4>'
-                    f'<ul><li>Missing fields: {missing_str}</li></ul>'
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
-                for sa in output.suggested_actions:
-                    render_action(sa, extra_cls="info")
-            elif isinstance(output, Stop):
-                reason_html = html.escape(output.reason).replace("\n   ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
-                st.markdown(
-                    '<div class="action-card stop">'
-                    f'<h4><span class="badge stop">STOP</span>'
-                    f' 🛑 {reason_html}</h4>'
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
-                for a in output.actions:
-                    render_action(a)
+        blocking = [o for o in stops_and_requests if isinstance(o, DataRequest)]
+        terminal = [o for o in stops_and_requests if isinstance(o, Stop)]
 
+        for o in blocking:
+            render_stop_request(o)
+
+        for gkey in ["step1", "step2", "step3", "step4", "step5", "step6"]:
+            render_group(gkey, grouped.get(gkey, []))
+
+        for o in terminal:
+            render_stop_request(o)
+
+        # ── NOTES / SAVE / DOWNLOAD ───────────────────────────────────────────
         st.markdown('<p class="section-label">CLINICIAN NOTES</p>', unsafe_allow_html=True)
+        st.caption("Optional free-text notes to be attached to the clinical recommendations.")
         st.session_state.ibs_notes = st.text_area(
             "Notes to attach to the saved output:",
             value=st.session_state.ibs_notes,
@@ -538,7 +860,17 @@ with right:
         full_output = {
             "patient_context": patient_data,
             "clinical_recommendations": {
-                "engine_outputs": [{"type": type(o).__name__} for o in outputs],
+                "engine_outputs": [serialize_output(o) for o in outputs],
+                "overrides": [
+                    {
+                        "node": o.target_node,
+                        "field": o.field,
+                        "new_value": o.new_value,
+                        "reason": o.reason,
+                        "created_at": o.created_at.isoformat(),
+                    }
+                    for o in st.session_state.ibs_overrides
+                ],
                 "clinician_notes": st.session_state.ibs_notes,
             },
         }
@@ -557,7 +889,6 @@ with right:
                 overrides=st.session_state.ibs_overrides,
                 notes=st.session_state.ibs_notes,
             )
-
             st.download_button(
                 label="⬇️ Download Markdown summary",
                 data=md_text.encode("utf-8"),
@@ -566,15 +897,29 @@ with right:
                 key="ibs_download_md",
             )
 
-        def _pretty(s: str) -> str:
-            return s.replace("_", " ").title()
-
+        # ── OVERRIDES ─────────────────────────────────────────────────────────
         with override_panel:
             if override_candidates:
                 st.markdown("---")
                 st.markdown('<p class="section-label">CLINICIAN OVERRIDES</p>', unsafe_allow_html=True)
+                st.caption(
+                    "Override engine decisions where clinical judgement differs. "
+                    "A documented reason is required for each override."
+                )
 
+                unique_override_candidates = []
+                seen = set()
                 for a in override_candidates:
+                    opt = getattr(a, "override_options", None)
+                    if not opt:
+                        continue
+                    key = (opt.get("node"), opt.get("field"))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    unique_override_candidates.append(a)
+
+                for a in unique_override_candidates:
                     opt = a.override_options
                     raw_node = opt["node"]
                     raw_field = opt["field"]
@@ -588,12 +933,13 @@ with right:
                             f'<div class="override-card">Engine decision based on: <b>{html.escape(preview)}</b></div>',
                             unsafe_allow_html=True,
                         )
+
                         existing = next(
-                            (o for o in st.session_state.ibs_overrides
-                             if o.target_node == raw_node and o.field == raw_field),
+                            (o for o in st.session_state.ibs_overrides if o.target_node == raw_node and o.field == raw_field),
                             None,
                         )
                         current_val = existing.new_value if existing else None
+
                         new_val = st.radio(
                             f"Set `{field}` to:",
                             options=allowed,
@@ -601,11 +947,14 @@ with right:
                             key=f"ov_val_{raw_node}_{raw_field}",
                             horizontal=True,
                         )
+
                         reason = st.text_input(
                             "Reason (required):",
                             value=existing.reason if existing else "",
                             key=f"ov_reason_{raw_node}_{raw_field}",
+                            placeholder="Document clinical rationale...",
                         )
+
                         col1, col2 = st.columns(2)
                         with col1:
                             if st.button("✅ Apply Override", key=f"ov_apply_{raw_node}_{raw_field}"):
@@ -626,6 +975,7 @@ with right:
                                         )
                                     )
                                     st.success("Override applied. Click **▶ Run Pathway** to re-evaluate.")
+
                         with col2:
                             if existing and st.button("🗑 Remove Override", key=f"ov_remove_{raw_node}_{raw_field}"):
                                 st.session_state.ibs_overrides = [
@@ -642,12 +992,12 @@ with right:
                             f'🛠 <b>{html.escape(_pretty(o.target_node))}</b> → <code>{html.escape(_pretty(o.field))}</code>'
                             f' set to <b>{html.escape(str(o.new_value))}</b><br>'
                             f'<span style="color:#a5b4fc">Reason: {html.escape(o.reason)}</span><br>'
-                            f'<span style="color:#64748b;font-size:11px">'
-                            f'Applied: {o.created_at.strftime("%H:%M:%S")}</span>'
-                            "</div>",
+                            f'<span style="color:#64748b;font-size:11px">Applied: {o.created_at.strftime("%H:%M:%S")}</span>'
+                            '</div>',
                             unsafe_allow_html=True,
                         )
 
+        # ── AUDIT LOG ─────────────────────────────────────────────────────────
         with st.expander("📋 Decision Audit Log"):
             for log in logs:
                 try:
@@ -655,11 +1005,5 @@ with right:
                 except Exception:
                     ts = "—"
                 st.markdown(f"**[{ts}] {log.node}** → _{log.decision}_")
-                if log.used_inputs:
-                    st.caption(
-                        "  ".join(
-                            f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None
-                        )
-                    )
-    else:
-        st.info("Fill in patient details on the left, then click **▶ Run Pathway**.")
+                if getattr(log, "used_inputs", None):
+                    st.caption("  ".join(f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None))
