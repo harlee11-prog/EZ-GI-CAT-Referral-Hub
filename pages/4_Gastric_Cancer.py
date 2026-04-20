@@ -38,13 +38,14 @@ def build_gc_markdown(patient_data, outputs, overrides, notes: str) -> str:
     lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     lines.append("")
     lines.append("## Patient Context")
+    ctx = _safe_text(patient_data.get('patient_context'))
+    lines.append(f"- **Pathway Context:** {ctx.replace('_', ' ').title()}")
+    lines.append(f"- **Age:** {_safe_text(patient_data.get('age')) or 'Unknown'}")
     
-    ctx_str = str(patient_data.get('patient_context', '')).replace('_', ' ').title()
-    lines.append(f"- **Pathway Context:** {ctx_str}")
-    lines.append(f"- **Age:** {patient_data.get('age', 'Not entered')}")
-    lines.append(f"- **Asymptomatic:** {'Yes' if patient_data.get('asymptomatic') else 'No' if patient_data.get('asymptomatic') is False else 'Unknown'}")
-    lines.append(f"- **Dyspepsia > 1 month:** {'Yes' if patient_data.get('symptomatic_dyspepsia_over_1_month') else 'No' if patient_data.get('symptomatic_dyspepsia_over_1_month') is False else 'Unknown'}")
-    lines.append(f"- **Smoking Pack Years:** {patient_data.get('smoking_pack_years', 'Not entered')}")
+    if ctx == "asymptomatic_screening":
+        lines.append(f"- **Asymptomatic:** {'Yes' if patient_data.get('asymptomatic') else 'No'}")
+    if ctx == "symptomatic_dyspepsia":
+        lines.append(f"- **Dyspepsia >1 month:** {'Yes' if patient_data.get('symptomatic_dyspepsia_over_1_month') else 'No'}")
     lines.append("")
     
     lines.append("## Clinical Recommendations")
@@ -61,13 +62,12 @@ def build_gc_markdown(patient_data, outputs, overrides, notes: str) -> str:
                         lines.append(f"  - Support: {_safe_text(src)}")
                     skip = {"supported_by"}
                     for k, v in o.details.items():
-                        if k in skip:
-                            continue
+                        if k in skip: continue
                         if isinstance(v, list):
                             for item in v:
                                 lines.append(f"  - {_safe_text(item)}")
                         elif v not in (None, False, "", []):
-                            lines.append(f"  - {_pretty(k)}: {_safe_text(v)}")
+                            lines.append(f"  - {_safe_text(k).replace('_', ' ').title()}: {_safe_text(v)}")
             elif isinstance(o, Stop):
                 reason = _safe_text(o.reason)
                 lines.append(f"- **[STOP]** {reason}")
@@ -76,14 +76,10 @@ def build_gc_markdown(patient_data, outputs, overrides, notes: str) -> str:
                         lines.append(f"  - Follow-up: {_safe_text(a.label)}")
             elif isinstance(o, DataRequest):
                 msg = _safe_text(o.message)
-                missing = ", ".join(_pretty(f) for f in o.missing_fields)
+                missing = ", ".join(f for f in o.missing_fields)
                 lines.append(f"- **[DATA NEEDED]** {msg}")
                 lines.append(f"  - Missing fields: {missing}")
-                if getattr(o, "suggested_actions", None):
-                    for a in o.suggested_actions:
-                        lines.append(f"  - Suggested action: {_safe_text(a.label)}")
     lines.append("")
-    
     lines.append("## Active Overrides")
     if overrides:
         for ov in overrides:
@@ -96,7 +92,6 @@ def build_gc_markdown(patient_data, outputs, overrides, notes: str) -> str:
     else:
         lines.append("- No active overrides.")
     lines.append("")
-    
     lines.append("## Clinician Notes")
     lines.append(
         notes.strip() if notes and notes.strip() else "No clinician notes entered."
@@ -148,7 +143,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("Gastric Cancer Prevention, Screening & Diagnosis")
+st.title("Gastric Cancer")
 st.markdown("---")
 
 
@@ -171,53 +166,57 @@ with left:
     st.subheader("Patient Information")
 
     context_sel = st.radio(
-        "Pathway Context",
+        "Pathway Target Context",
         ["Primary Prevention", "Targeted Screening (Asymptomatic)", "Symptomatic Dyspepsia"],
-        help="Select the specific branch of the pathway to evaluate."
+        help="Select the appropriate branch of the clinical pathway for this patient."
     )
     ctx_map = {
         "Primary Prevention": "prevention",
         "Targeted Screening (Asymptomatic)": "asymptomatic_screening",
         "Symptomatic Dyspepsia": "symptomatic_dyspepsia"
     }
-
+    
     st.markdown("**Demographics**")
-    age = st.number_input("Age", 18, 120, value=52)
-
+    age = st.number_input("Age", 1, 120, value=50)
+    
     st.markdown("**Prevention & Screening Risk Factors**")
-    from_endemic = st.checkbox("Immigrant (1st gen) from high-risk region", help="East Asia, Eastern Europe, Central/South America")
-    family_origin = st.checkbox("Family origins in endemic region")
-    hh_hp_positive = st.checkbox("Household member H. pylori positive")
-    
-    fh_gastric = st.checkbox("1st-degree relative with gastric cancer")
-    fh_age = st.number_input("Age of relative at diagnosis (if applicable)", min_value=0, max_value=120, value=0, help="Leave 0 if unknown/not applicable.")
-    
-    hereditary_synd = st.checkbox("Hereditary GI polyposis or cancer syndrome", help="e.g. FAP, Lynch, Peutz-Jeghers")
-    chronic_hp = st.checkbox("Chronic H. pylori infection (ongoing, untreated)")
-    
-    col_l, col_r = st.columns(2)
-    with col_l:
-        pack_years = st.number_input("Smoking Pack Years", min_value=0, value=0)
-    with col_r:
+    col1, col2 = st.columns(2)
+    with col1:
+        from_endemic = st.checkbox("Immigrant from high-risk region")
+        family_origin = st.checkbox("Family origins in endemic region")
+        hh_hp_positive = st.checkbox("Household member H. pylori positive")
+        chronic_hp = st.checkbox("Chronic H. pylori infection")
+        pack_years = st.number_input("Smoking Pack Years", 0, 150, value=0)
+    with col2:
+        fh_gastric = st.checkbox("1st-degree relative with gastric cancer")
+        fh_age = st.number_input("Age of relative at diagnosis (if applicable)", 0, 120, value=0)
+        hereditary_synd = st.checkbox("Hereditary GI polyposis or cancer syndrome")
+        high_risk_diet = st.checkbox("High salt, red/processed meat diet")
         low_ses = st.checkbox("Low socioeconomic status")
-    high_risk_diet = st.checkbox("High salt, red meat, processed meat/foods diet")
 
-    st.markdown("**Symptomatic & Alarm Features**")
-    dyspepsia_1mo = st.checkbox("Dyspepsia symptoms > 1 month", help="Epigastric pain, bloating, early satiety")
-    
-    st.markdown("*Alarm Features*")
-    al_fh_cancer = st.checkbox("Family history (1st degree) esophageal or gastric cancer")
-    al_onset_60 = st.checkbox("Age > 60 with new and persistent symptoms (>3 months)")
-    al_wt_loss = st.checkbox("Unexplained weight loss (≥5% over 6-12 months)")
-    al_bleed = st.checkbox("GI Bleeding (Black stool or blood in vomit)")
-    al_dysphagia = st.checkbox("Progressive dysphagia")
-    al_vomit = st.checkbox("Persistent vomiting (not cannabis-related)")
-    al_ida = st.checkbox("Iron deficiency anemia")
-    al_imaging = st.checkbox("Concerning imaging findings for gastric cancer")
-
-    st.markdown("**Management Response**")
-    unsat_mgmt = st.checkbox("Unsatisfactory response to symptomatic management / pharma therapy")
-    advice_considered = st.checkbox("Specialist advice service considered prior to referral")
+    if context_sel == "Symptomatic Dyspepsia":
+        st.markdown("**Symptomatic & Alarm Features**")
+        dyspepsia_1mo = st.checkbox("Dyspepsia symptoms > 1 month", value=True)
+        
+        st.markdown("*Alarm Features*")
+        al_fh_cancer = st.checkbox("Family history (1st degree) esophageal/gastric cancer")
+        al_onset_60 = st.checkbox("Age > 60 with new and persistent symptoms")
+        al_wt_loss = st.checkbox("Unintended weight loss (≥5%)")
+        al_dysphagia = st.checkbox("Progressive dysphagia")
+        al_vomit = st.checkbox("Persistent vomiting (not cannabis related)")
+        al_bleed = st.checkbox("Black stool or blood in vomit")
+        al_ida = st.checkbox("Iron deficiency anemia")
+        al_imaging = st.checkbox("Concerning imaging for gastric cancer")
+        
+        st.markdown("**Management Response**")
+        unsat_mgmt = st.checkbox("Unsatisfactory response to primary care management")
+        advice_considered = st.checkbox("Specialist advice service considered")
+    else:
+        # Default asymptomatic/prevention
+        dyspepsia_1mo = False
+        al_fh_cancer = al_onset_60 = al_wt_loss = al_dysphagia = False
+        al_vomit = al_bleed = al_ida = al_imaging = False
+        unsat_mgmt = advice_considered = False
 
     run_clicked = st.button("▶ Run Pathway", type="primary", use_container_width=True)
     if run_clicked:
@@ -241,7 +240,7 @@ with right:
         patient_data = {
             "patient_context": ctx_map[context_sel],
             "age": age,
-            "asymptomatic": ctx_map[context_sel] == "asymptomatic_screening",
+            "asymptomatic": context_sel == "Targeted Screening (Asymptomatic)",
             "from_endemic_region": from_endemic or None,
             "family_origin_endemic_region": family_origin or None,
             "household_member_h_pylori_positive": hh_hp_positive or None,
@@ -270,20 +269,21 @@ with right:
         )
 
         # ── Compute derived flags for SVG ──────────────────────────────────
+        ctx_prev = patient_data["patient_context"] == "prevention"
+        ctx_asym = patient_data["patient_context"] == "asymptomatic_screening"
+        ctx_symp = patient_data["patient_context"] == "symptomatic_dyspepsia"
+
         asym_visited = any(l.node == "Targeted_Screening_Risk_Assessment" for l in logs)
         symp_visited = any(l.node == "Symptomatic_Dyspepsia_Assessment" for l in logs)
         alarm_visited = any(l.node == "Alarm_Features_Symptomatic" for l in logs)
         mgmt_visited = any(l.node == "Management_Response_Symptomatic" for l in logs)
-        
+
         screening_yes = any(l.decision == "SCREENING_INDICATED" for l in logs)
         screening_no = any(l.decision == "SCREENING_NOT_INDICATED" for l in logs)
         alarm_yes = any(l.decision == "SYMPTOMATIC_ALARM_PRESENT" for l in logs)
-        mgmt_refer = any(l.decision in ["FAILED_MANAGEMENT_REFER", "FAILED_MANAGEMENT_ADVICE_FIRST"] for l in logs)
+        mgmt_refer = any(l.decision == "FAILED_MANAGEMENT_REFER" for l in logs)
+        mgmt_advice = any(l.decision == "FAILED_MANAGEMENT_ADVICE_FIRST" for l in logs)
         mgmt_continue = any(l.decision == "PATHWAY_COMPLETE" for l in logs)
-
-        ctx_prev = patient_data["patient_context"] == "prevention"
-        ctx_asym = patient_data["patient_context"] == "asymptomatic_screening"
-        ctx_symp = patient_data["patient_context"] == "symptomatic_dyspepsia"
 
         # ── SVG PATHWAY VISUAL ─────────────────────────────────────────────
         C_MAIN = "#16a34a"; C_UNVISIT = "#475569"; C_DIAMOND = "#1d4ed8"
@@ -296,8 +296,7 @@ with right:
             if exit_: return C_EXIT
             return C_MAIN
 
-        def dc(vis):
-            return C_DIAMOND if vis else C_UNVISIT
+        def dc(vis): return C_DIAMOND if vis else C_UNVISIT
 
         def mid(vis, urgent=False, exit_=False):
             if not vis: return "ma"
@@ -306,7 +305,7 @@ with right:
             return "mg"
 
         svg = []
-        W, H = 820, 680
+        W, H = 700, 720
         svg.append(
             f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="{H}" '
             f'viewBox="0 0 {W} {H}" '
@@ -314,14 +313,10 @@ with right:
         )
         svg.append(
             "<defs>"
-            '<marker id="ma" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
-            '<path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>'
-            '<marker id="mg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
-            '<path d="M0,0 L0,6 L9,3 z" fill="#16a34a"/></marker>'
-            '<marker id="mr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
-            '<path d="M0,0 L0,6 L9,3 z" fill="#dc2626"/></marker>'
-            '<marker id="mo" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">'
-            '<path d="M0,0 L0,6 L9,3 z" fill="#d97706"/></marker>'
+            '<marker id="ma" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>'
+            '<marker id="mg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#16a34a"/></marker>'
+            '<marker id="mr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#dc2626"/></marker>'
+            '<marker id="mo" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#d97706"/></marker>'
             "</defs>"
         )
 
@@ -393,64 +388,64 @@ with right:
             if label:
                 svgt((x1+x2)/2, y1-5, label, stroke, 10, True)
 
-        # ── 3-Lane PDF Layout ──────────────────────────────────────────────
-        NW, NH = 160, 50; DW, DH = 170, 58; EW, EH = 140, 46
-        XC = 410  # Center lane (Asymptomatic)
-        XL = 160  # Left lane (Prevention)
-        XR = 660  # Right lane (Symptomatic)
-        
-        Y_START = 50
-        Y_L1 = 160
-        Y_L2 = 280
-        Y_L3 = 400
-        Y_L4 = 520
+        # ── Layout constants ──────────────────────────────────────────────
+        CX = 350; NW, NH = 180, 50; DW, DH = 180, 60; EW, EH = 130, 44
+        LX = 150; RX = 550
 
-        # Top Node Router
-        rect_node(XC-NW/2, Y_START, NW, NH, nc(True), "Patient Context", sub="Select Pathway Branch")
-        
-        # Branch Lines
-        elbow_line(XC-NW/2, Y_START+NH/2, XL, Y_L1-NH/2, ctx_prev, label="Prevention")
-        vline(XC, Y_START+NH, Y_L1-DH/2, ctx_asym, label="Asymptomatic")
-        elbow_line(XC+NW/2, Y_START+NH/2, XR, Y_L1-NH/2, ctx_symp, label="Symptomatic")
+        Y = {
+            "root": 30,
+            "level1": 130,
+            "level2": 240,
+            "level3": 350,
+            "level4": 460,
+            "level5": 570,
+        }
 
-        # ── Lane 1 (Left): Primary Prevention ───────────────────────────────
-        rect_node(XL-NW/2, Y_L1-NH/2, NW, NH, nc(ctx_prev), "Primary Prevention", "for ALL", sub="Modifiable Risk Factors")
-        vline(XL, Y_L1+NH/2, Y_L2-EH/2, ctx_prev)
-        exit_node(XL-EW/2, Y_L2-EH/2, EW, EH+20, nc(ctx_prev, exit_=True), "Screening NOT Indicated.", "Counsel on primary", rx=5)
-        svgt(XL, Y_L2+EH/2+10, "prevention & reassess.", C_TEXT if ctx_prev else C_DIM, 9)
+        # ── Context Node ──────────────────────────────────────────────────
+        diamond_node(CX, Y["root"]+DH/2, DW, DH, dc(True), "Patient Context")
 
-        # ── Lane 2 (Center): Asymptomatic Screening ─────────────────────────
-        diamond_node(XC, Y_L1, DW, DH, dc(asym_visited), "Risk Assessment for", "Targeted Screening")
-        
-        # Yes -> Screening
-        vline(XC, Y_L1+DH/2, Y_L2-EH/2, screening_yes, urgent=True, label="Yes")
-        exit_node(XC-EW/2, Y_L2-EH/2, EW, EH, nc(screening_yes, urgent=True), "Consider Screening", "Endoscopy")
-        
-        # No -> Point to Prevention
-        elbow_line(XC-DW/2, Y_L1, XL+EW/2+10, Y_L2-EH/2, screening_no, exit_=True, label="No")
+        # ── Left Branch: Asymptomatic ─────────────────────────────────────
+        elbow_line(CX-DW/2, Y["root"]+DH/2, LX, Y["level1"], ctx_asym, label="Asymptomatic")
+        diamond_node(LX, Y["level1"]+DH/2, DW-20, DH, dc(asym_visited), "Risk Assessment", "Targeted Screening")
 
-        # ── Lane 3 (Right): Symptomatic Dyspepsia ───────────────────────────
-        rect_node(XR-NW/2, Y_L1-NH/2, NW, NH, nc(symp_visited), "Dyspepsia Symptoms", "(> 1 month)")
-        vline(XR, Y_L1+NH/2, Y_L2-DH/2, alarm_visited)
+        # Screening Yes
+        elbow_line(LX, Y["level1"]+DH, LX-80, Y["level2"], screening_no, exit_=True, label="No")
+        exit_node(LX-80-EW/2, Y["level2"], EW, EH, nc(screening_no, exit_=True), "Screening", "Not Indicated")
         
-        diamond_node(XR, Y_L2, DW, DH, dc(alarm_visited), "Assess for", "Alarm Features")
+        # Screening No
+        elbow_line(LX, Y["level1"]+DH, LX+80, Y["level2"], screening_yes, urgent=True, label="Yes")
+        exit_node(LX+80-EW/2, Y["level2"], EW, EH, nc(screening_yes, urgent=True), "Consider Elective", "Endoscopy")
+
+        # ── Right Branch: Prevention ──────────────────────────────────────
+        elbow_line(CX+DW/2, Y["root"]+DH/2, RX, Y["level1"], ctx_prev, label="Prevention")
+        rect_node(RX-NW/2, Y["level1"]+DH/2-NH/2, NW, NH, nc(ctx_prev), "Primary Prevention", sub="Smoking, Diet, Alcohol")
         
-        # Yes -> Urgent Referral
-        elbow_line(XR+DW/2, Y_L2, W-EW-20+EW/2, Y_L3-EH/2, alarm_yes, urgent=True, label="Yes")
-        exit_node(W-EW-20, Y_L3-EH/2, EW, EH, nc(alarm_yes, urgent=True), "Refer to Local GI /", "Endoscopy Provider")
-        
-        # No -> Continue Dyspepsia
-        vline(XR, Y_L2+DH/2, Y_L3-DH/2, mgmt_visited, label="No")
-        diamond_node(XR, Y_L3, DW, DH, dc(mgmt_visited), "Management Response", "Unsatisfactory?")
-        
-        # Yes -> Refer
-        elbow_line(XR+DW/2, Y_L3, W-EW-20+EW/2, Y_L4-EH/2, mgmt_refer, urgent=True, label="Yes")
-        exit_node(W-EW-20, Y_L4-EH/2, EW, EH, nc(mgmt_refer, exit_=True), "Refer for", "Failed Management")
-        
-        # No -> Continue Primary Care
-        vline(XR, Y_L3+DH/2, Y_L4-EH/2, mgmt_continue, exit_=True, label="No")
-        exit_node(XR-EW/2, Y_L4-EH/2, EW, EH+15, nc(mgmt_continue, exit_=True), "Continue to manage", "within primary care", rx=5)
-        svgt(XR, Y_L4+EH/2+5, "as per dyspepsia pathway", C_TEXT if mgmt_continue else C_DIM, 9)
+        vline(RX, Y["level1"]+DH/2+NH/2, Y["level2"], ctx_prev)
+        exit_node(RX-EW/2, Y["level2"], EW, EH, nc(ctx_prev, exit_=True), "Test/Eradicate", "H. Pylori (If indicated)")
+
+        # ── Center Branch: Symptomatic ────────────────────────────────────
+        vline(CX, Y["root"]+DH, Y["level1"], ctx_symp, label="Symptomatic")
+        rect_node(CX-NW/2, Y["level1"], NW, NH, nc(symp_visited), "Dyspepsia > 1 month")
+
+        vline(CX, Y["level1"]+NH, Y["level2"], alarm_visited)
+        diamond_node(CX, Y["level2"]+DH/2, DW, DH, dc(alarm_visited), "Alarm Features", "Present?")
+
+        # Alarm Yes
+        elbow_line(CX+DW/2, Y["level2"]+DH/2, CX+160, Y["level3"], alarm_yes, urgent=True, label="Yes")
+        exit_node(CX+160-EW/2, Y["level3"], EW, EH, nc(alarm_yes, urgent=True), "Urgent Referral", "GI/Endoscopy")
+
+        # Alarm No
+        vline(CX, Y["level2"]+DH, Y["level3"], mgmt_visited, label="No")
+        diamond_node(CX, Y["level3"]+DH/2, DW, DH, dc(mgmt_visited), "Management Response", "Unsatisfactory?")
+
+        # Mgmt Yes
+        elbow_line(CX+DW/2, Y["level3"]+DH/2, CX+160, Y["level4"], mgmt_refer or mgmt_advice, urgent=True, label="Yes")
+        exit_node(CX+160-EW/2, Y["level4"], EW, EH, nc(mgmt_refer or mgmt_advice, exit_=True), "Refer", "Failed Management")
+
+        # Mgmt No
+        vline(CX, Y["level3"]+DH, Y["level4"], mgmt_continue, label="No")
+        exit_node(CX-EW/2, Y["level4"], EW, EH, nc(mgmt_continue, exit_=True), "Continue Primary", "Care Management")
+
 
         # ── Legend ─────────────────────────────────────────────────────────
         ly = H - 22; lx = 18
@@ -467,22 +462,19 @@ with right:
         components.html(
             '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
             + "".join(svg) + "</div>",
-            height=720, scrolling=True,
+            height=760, scrolling=True,
         )
 
         st.markdown("---")
         st.subheader("Clinical Recommendations")
 
         # ── Patient context card ───────────────────────────────────────────
-        ctx_display = str(patient_data["patient_context"]).replace("_", " ").title()
-        
         st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
         st.markdown(
             '<div class="ctx-card">'
-            f'<span><b>Pathway Branch:</b> {ctx_display}</span><br>'
-            f'<span><b>Age:</b> {age} &nbsp;|&nbsp; <b>Smoking Pack Years:</b> {pack_years}</span><br>'
-            f'<span><b>Asymptomatic:</b> {"Yes" if patient_data["asymptomatic"] else "No"} &nbsp;|&nbsp; '
-            f'<b>Dyspepsia > 1 month:</b> {"Yes" if dyspepsia_1mo else "No"}</span>'
+            f'<span><b>Pathway Context:</b> {ctx_map[context_sel].replace("_", " ").title()}</span><br>'
+            f'<span><b>Age:</b> {age}</span><br>'
+            f'<span><b>Smoking Pack Years:</b> {pack_years}</span>'
             "</div>",
             unsafe_allow_html=True,
         )
@@ -492,31 +484,57 @@ with right:
         # ── Step grouping map ──────────────────────────────────────────────
         STEP_GROUPS = {
             "prevention": {
-                "label": "Primary Prevention & Counseling",
+                "label": "Primary Prevention Strategies",
                 "icon": "🛡️",
-                "cls": "info",
+                "cls": "routine",
                 "codes": {
-                    "CONSIDER_H_PYLORI_TESTING_PREVENTION", "COUNSEL_SMOKING_CESSATION",
-                    "COUNSEL_ALCOHOL_MODERATION", "COUNSEL_DIETARY_RISK_REDUCTION"
+                    "CONSIDER_H_PYLORI_TESTING_PREVENTION",
+                    "COUNSEL_SMOKING_CESSATION",
+                    "COUNSEL_ALCOHOL_MODERATION",
+                    "COUNSEL_DIETARY_RISK_REDUCTION",
+                    "PRIMARY_PREVENTION_COMPLETE"
+                },
+            },
+            "screening": {
+                "label": "Targeted Screening Assessment",
+                "icon": "🔍",
+                "cls": "routine",
+                "codes": {
+                    "CAPTURE_AGE",
+                    "NOT_ASYMPTOMATIC_SCREENING_CANDIDATE",
+                    "CAPTURE_ASYMPTOMATIC_STATUS"
                 },
             },
             "dyspepsia": {
-                "label": "Dyspepsia Management",
-                "icon": "📋",
+                "label": "Symptomatic Dyspepsia Assessment",
+                "icon": "🩺",
                 "cls": "routine",
                 "codes": {
-                    "CHAIN_DYSPEPSIA_PATHWAY", "ROUTE_DYSPEPSIA_PATHWAY",
-                    "NO_SYMPTOMATIC_ALARM_FEATURES", "DYSPEPSIA_CHAIN_FAILED", "DYSPEPSIA_INPUT_MISSING"
+                    "CAPTURE_DYSPEPSIA_STATUS",
+                    "NOT_SYMPTOMATIC_DYSPEPSIA",
+                    "CHAIN_DYSPEPSIA_PATHWAY",
+                    "ROUTE_DYSPEPSIA_PATHWAY",
+                    "DYSPEPSIA_INPUT_MISSING",
+                    "DYSPEPSIA_CHAIN_FAILED"
                 },
             },
-            "advisory": {
-                "label": "Specialist Advisory",
-                "icon": "📞",
+            "alarm": {
+                "label": "Alarm Features Checklist",
+                "icon": "🚨",
+                "cls": "routine",
+                "codes": {
+                    "NO_SYMPTOMATIC_ALARM_FEATURES"
+                },
+            },
+            "management": {
+                "label": "Management Response",
+                "icon": "💊",
                 "cls": "warning",
                 "codes": {
+                    "CAPTURE_MANAGEMENT_RESPONSE",
                     "CONSIDER_ADVICE_SERVICE"
                 },
-            }
+            },
         }
 
         # Build code → group lookup
@@ -533,15 +551,13 @@ with right:
             if isinstance(output, (Stop, DataRequest)):
                 stops_and_requests.append(output)
             elif isinstance(output, Action):
-                # Dynamically catch DYSP_ actions
+                gkey = code_to_group.get(output.code)
                 if output.code.startswith("DYSP_"):
                     grouped["dyspepsia"].append(output)
-                else:
-                    gkey = code_to_group.get(output.code)
-                    if gkey:
-                        grouped[gkey].append(output)
-        
-        # Also collect Stop.actions for override candidates
+                elif gkey:
+                    grouped[gkey].append(output)
+
+        # Collect Stop.actions for override candidates
         for output in outputs:
             if isinstance(output, Stop):
                 for a in output.actions:
@@ -568,7 +584,6 @@ with right:
             border = border_colors.get(cls, "#22c55e")
             bg = bg_colors.get(cls, "#052e16")
 
-            # Collect override-bearing actions
             for a in actions:
                 if a.override_options:
                     override_candidates.append(a)
@@ -613,30 +628,20 @@ with right:
                     unsafe_allow_html=True,
                 )
             elif isinstance(output, Stop):
-                # Determine classification
-                is_complete = "completed" in output.reason.lower() or "not indicated" in output.reason.lower() or "continue" in output.reason.lower()
-                is_refer = "refer" in output.reason.lower() or "indicated" in output.reason.lower()
-                is_invalid = "invalid" in output.reason.lower() or "applies to" in output.reason.lower() or "requires" in output.reason.lower()
-
+                is_urgent = output.urgency == "urgent"
+                is_complete = "continue" in output.reason.lower() or "completed" in output.reason.lower()
+                
                 if is_complete:
                     bg, border, icon = "#052e16", "#22c55e", "✅"
-                    title = "Pathway Complete — Continue Care in Patient Medical Home"
                     tcol = "#bbf7d0"
-                elif is_refer:
+                elif is_urgent:
                     bg, border, icon = "#3b0a0a", "#ef4444", "🏥"
-                    title = "Referral Required / Screening Indicated"
                     tcol = "#fecaca"
-                elif is_invalid:
-                    bg, border, icon = "#2d1a00", "#f59e0b", "⚠️"
-                    title = "Pathway Condition Not Met"
-                    tcol = "#fde68a"
                 else:
                     bg, border, icon = "#1e1e2e", "#6366f1", "ℹ️"
-                    title = output.reason
                     tcol = "#c7d2fe"
 
-                # If the title is generic, prefix the actual reason
-                display_title = f"{title}: {output.reason}" if title != output.reason and not is_invalid else output.reason
+                title = output.reason
 
                 action_bullets = "".join(
                     f'<li style="margin-bottom:5px">{html.escape(a.label)}'
@@ -657,7 +662,7 @@ with right:
                     f'<div style="background:{bg};border-left:5px solid {border};'
                     f'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
                     f'<p style="margin:0 0 {"6px" if action_block else "0"};font-size:13px;'
-                    f'font-weight:700;color:{tcol}">{icon} {html.escape(display_title)}</p>'
+                    f'font-weight:700;color:{tcol}">{icon} {html.escape(title)}</p>'
                     f'{action_block}</div>',
                     unsafe_allow_html=True,
                 )
@@ -665,27 +670,23 @@ with right:
         # ── Render everything ──────────────────────────────────────────────
         st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
 
-        # Priority stops / data requests first
         blocking = [o for o in stops_and_requests if isinstance(o, DataRequest)]
         for o in blocking:
             render_stop_request(o)
 
-        # Grouped action steps in order
         for gkey in STEP_GROUPS:
             render_group(gkey, grouped[gkey])
 
-        # Terminal outcomes
         terminal = [o for o in stops_and_requests if isinstance(o, Stop)]
         for o in terminal:
             render_stop_request(o)
 
         # ── Clinician Notes ────────────────────────────────────────────────
         st.markdown('<p class="section-label">CLINICIAN NOTES</p>', unsafe_allow_html=True)
-        st.caption("Optional free-text notes to be attached to the clinical recommendations.")
         st.session_state.gc_notes = st.text_area(
             "Notes to attach to the saved output:",
             value=st.session_state.gc_notes,
-            height=120,
+            height=180,
         )
 
         # ── Save / Download ────────────────────────────────────────────────
@@ -743,10 +744,6 @@ with right:
             if override_candidates:
                 st.markdown("---")
                 st.markdown('<p class="section-label">CLINICIAN OVERRIDES</p>', unsafe_allow_html=True)
-                st.caption(
-                    "Override engine decisions where clinical judgement differs. "
-                    "A documented reason is required for each override."
-                )
 
                 for a in override_candidates:
                     opt = a.override_options
@@ -831,4 +828,7 @@ with right:
                 except Exception:
                     ts = "—"
                 st.markdown(f"**[{ts}] {log.node}** → _{log.decision}_")
-                if log.used_inputs
+                if log.used_inputs:
+                    st.caption(
+                        "  ".join(f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None)
+                    )
