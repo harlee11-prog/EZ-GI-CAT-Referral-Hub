@@ -35,7 +35,9 @@ def build_constipation_markdown(patient_data, outputs, overrides, notes: str) ->
     lines.append(f"- **Age / Sex:** {patient_data.get('age', 'Unknown')} / {str(patient_data.get('sex', 'Unknown')).capitalize()}")
     lines.append(f"- **SBMs per week:** {_safe_text(patient_data.get('spontaneous_bowel_movements_per_week'))}")
     lines.append(f"- **Symptom months (last 6):** {_safe_text(patient_data.get('symptom_months_present_last_6'))}")
+    lines.append(f"- **Symptom onset ≥6 months ago:** {_safe_text(patient_data.get('symptom_onset_6_months_or_more_ago'))}")
     lines.append(f"- **Predominant Pain/Bloating:** {_safe_text(patient_data.get('predominant_pain_or_bloating'))}")
+    lines.append(f"- **Loose stools rarely without laxatives:** {_safe_text(patient_data.get('loose_stools_rarely_without_laxatives'))}")
     lines.append(f"- **Management months trialed:** {_safe_text(patient_data.get('management_months_trialed'))}")
     lines.append("")
     lines.append("## Clinical Recommendations")
@@ -116,6 +118,13 @@ st.markdown("""
 .override-tag .ov-time  { color: #64748b; font-size: 0.63rem; }
 .pill-info { background:#1e3a5f; color:#7ec8e3; font-size:0.65rem; padding:2px 8px; border-radius:999px; }
 .override-avail { font-size:0.64rem; color:#94a3b8; font-style:italic; margin-top:4px; display:block; }
+.rome-criteria-box {
+    background: #0f2027; border: 1px solid #1e4d6b; border-radius: 8px;
+    padding: 10px 14px; margin: 8px 0 14px 0; font-size: 0.78rem; color: #94a3b8;
+}
+.rome-criteria-box .rome-met { color: #4ade80; font-weight: 700; }
+.rome-criteria-box .rome-unmet { color: #f87171; }
+.rome-criteria-box .rome-partial { color: #fbbf24; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -137,29 +146,142 @@ with left:
     sex = st.selectbox("Sex", ["male", "female"])
     elderly_patient = age >= 65
 
-    st.markdown("**Diagnostic Criteria**")
-    months_present = st.number_input(
-        "Months symptoms present in last 6 months", min_value=0, max_value=6, value=0,
-        help="Criteria require symptoms present in at least 3 of the last 6 months",
-    )
-    sbm_per_week = st.number_input(
-        "Spontaneous bowel movements per week", min_value=0, max_value=50, value=3,
-        help="3 or fewer SBMs/week counts as a criterion",
+    # ─────────────────────────────────────────────────────────────────
+    # ROME IV DIAGNOSTIC CRITERIA  (AHS Chronic Constipation Pathway)
+    # Presence of ≥2 of the following 6 symptoms for ≥3 of last 6 months,
+    # with symptom onset ≥6 months prior to diagnosis.
+    # Loose stools rarely present without laxatives.
+    # Insufficient criteria for IBS-C.
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("**Rome IV Diagnostic Criteria**")
+    st.caption(
+        "Functional constipation requires ≥2 of the 6 symptoms below, "
+        "present for ≥3 of the last 6 months, with symptom onset ≥6 months ago."
     )
 
-    st.markdown("**Symptom Frequencies** (% of defecations):")
-    hard_stool = st.number_input("Hard/lumpy stool (Bristol 1-2) %", min_value=0, max_value=100, value=0, step=5)
-    straining  = st.number_input("Straining %", min_value=0, max_value=100, value=0, step=5)
-    incomplete = st.number_input("Incomplete evacuation %", min_value=0, max_value=100, value=0, step=5)
-    blockage   = st.number_input("Anorectal blockage sensation %", min_value=0, max_value=100, value=0, step=5)
-    manual     = st.number_input("Manual maneuvers needed %", min_value=0, max_value=100, value=0, step=5)
+    # Symptom onset timing (separate from 3-month duration)
+    symptom_onset_6m = st.checkbox(
+        "Symptom onset ≥6 months ago",
+        value=False,
+        help="Rome IV requires that symptoms began at least 6 months before the current assessment, "
+             "even if the 3-month active criteria window is met.",
+    )
+
+    # Months of symptoms active in the last 6 months (threshold: ≥3)
+    months_present = st.number_input(
+        "Months symptoms present in last 6 months",
+        min_value=0, max_value=6, value=0,
+        help="Rome IV requires symptoms present in at least 3 of the last 6 months.",
+    )
+
+    st.markdown("**Criterion 1 — Stool Frequency**")
+    sbm_per_week = st.number_input(
+        "Spontaneous bowel movements (SBMs) per week",
+        min_value=0, max_value=50, value=3,
+        help="Criterion met if <3 SBMs/week (i.e., 0, 1, or 2 SBMs/week).",
+    )
+    # Live feedback: criterion 1
+    sbm_criterion = sbm_per_week < 3
+    if sbm_per_week < 3:
+        st.caption(f"✅ <3 SBMs/week — criterion met ({sbm_per_week}/week)")
+    else:
+        st.caption(f"❌ ≥3 SBMs/week — criterion not met ({sbm_per_week}/week)")
+
+    st.markdown("**Criteria 2–6 — Symptom Frequency (% of defecations)**")
+    st.caption("Each criterion is met when the symptom occurs in >25% of defecations.")
+
+    hard_stool = st.number_input(
+        "Hard/lumpy stool (Bristol 1–2) %", min_value=0, max_value=100, value=0, step=5,
+        help="Criterion met if >25%.",
+    )
+    straining = st.number_input(
+        "Straining %", min_value=0, max_value=100, value=0, step=5,
+        help="Criterion met if >25%.",
+    )
+    incomplete = st.number_input(
+        "Sensation of incomplete evacuation %", min_value=0, max_value=100, value=0, step=5,
+        help="Criterion met if >25%.",
+    )
+    blockage = st.number_input(
+        "Sensation of anorectal blockage %", min_value=0, max_value=100, value=0, step=5,
+        help="Criterion met if >25%.",
+    )
+    manual = st.number_input(
+        "Manual maneuvers needed %", min_value=0, max_value=100, value=0, step=5,
+        help="Criterion met if >25% (e.g., digital evacuation, pelvic floor support).",
+    )
+
+    # Compute how many of the 6 criteria are met (live preview)
+    criteria_flags = {
+        "< 3 SBMs/week": sbm_per_week < 3,
+        "Hard/lumpy stool >25%": hard_stool > 25,
+        "Straining >25%": straining > 25,
+        "Incomplete evacuation >25%": incomplete > 25,
+        "Anorectal blockage >25%": blockage > 25,
+        "Manual maneuvers >25%": manual > 25,
+    }
+    criteria_met_count = sum(criteria_flags.values())
+
+    # Live Rome IV mini-scorecard
+    scorecard_lines = []
+    for label, met in criteria_flags.items():
+        icon = "✅" if met else "❌"
+        scorecard_lines.append(f"{icon} {label}")
+    criteria_color = "rome-met" if criteria_met_count >= 2 else ("rome-partial" if criteria_met_count == 1 else "rome-unmet")
+    timing_ok = symptom_onset_6m and (months_present >= 3)
+    timing_color = "rome-met" if timing_ok else "rome-partial"
+    scorecard_html = (
+        '<div class="rome-criteria-box">'
+        f'<span class="{criteria_color}"><b>Symptoms met: {criteria_met_count}/6</b></span> '
+        f'(need ≥2)<br>'
+        f'<span class="{timing_color}">Duration: {months_present}/6 months active '
+        f'{"✅" if months_present >= 3 else "❌"} | '
+        f'Onset ≥6 months ago: {"✅" if symptom_onset_6m else "❌"}</span><br>'
+        + "<br>".join(scorecard_lines)
+        + "</div>"
+    )
+    st.markdown(scorecard_html, unsafe_allow_html=True)
+
+    # Additional Rome IV exclusion criteria
+    st.markdown("**Rome IV Exclusion Checks**")
+
+    loose_stools_rarely = st.selectbox(
+        "Loose stools rarely present without laxatives?",
+        ["Unknown", "Yes", "No"],
+        help="Rome IV requires that loose stools are rarely present without laxative use. "
+             "If loose stools occur frequently without laxatives, functional constipation criteria are not met.",
+    )
+    loose_map = {"Unknown": None, "Yes": True, "No": False}
 
     st.markdown("**IBS-C Screen**")
+    st.caption(
+        "IBS-C (Rome IV): Recurrent abdominal pain ≥1 day/week in last 3 months, "
+        "associated with ≥2 of: (1) pain related to defecation, "
+        "(2) change in stool frequency, (3) change in stool form."
+    )
     predominant_pain_sel = st.selectbox(
-        "Are abdominal pain/bloating the predominant symptoms?", ["Unknown", "Yes", "No"],
-        help="If Yes, patient should follow the IBS-C pathway instead",
+        "Are abdominal pain/bloating the predominant symptoms?",
+        ["Unknown", "Yes", "No"],
+        help="If predominant pain/bloating → follow IBS-C pathway. "
+             "Pain/bloating may coexist with chronic constipation but must not be the dominant complaint.",
     )
     pain_map = {"Unknown": None, "Yes": True, "No": False}
+
+    # IBS-C sub-criteria (only shown when pain is present but not clearly predominant)
+    ibsc_pain_defecation = None
+    ibsc_change_frequency = None
+    ibsc_change_form = None
+    if predominant_pain_sel == "Unknown":
+        st.caption("If pain status is uncertain, screen with the IBS-C Rome IV sub-criteria below:")
+        ibsc_pain_defecation = st.checkbox("Pain related to defecation")
+        ibsc_change_frequency = st.checkbox("Change in stool frequency associated with pain")
+        ibsc_change_form = st.checkbox("Change in stool form (Bristol) associated with pain")
+        ibsc_sub_count = sum([ibsc_pain_defecation, ibsc_change_frequency, ibsc_change_form])
+        if ibsc_sub_count >= 2:
+            st.warning(
+                f"⚠️ {ibsc_sub_count}/3 IBS-C sub-criteria met — consider IBS-C pathway if "
+                "recurrent abdominal pain is present ≥1 day/week."
+            )
 
     st.markdown("**Medical History & Associated Symptoms**")
     symptom_trend = st.selectbox("Symptom duration trend", ["Stable", "Progressive/Worsening", "Fluctuating"])
@@ -180,10 +302,21 @@ with left:
 
     st.markdown("**Alarm Features**")
     fh_crc        = st.checkbox("Family hx of colorectal cancer (1st degree)")
-    weight_loss   = st.number_input("Unintended weight loss % (6-12 months)", min_value=0.0, max_value=50.0, value=0.0, step=0.5, help="Greater than 5% triggers alarm feature")
+    weight_loss   = st.number_input(
+        "Unintended weight loss % (6–12 months)", min_value=0.0, max_value=50.0,
+        value=0.0, step=0.5, help=">5% triggers alarm feature.",
+    )
     sudden_change = st.checkbox("Sudden or progressive change in bowel habits")
     visible_blood = st.checkbox("Visible blood in stool")
     ida           = st.checkbox("Iron deficiency anemia (IDA)")
+    tenesmus      = st.checkbox(
+        "Tenesmus",
+        help="Frequent urge to defecate even when bowels are empty — alarm feature per AHS pathway.",
+    )
+    rectal_pain   = st.checkbox(
+        "Rectal pain (without alternative etiology)",
+        help="Rectal pain not explained by fissure, hemorrhoids, or other perianal disease — alarm feature.",
+    )
 
     st.markdown("**Optimize Secondary Causes**")
     meds_reviewed       = st.checkbox("Medications/OTCs reviewed", value=True)
@@ -199,13 +332,22 @@ with left:
         tsh_done       = st.checkbox("TSH done", value=True)
         celiac_done    = st.checkbox("Celiac disease screen done", value=True)
         celiac_pos     = st.checkbox("Celiac screen is positive")
-        abdo_xray_done = st.checkbox("Abdominal radiograph done (if elderly)", value=False, help="Useful in elderly for evaluating overflow constipation")
+        abdo_xray_done = st.checkbox(
+            "Abdominal radiograph done (if elderly)", value=False,
+            help="Useful in elderly to evaluate overflow constipation.",
+        )
 
     st.markdown("**Therapy Response**")
-    months_trialed = st.number_input("Months of multi-pronged management trialed", min_value=0, max_value=60, value=0, help="Suggest 3-6 months before considering referral")
-    unsat_resp_sel = st.selectbox("Unsatisfactory response after 3-6 months?", ["Unknown", "Yes", "No"])
+    months_trialed = st.number_input(
+        "Months of multi-pronged management trialed", min_value=0, max_value=60, value=0,
+        help="Suggest 3–6 months of titrated, multi-pronged therapy before considering referral.",
+    )
+    unsat_resp_sel = st.selectbox("Unsatisfactory response after 3–6 months?", ["Unknown", "Yes", "No"])
     unsat_map      = {"Unknown": None, "Yes": True, "No": False}
-    advice_considered = st.checkbox("Advice service considered before referral", help="Alberta eReferral Advice Request or tele-advice line")
+    advice_considered = st.checkbox(
+        "Advice service considered before referral",
+        help="Alberta eReferral Advice Request, ConnectMD (Edmonton/North), or Specialist Link (Calgary).",
+    )
 
     run_clicked = st.button("\u25b6 Run Pathway", type="primary", use_container_width=True)
     if run_clicked:
@@ -227,14 +369,24 @@ with right:
             "age": age,
             "sex": sex,
             "elderly_patient": elderly_patient,
+            # ── Rome IV criteria fields ────────────────────────────────────
+            "symptom_onset_6_months_or_more_ago": symptom_onset_6m,
             "symptom_months_present_last_6": months_present,
             "spontaneous_bowel_movements_per_week": sbm_per_week,
+            # Symptom percentages — threshold >25% checked in engine
             "hard_or_lumpy_stool_percent": hard_stool,
             "straining_percent": straining,
             "incomplete_evacuation_percent": incomplete,
             "anorectal_blockage_percent": blockage,
             "manual_maneuvers_percent": manual,
+            # Exclusion criteria
+            "loose_stools_rarely_without_laxatives": loose_map[loose_stools_rarely],
             "predominant_pain_or_bloating": pain_map[predominant_pain_sel],
+            # IBS-C sub-criteria (for borderline cases)
+            "ibsc_pain_related_to_defecation": ibsc_pain_defecation,
+            "ibsc_change_in_stool_frequency": ibsc_change_frequency,
+            "ibsc_change_in_stool_form": ibsc_change_form,
+            # ── History ────────────────────────────────────────────────────
             "symptom_duration_trend": symptom_trend,
             "abdominal_pain_present": abd_pain,
             "bloating_present": bloating,
@@ -243,18 +395,24 @@ with right:
             "traumatic_perineal_injury_history": traumatic_injury,
             "outlet_blockage_sensation": outlet_blockage,
             "needs_to_wiggle_or_rotate_on_toilet": wiggle,
+            # ── Physical exam ──────────────────────────────────────────────
             "abdominal_exam_done": abd_exam or None,
             "digital_anorectal_exam_done": dre_exam or None,
             "suspicious_anal_canal_mass_or_irregularity": suspicious_mass,
+            # ── Alarm features (all 8 per AHS 2026 pathway) ───────────────
             "family_history_crc_first_degree": fh_crc,
             "weight_loss_percent_6_to_12_months": weight_loss,
             "sudden_or_progressive_change_in_bowel_habits": sudden_change,
             "visible_blood_in_stool": visible_blood,
             "iron_deficiency_anemia_present": ida,
+            "tenesmus_present": tenesmus,
+            "rectal_pain_without_alternative_etiology": rectal_pain,
+            # ── Secondary causes ──────────────────────────────────────────
             "medication_history_reviewed": meds_reviewed,
             "secondary_causes_medical_conditions_reviewed": conditions_reviewed,
             "diet_fluid_reviewed": diet_reviewed,
             "bowel_regimen_reviewed": bowel_reg_reviewed,
+            # ── Investigations ────────────────────────────────────────────
             "cbc_recent_available": cbc_done,
             "glucose_done": glucose_done,
             "creatinine_done": cr_done,
@@ -263,6 +421,7 @@ with right:
             "celiac_screen_done": celiac_done,
             "celiac_screen_positive": celiac_pos,
             "abdominal_radiograph_done": abdo_xray_done,
+            # ── Therapy response ──────────────────────────────────────────
             "management_months_trialed": months_trialed,
             "unsatisfactory_response_after_3_to_6_months": unsat_map[unsat_resp_sel],
             "advice_service_considered": advice_considered,
@@ -368,7 +527,7 @@ with right:
                 color + '">' + html.escape(text) + '</text>'
             )
 
-        W, H = 700, 1020
+        W, H = 700, 1040
         CX = 350
         svg = []
 
@@ -388,9 +547,9 @@ with right:
         )
         svg.append(defs)
 
-        rect_node(svg, 215, 18, 270, 46, nc(True), "1. Diagnostic Criteria", "2+ symptoms, 3+ of last 6 months")
+        rect_node(svg, 215, 18, 270, 46, nc(True), "1. Diagnostic Criteria", "≥2/6 symptoms, ≥3 of last 6 months, onset ≥6m ago")
         arrow(svg, CX, 64, CX, 103, nc(True), mid(True))
-        diamond_node(svg, CX, 130, 106, 30, dc(True), "Criteria Met?")
+        diamond_node(svg, CX, 130, 106, 30, dc(True), "Criteria Met?", "≥2 symptoms + timing + exclusions")
         arrow(svg, 244, 130, 130, 130, nc(crit_not_met, exit_=crit_not_met), mid(crit_not_met, exit_=crit_not_met))
         rect_node(svg, 28, 112, 104, 36, nc(crit_not_met, exit_=crit_not_met), "Not Met", "Reassess diagnosis")
         lbl(svg, 190, 124, "No")
@@ -406,7 +565,7 @@ with right:
         lbl(svg, CX + 16, 367, "No", "#4ade80" if (history_vis and not ibsc_route) else "#94a3b8")
         rect_node(svg, 215, 382, 270, 46, nc(exam_vis), "4. Physical Examination", "Abdominal + digital anorectal")
         arrow(svg, CX, 428, CX, 466, nc(exam_vis), mid(exam_vis))
-        diamond_node(svg, CX, 496, 118, 32, dc(exam_vis), "5. Alarm Features?", "CRC hx, blood, wt loss, IDA")
+        diamond_node(svg, CX, 496, 118, 32, dc(exam_vis), "5. Alarm Features?", "CRC hx, blood, wt loss, IDA, tenesmus")
         arrow(svg, 468, 496, 578, 496, nc(alarm_present, urgent=alarm_present), mid(alarm_present, urgent=alarm_present))
         rect_node(svg, 578, 478, 110, 36, nc(alarm_present, urgent=alarm_present), "9. Refer /", "Consult + Endoscopy")
         lbl(svg, 526, 489, "Yes", "#f87171" if alarm_present else "#94a3b8")
@@ -418,7 +577,7 @@ with right:
         arrow(svg, 485, 673, 578, 673, nc(celiac_refer, urgent=celiac_refer), mid(celiac_refer, urgent=celiac_refer))
         rect_node(svg, 578, 655, 110, 36, nc(celiac_refer, urgent=celiac_refer), "+Celiac Screen", "Refer Specialist")
         arrow(svg, CX, 696, CX, 734, nc(mgmt_vis), mid(mgmt_vis))
-        rect_node(svg, 215, 734, 270, 46, nc(mgmt_vis), "8. Management (3-6 months)", "Fibre, fluids, laxatives, PA")
+        rect_node(svg, 215, 734, 270, 46, nc(mgmt_vis), "8. Management (3–6 months)", "Fibre, fluids, laxatives, PA")
         arrow(svg, CX, 780, CX, 818, nc(mgmt_vis), mid(mgmt_vis))
         diamond_node(svg, CX, 848, 120, 32, dc(mgmt_vis), "Unsatisfactory?", "After 3+ months therapy")
         arrow(svg, 470, 848, 578, 848, nc(unsat_refer, urgent=unsat_refer), mid(unsat_refer, urgent=unsat_refer))
@@ -430,7 +589,7 @@ with right:
         svg.append("</svg>")
 
         st.subheader("\U0001f5fa\ufe0f Pathway Followed")
-        components.html("".join(svg), height=1040, scrolling=False)
+        components.html("".join(svg), height=1060, scrolling=False)
 
         st.markdown('<div class="section-header">Patient Context</div>', unsafe_allow_html=True)
         pain_display  = "Yes" if pain_map[predominant_pain_sel] is True else ("No" if pain_map[predominant_pain_sel] is False else "Unknown")
@@ -439,10 +598,14 @@ with right:
             '<div class="patient-context-box">' +
             '<strong>Age / Sex:</strong> ' + str(age) + ' / ' + sex.capitalize() +
             ' &nbsp;|&nbsp; <strong>SBMs/week:</strong> ' + str(sbm_per_week) +
-            ' &nbsp;|&nbsp; <strong>Symptom months (last 6):</strong> ' + str(months_present) + '<br>' +
-            '<strong>Predominant Pain/Bloating:</strong> ' + pain_display +
-            ' &nbsp;|&nbsp; <strong>Alarm Features:</strong> ' + alarm_display + '<br>' +
-            '<strong>Mgmt Months Trialed:</strong> ' + str(months_trialed) +
+            ' &nbsp;|&nbsp; <strong>Symptom months (last 6):</strong> ' + str(months_present) +
+            ' &nbsp;|&nbsp; <strong>Onset ≥6m ago:</strong> ' + ("Yes" if symptom_onset_6m else "No") + '<br>' +
+            '<strong>Rome IV criteria met:</strong> ' + str(criteria_met_count) + '/6 symptoms' +
+            ' &nbsp;|&nbsp; <strong>Timing OK:</strong> ' + ("Yes" if timing_ok else "No") + '<br>' +
+            '<strong>Loose stools rarely w/o laxatives:</strong> ' + loose_stools_rarely +
+            ' &nbsp;|&nbsp; <strong>Predominant Pain/Bloating:</strong> ' + pain_display + '<br>' +
+            '<strong>Alarm Features:</strong> ' + alarm_display +
+            ' &nbsp;|&nbsp; <strong>Mgmt Months Trialed:</strong> ' + str(months_trialed) +
             ' &nbsp;|&nbsp; <strong>Unsatisfactory Response:</strong> ' + unsat_resp_sel +
             '</div>',
             unsafe_allow_html=True,
