@@ -47,21 +47,9 @@ def build_cap_markdown(patient_data, outputs, overrides, notes: str) -> str:
         f"{str(patient_data.get('sex', '')).capitalize()}"
     )
     pain_dur = patient_data.get("pain_duration_months_at_criteria_level")
-    lines.append(f"- **Pain Duration (months at criteria level):** {pain_dur if pain_dur is not None else 'Not entered'} {'✓ (≥3)' if pain_dur is not None and float(pain_dur) >= 3 else '✗ (<3)' if pain_dur is not None else ''}")
+    lines.append(f"- **Pain Duration (months at criteria level):** {pain_dur if pain_dur is not None else 'Not entered'}")
     onset = patient_data.get("symptom_onset_months_ago")
-    lines.append(f"- **Symptom Onset (months ago):** {onset if onset is not None else 'Not entered'} {'✓ (≥6)' if onset is not None and float(onset) >= 6 else '✗ (<6)' if onset is not None else ''}")
-    lines.append("")
-    lines.append("### Rome IV Criteria Detail")
-    _rome_icon_md = {True: "✓ Met", False: "✗ Not met", None: "? Not assessed"}
-    for _lbl, _key in [
-        ("① Continuous or near-continuous pain",           "continuous_or_near_continuous_pain"),
-        ("② No / only occasional relation to physiol. events", "pain_only_occasional_relation_to_physiologic_events"),
-        ("③ Pain limits daily functioning",                "pain_limits_daily_function"),
-        ("④ Pain is not feigned",                          "pain_not_feigned"),
-        ("⑤ Not explained by other condition/DGBI",        "not_explained_by_other_condition_initial_assessment"),
-    ]:
-        _v = patient_data.get(_key)
-        lines.append(f"- **{_lbl}:** {_rome_icon_md.get(_v, str(_v))}")
+    lines.append(f"- **Symptom Onset (months ago):** {onset if onset is not None else 'Not entered'}")
     lines.append("")
     lines.append("## Clinical Recommendations")
     if not outputs:
@@ -172,100 +160,40 @@ with left:
     age = st.number_input("Age", 18, 120, value=42)
     sex = st.selectbox("Sex", ["female", "male"])
 
-    # ── 1. CAPS Diagnostic Criteria (Rome IV) ───────────────────────────────
+    # ── 1. CAPS Diagnostic Criteria ──────────────────────────────────────────
     st.markdown("**1. CAPS Diagnostic Criteria (Rome IV)**")
-    st.caption(
-        "All five criteria must be present for ≥ 3 months, with symptom onset ≥ 6 months ago "
-        "(per AHS Chronic Abdominal Pain Pathway, Rome IV). "
-        "Use **Not assessed** if the item has not yet been evaluated — this prompts a data request. "
-        "Select **No** if the criterion is definitively absent, which will stop the pathway "
-        "with 'Criteria not met'."
+    continuous_pain = st.checkbox(
+        "Continuous or near-continuous abdominal pain",
+        help="Required criterion: constant or near-constant pain",
     )
-
-    # Numeric thresholds — engine enforces ≥3 months duration and ≥6 months onset
     pain_duration = st.number_input(
         "Pain duration at criteria level (months)",
         min_value=0,
         max_value=120,
-        value=0,
-        help="Rome IV requires ≥ 3 months of qualifying pain. Enter 0 if not yet assessed.",
+        value=4,
+        help="Must be ≥3 months",
     )
     symptom_onset = st.number_input(
         "Symptom onset (months ago)",
         min_value=0,
         max_value=240,
-        value=0,
-        help="Rome IV requires symptom onset ≥ 6 months ago. Enter 0 if not yet assessed.",
+        value=8,
+        help="Must be ≥6 months ago",
     )
-
-    _ROME_OPTS = ["Not assessed", "Yes", "No"]
-
-    continuous_pain_sel = st.radio(
-        "① Continuous or near-continuous abdominal pain",
-        _ROME_OPTS,
-        index=0,
-        horizontal=True,
-        help=(
-            "Pain must be constant or near-constant — not episodic, intermittent, or "
-            "triggered only by specific events. This is the hallmark distinguishing CAPS "
-            "from IBS and functional dyspepsia."
-        ),
+    no_physiologic_relation = st.checkbox(
+        "No / only occasional relationship of pain with physiological events",
+        help="Pain not clearly tied to eating, defecation, or menses",
     )
-    no_physiologic_sel = st.radio(
-        "② No, or only occasional, relationship of pain with physiological events",
-        _ROME_OPTS,
-        index=0,
-        horizontal=True,
-        help=(
-            "Pain is NOT consistently triggered by eating, defecation, or menses. "
-            "CAPS is distinguished from IBS (defecation-related) and dyspepsia (meal-related) "
-            "by this dissociation from physiological events."
-        ),
+    limits_function = st.checkbox(
+        "Pain limits some aspect of daily functioning",
+        help="Work, intimacy, social/leisure, family life, etc.",
     )
-    limits_function_sel = st.radio(
-        "③ Pain limits some aspect of daily functioning",
-        _ROME_OPTS,
-        index=0,
-        horizontal=True,
-        help=(
-            "The pain interferes with at least one domain of daily life, such as work, "
-            "intimacy, social or leisure activities, family life, or self-care."
-        ),
+    not_feigned = st.checkbox(
+        "Pain is not feigned",
     )
-    not_feigned_sel = st.radio(
-        "④ Pain is not feigned",
-        _ROME_OPTS,
-        index=0,
-        horizontal=True,
-        help=(
-            "Clinical assessment confirms the pain is genuine and not fabricated for "
-            "secondary gain. Document basis for this assessment in clinician notes."
-        ),
+    not_explained_other = st.checkbox(
+        "Pain not explained by another structural condition or gut-brain interaction disorder",
     )
-    not_explained_sel = st.radio(
-        "⑤ Pain is not explained by another structural condition or disorder of gut-brain interaction",
-        _ROME_OPTS,
-        index=0,
-        horizontal=True,
-        help=(
-            "Must exclude organic causes (e.g., IBD, celiac, malignancy) and other "
-            "disorders of gut-brain interaction (IBS, GERD, functional dyspepsia) before "
-            "attributing pain to CAPS. This criterion is confirmed after Box 2–5 in the pathway."
-        ),
-    )
-
-    # Convert radio selections to tristate the engine expects:
-    #   "Not assessed" → None   → engine issues DataRequest (data genuinely unknown)
-    #   "Yes"          → True   → criterion met
-    #   "No"           → False  → criterion NOT met → engine Stop: criteria not met
-    def _rome_val(sel: str):
-        return {"Not assessed": None, "Yes": True, "No": False}[sel]
-
-    continuous_pain   = _rome_val(continuous_pain_sel)
-    no_physiologic    = _rome_val(no_physiologic_sel)
-    limits_function   = _rome_val(limits_function_sel)
-    not_feigned       = _rome_val(not_feigned_sel)
-    not_explained     = _rome_val(not_explained_sel)
 
     # ── 2. Other GI Disorder Differentiation ─────────────────────────────────
     st.markdown("**2. Differentiation from Other GI Disorders**")
@@ -442,16 +370,14 @@ with right:
         patient_data = {
             "age": age,
             "sex": sex,
-            # Node 1 — Diagnostic criteria (Rome IV)
-            # Tristate: None = not yet assessed (DataRequest), True = met, False = not met (Stop)
-            # Do NOT use `or None` — checkboxes always return bool, so False or None = None (broken)
-            "continuous_or_near_continuous_pain":                  continuous_pain,
-            "pain_duration_months_at_criteria_level":              float(pain_duration),
-            "symptom_onset_months_ago":                            float(symptom_onset),
-            "pain_only_occasional_relation_to_physiologic_events": no_physiologic,
-            "pain_limits_daily_function":                          limits_function,
-            "pain_not_feigned":                                    not_feigned,
-            "not_explained_by_other_condition_initial_assessment": not_explained,
+            # Node 1 — Diagnostic criteria
+            "continuous_or_near_continuous_pain": continuous_pain or None,
+            "pain_duration_months_at_criteria_level": float(pain_duration),
+            "symptom_onset_months_ago": float(symptom_onset),
+            "pain_only_occasional_relation_to_physiologic_events": no_physiologic_relation or None,
+            "pain_limits_daily_function": limits_function or None,
+            "pain_not_feigned": not_feigned or None,
+            "not_explained_by_other_condition_initial_assessment": not_explained_other or None,
             # Node 2 — Other GI disorder
             "predominant_heartburn_or_regurgitation": heartburn_regurgitation,
             "pain_related_to_defecation_or_change_in_stool": defecation_related,
@@ -870,35 +796,16 @@ with right:
         alarm_display = "Yes — Refer" if alarm_present else ("No alarm features" if alarm_present is False else "Pending")
         severity_display = severity_sel
 
-        # Build a per-criterion status line for Rome IV display
-        _rome_icon = {True: "✓", False: "✗", None: "?"}
-        rome_detail_items = [
-            ("① Continuous pain",       continuous_pain),
-            ("② No physio relation",    no_physiologic),
-            ("③ Limits function",       limits_function),
-            ("④ Not feigned",           not_feigned),
-            ("⑤ Not explained by other", not_explained),
-        ]
-        rome_rows = "".join(
-            f'<span style="margin-right:14px;color:{"#86efac" if v is True else ("#fca5a5" if v is False else "#fde68a")}">' +
-            f'{_rome_icon[v]} {lbl}</span>'
-            for lbl, v in rome_detail_items
-        )
-        # Duration / onset colour coding
-        dur_col = "#86efac" if float(pain_duration) >= 3 else "#fca5a5"
-        onset_col = "#86efac" if float(symptom_onset) >= 6 else "#fca5a5"
-
         st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
         st.markdown(
             '<div class="ctx-card">'
             f'<span><b>Age / Sex:</b> {age} / {sex.capitalize()}</span><br>'
             f'<span><b>CAPS Diagnostic Criteria:</b> {criteria_display}</span><br>'
-            f'<span style="font-size:12px">{rome_rows}</span><br>'
-            f'<span><b>Pain Duration:</b> <span style="color:{dur_col}">{pain_duration} months</span> '            f'(need ≥ 3)</span><br>'
-            f'<span><b>Symptom Onset:</b> <span style="color:{onset_col}">{symptom_onset} months ago</span> '            f'(need ≥ 6)</span><br>'
+            f'<span><b>Pain Duration:</b> {pain_duration} months at criteria level</span><br>'
+            f'<span><b>Symptom Onset:</b> {symptom_onset} months ago</span><br>'
             f'<span><b>Alarm Features:</b> {alarm_display}</span><br>'
             f'<span><b>Symptom Severity:</b> {severity_display}</span>'
-            '</div>',
+            "</div>",
             unsafe_allow_html=True,
         )
 
