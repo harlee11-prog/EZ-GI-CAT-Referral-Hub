@@ -7,7 +7,6 @@ import html
 from datetime import datetime
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from dyspepsia_engine import (
     run_dyspepsia_pathway,
@@ -541,8 +540,8 @@ with right:
 
         def vline(x, y1, y2, vis, urgent=False, exit_=False, label="", label_side="right"):
             m = _mid(vis, urgent, exit_); s = _stroke(vis, urgent, exit_)
-            dash = "" if vis else 'stroke-dasharray="5,3"'
-            svg.append(f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="{s}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
+            dash_style = "" if vis else 'stroke-dasharray="5,3"'
+            svg.append(f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="{s}" stroke-width="2" {dash_style} marker-end="url(#{m})"/>')
             if label:
                 lx = x + 6 if label_side == "right" else x - 6
                 anchor = "start" if label_side == "right" else "end"
@@ -550,8 +549,8 @@ with right:
 
         def elbow(x1, y1, x2, y2, vis, urgent=False, exit_=False, label=""):
             m = _mid(vis, urgent, exit_); s = _stroke(vis, urgent, exit_)
-            dash = "" if vis else 'stroke-dasharray="5,3"'
-            svg.append(f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" fill="none" stroke="{s}" stroke-width="2" {dash} marker-end="url(#{m})"/>')
+            dash_style = "" if vis else 'stroke-dasharray="5,3"'
+            svg.append(f'<polyline points="{x1},{y1} {x2},{y1} {x2},{y2}" fill="none" stroke="{s}" stroke-width="2" {dash_style} marker-end="url(#{m})"/>')
             if label:
                 svgt((x1+x2)/2, y1-5, label, s, 10, True)
 
@@ -605,9 +604,11 @@ with right:
         titrate_od_y = Y["d7"] + (DH - EH) // 2
         exit_node(LX, titrate_od_y, EW, EH, nc(ppi_od_ok, exit_=True), "Titrate Down /", "Maintain PPI")
         elbow(CX-DW//2, Y["d7"]+DH//2, LX+EW, titrate_od_y+EH//2, ppi_od_ok, exit_=True, label="Yes")
-        s = C_EXIT if ppi_od_ok else "#64748b"
-        m = "mo" if ppi_od_ok else "ma"
-        svg.append(f'<polyline points="{LX+EW//2},{titrate_od_y+EH} {LX+EW//2},{Y["n10"]+NH//2} {CX-NW//2},{Y["n10"]+NH//2}" fill="none" stroke="{s}" stroke-width="2" {"" if ppi_od_ok else "stroke-dasharray=\\"5,3\\""} marker-end="url(#{m})"/>')
+        
+        s_od = C_EXIT if ppi_od_ok else "#64748b"
+        m_od = "mo" if ppi_od_ok else "ma"
+        dash_od = "" if ppi_od_ok else 'stroke-dasharray="5,3"'
+        svg.append(f'<polyline points="{LX+EW//2},{titrate_od_y+EH} {LX+EW//2},{Y["n10"]+NH//2} {CX-NW//2},{Y["n10"]+NH//2}" fill="none" stroke="{s_od}" stroke-width="2" {dash_od} marker-end="url(#{m_od})"/>')
         vline(CX, Y["d7"]+DH, Y["n8"], v8, label="No — optimize")
 
         # Node 8
@@ -617,9 +618,11 @@ with right:
         titrate_bid_y = Y["d8"] + (DH - EH) // 2
         exit_node(LX, titrate_bid_y, EW, EH, nc(ppi_bid_ok, exit_=True), "Titrate Down /", "Maintain PPI")
         elbow(CX-DW//2, Y["d8"]+DH//2, LX+EW, titrate_bid_y+EH//2, ppi_bid_ok, exit_=True, label="Yes")
-        s2 = C_EXIT if ppi_bid_ok else "#64748b"
-        m2 = "mo" if ppi_bid_ok else "ma"
-        svg.append(f'<polyline points="{LX+EW//2},{titrate_bid_y+EH} {LX+EW//2},{Y["n10"]+NH//2} {CX-NW//2},{Y["n10"]+NH//2}" fill="none" stroke="{s2}" stroke-width="2" {"" if ppi_bid_ok else "stroke-dasharray=\\"5,3\\""} marker-end="url(#{m2})"/>')
+        
+        s_bid = C_EXIT if ppi_bid_ok else "#64748b"
+        m_bid = "mo" if ppi_bid_ok else "ma"
+        dash_bid = "" if ppi_bid_ok else 'stroke-dasharray="5,3"'
+        svg.append(f'<polyline points="{LX+EW//2},{titrate_bid_y+EH} {LX+EW//2},{Y["n10"]+NH//2} {CX-NW//2},{Y["n10"]+NH//2}" fill="none" stroke="{s_bid}" stroke-width="2" {dash_bid} marker-end="url(#{m_bid})"/>')
         vline(CX, Y["d8"]+DH, Y["n9"], v9, label="No")
 
         # Node 9
@@ -640,10 +643,15 @@ with right:
         exit_node(left_term_x, Y["term"], term_EW, EH, nc(pathway_done, exit_=True), "Pathway Complete", "Medical Home")
         exit_node(right_term_x, Y["term"], term_EW, EH, nc(refer_endo, urgent=True), "8. Refer", "Consult / Endoscopy")
         if v11:
-            sl = C_EXIT if pathway_done else "#64748b"; ml = "mo" if pathway_done else "ma"
-            svg.append(f'<polyline points="{CX},{Y["term"]} {CX},{Y["term"]+18} {left_term_x+term_EW//2},{Y["term"]+18} {left_term_x+term_EW//2},{Y["term"]}" fill="none" stroke="{sl}" stroke-width="2" {"" if pathway_done else "stroke-dasharray=\\"5,3\\""} marker-end="url(#{ml})"/>')
-            sr = C_URGENT if refer_endo else "#64748b"; mr = "mr" if refer_endo else "ma"
-            svg.append(f'<polyline points="{CX},{Y["term"]} {CX},{Y["term"]+18} {right_term_x+term_EW//2},{Y["term"]+18} {right_term_x+term_EW//2},{Y["term"]}" fill="none" stroke="{sr}" stroke-width="2" {"" if refer_endo else "stroke-dasharray=\\"5,3\\""} marker-end="url(#{mr})"/>')
+            sl = C_EXIT if pathway_done else "#64748b"
+            ml = "mo" if pathway_done else "ma"
+            dash_l = "" if pathway_done else 'stroke-dasharray="5,3"'
+            svg.append(f'<polyline points="{CX},{Y["term"]} {CX},{Y["term"]+18} {left_term_x+term_EW//2},{Y["term"]+18} {left_term_x+term_EW//2},{Y["term"]}" fill="none" stroke="{sl}" stroke-width="2" {dash_l} marker-end="url(#{ml})"/>')
+            
+            sr = C_URGENT if refer_endo else "#64748b"
+            mr = "mr" if refer_endo else "ma"
+            dash_r = "" if refer_endo else 'stroke-dasharray="5,3"'
+            svg.append(f'<polyline points="{CX},{Y["term"]} {CX},{Y["term"]+18} {right_term_x+term_EW//2},{Y["term"]+18} {right_term_x+term_EW//2},{Y["term"]}" fill="none" stroke="{sr}" stroke-width="2" {dash_r} marker-end="url(#{mr})"/>')
 
         # Legend
         ly = H - 18; lx = 14
@@ -654,10 +662,10 @@ with right:
         svg.append("</svg>")
 
         st.subheader("🗺️ Pathway Followed")
-        components.html(
-            '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
+        st.markdown(
+            f'<div style="background:{C_BG};padding:10px;border-radius:14px;overflow-x:auto;height:{H + 30}px;overflow-y:auto;">'
             + "".join(svg) + "</div>",
-            height=H + 30, scrolling=True,
+            unsafe_allow_html=True,
         )
 
         st.markdown("---")
