@@ -5,7 +5,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import html
 from datetime import datetime
 import streamlit as st
-import streamlit.components.v1 as components
 
 from ibs_engine import (
     run_ibs_pathway,
@@ -596,12 +595,17 @@ with right:
         vline(150, Y["sub_d"] + 58, Y["ibd_susp"], ibsd_vis)
 
         # No high suspicion joins response
+        ibsd_no_ibd = (ibsd_vis and high_suspicion_ibd is False)
+        dash_ibsd = "" if ibsd_no_ibd else 'stroke-dasharray="5,3"'
+        stroke_ibsd = "#16a34a" if ibsd_no_ibd else "#64748b"
+        mid_ibsd = mid(ibsd_no_ibd)
+
         svg.append(
             f'<polyline points="65,{Y["ibd_susp"] + DH/2} 35,{Y["ibd_susp"] + DH/2} 35,{Y["response"] + DH/2} 330,{Y["response"] + DH/2}" '
-            f'fill="none" stroke="{"#16a34a" if (ibsd_vis and high_suspicion_ibd is False) else "#64748b"}" stroke-width="2" '
-            f'{" " if (ibsd_vis and high_suspicion_ibd is False) else "stroke-dasharray=\\"5,3\\"" } marker-end="url(#{mid(ibsd_vis and high_suspicion_ibd is False)})"/>'
+            f'fill="none" stroke="{stroke_ibsd}" stroke-width="2" '
+            f'{dash_ibsd} marker-end="url(#{mid_ibsd})"/>'
         )
-        svgt(50, Y["ibd_susp"] + DH/2 - 8, "No", "#16a34a" if (ibsd_vis and high_suspicion_ibd is False) else "#64748b", 10, True)
+        svgt(50, Y["ibd_susp"] + DH/2 - 8, "No", stroke_ibsd, 10, True)
 
         # Yes high suspicion -> FCP
         elbow_line(235, Y["ibd_susp"] + DH/2, 325, Y["fcp"] + DH/2, ibsd_vis and high_suspicion_ibd is True, label="Yes")
@@ -613,15 +617,24 @@ with right:
         elbow_line(410, Y["fcp"] + DH, CX, Y["response"], ibsd_vis and high_suspicion_ibd is True and not fcp_high and patient_data["fecal_calprotectin_ug_g"] is not None, label="No")
 
         # M/U and C direct joins response
+        dash_mu = "" if ibsmu_vis else 'stroke-dasharray="5,3"'
+        stroke_mu = "#16a34a" if ibsmu_vis else "#64748b"
+        mid_mu = mid(ibsmu_vis)
+        
         svg.append(
             f'<line x1="{CX}" y1="{Y["sub_mu"] + 58}" x2="{CX}" y2="{Y["response"]}" '
-            f'stroke="{"#16a34a" if ibsmu_vis else "#64748b"}" stroke-width="2" '
-            f'{" " if ibsmu_vis else "stroke-dasharray=\\"5,3\\"" } marker-end="url(#{mid(ibsmu_vis)})"/>'
+            f'stroke="{stroke_mu}" stroke-width="2" '
+            f'{dash_mu} marker-end="url(#{mid_mu})"/>'
         )
+
+        dash_c = "" if ibsc_vis else 'stroke-dasharray="5,3"'
+        stroke_c = "#16a34a" if ibsc_vis else "#64748b"
+        mid_c = mid(ibsc_vis)
+
         svg.append(
             f'<polyline points="{W - 150},{Y["sub_c"] + 58} {W - 150},{Y["response"] + 30} {CX + 20},{Y["response"] + 30}" '
-            f'fill="none" stroke="{"#16a34a" if ibsc_vis else "#64748b"}" stroke-width="2" '
-            f'{" " if ibsc_vis else "stroke-dasharray=\\"5,3\\"" } marker-end="url(#{mid(ibsc_vis)})"/>'
+            f'fill="none" stroke="{stroke_c}" stroke-width="2" '
+            f'{dash_c} marker-end="url(#{mid_c})"/>'
         )
 
         # Response decision
@@ -646,10 +659,10 @@ with right:
         svg.append("</svg>")
 
         st.subheader("🗺️ Pathway Followed")
-        components.html(
-            '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">' + "".join(svg) + "</div>",
-            height=1365,
-            scrolling=True,
+        st.markdown(
+            f'<div style="background:{C_BG};padding:10px;border-radius:14px;overflow-x:auto;height:1365px;overflow-y:auto;">'
+            + "".join(svg) + "</div>",
+            unsafe_allow_html=True,
         )
 
         st.markdown("---")
