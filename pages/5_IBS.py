@@ -390,11 +390,9 @@ with right:
         is_ibsmu = subtype in ["IBS-M", "IBS-U"]
         is_ibsc = subtype == "IBS-C"
 
-        fcp_high = (
-            high_suspicion_ibd is True
-            and patient_data["fecal_calprotectin_ug_g"] is not None
-            and patient_data["fecal_calprotectin_ug_g"] >= 120
-        )
+        fcp_val = patient_data.get("fecal_calprotectin_ug_g")
+        fcp_high = (high_suspicion_ibd is True and fcp_val is not None and fcp_val >= 120)
+        fcp_no = (high_suspicion_ibd is True and fcp_val is not None and fcp_val < 120)
 
         response_ready = False
         if presumed_ibs:
@@ -402,7 +400,7 @@ with right:
                 response_ready = True
             elif high_suspicion_ibd is False:
                 response_ready = True
-            elif high_suspicion_ibd is True and patient_data["fecal_calprotectin_ug_g"] is not None and not fcp_high:
+            elif high_suspicion_ibd is True and fcp_val is not None and not fcp_high:
                 response_ready = True
 
         complete_in_home = response_ready and unsatisfactory_response is False
@@ -440,7 +438,7 @@ with right:
             return "mg"
 
         svg = []
-        W, H = 880, 1360
+        W, H = 1060, 1450
         svg.append(
             f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="{H}" '
             f'viewBox="0 0 {W} {H}" style="background:{C_BG};border-radius:12px;font-family:Arial,sans-serif">'
@@ -520,30 +518,31 @@ with right:
             if label:
                 svgt((x1 + x2) / 2, y1 - 6, label, stroke, 10, True)
 
-        CX = 440
+        # Updated Layout Coordinates
+        CX = 530
+        COL_L = 280
+        COL_R = 780
         NW, NH = 230, 52
         DW, DH = 220, 60
         EW, EH = 160, 48
-        LEXT = 30
-        REXT = W - 30 - EW
+        LEXT = 20
+        REXT = W - 20 - EW # 880
 
         Y = {
             "suspected": 20,
-            "rome": 118,
-            "baseline": 245,
-            "alarm": 390,
-            "general": 520,
-            "subtype": 645,
-            "sub_d": 765,
-            "sub_mu": 860,
-            "sub_c": 765,
-            "ibd_susp": 945,
-            "fcp": 1045,
-            "response": 1145,
-            "complete": 1260,
+            "rome": 120,
+            "baseline": 240,
+            "alarm": 360,
+            "general": 480,
+            "subtype": 600,
+            "sub_boxes": 720,
+            "ibd_susp": 860,
+            "fcp": 1000,
+            "response": 1160,
+            "complete": 1300,
         }
 
-        # Top node
+        # 1. Suspected IBS
         rect_node(CX - NW/2, Y["suspected"], NW, NH, nc(True), "1. Suspected IBS", sub="Recurrent abdominal pain + Rome IV features")
         vline(CX, Y["suspected"] + NH, Y["rome"], True)
 
@@ -566,81 +565,76 @@ with right:
         vline(CX, Y["alarm"] + DH, Y["general"], presumed_ibs, label="No")
 
         # Core treatment
-        rect_node(CX - NW/2, Y["general"], NW, NH, nc(presumed_ibs), "4. Potential Approaches", "All IBS Subtypes", sub="Diet, activity, psychological tx, antispasmodics / peppermint")
+        rect_node(CX - NW/2, Y["general"], NW, NH, nc(presumed_ibs), "4. Potential Approaches", "All IBS Subtypes", sub="Diet, activity, psychological tx, antispasmodics")
         vline(CX, Y["general"] + NH, Y["subtype"], presumed_ibs)
 
         # Subtype decision
         diamond_node(CX, Y["subtype"] + DH/2, DW, DH, dc(presumed_ibs), "5. IBS Subtype", "?")
 
-        # Subtype boxes
+        # Subtype boxes & branching
         subtype_active = presumed_ibs
         ibsd_vis = subtype_active and is_ibsd
         ibsmu_vis = subtype_active and is_ibsmu
         ibsc_vis = subtype_active and is_ibsc
 
-        # Left IBS-D
-        exit_node(60, Y["sub_d"], 180, 58, nc(ibsd_vis, exit_=True), "IBS-D", "Loperamide / TCA / probiotic / low FODMAP / rifaximin")
-        elbow_line(CX - DW/2, Y["subtype"] + DH/2, 240, Y["sub_d"] + 29, ibsd_vis, exit_=True, label="IBS-D")
-
-        # Middle IBS-M/U
-        exit_node(CX - 90, Y["sub_mu"], 180, 58, nc(ibsmu_vis, exit_=True), "IBS-M / IBS-U", "Lifestyle / probiotic / low FODMAP / TCA")
-        vline(CX, Y["subtype"] + DH, Y["sub_mu"], ibsmu_vis, label="IBS-M/U")
-
-        # Right IBS-C
-        exit_node(W - 240, Y["sub_c"], 180, 58, nc(ibsc_vis, exit_=True), "IBS-C", "Fibre / fluids / laxatives / secretagogues / SSRIs")
-        elbow_line(CX + DW/2, Y["subtype"] + DH/2, W - 240, Y["sub_c"] + 29, ibsc_vis, exit_=True, label="IBS-C")
-
-        # IBS-D IBD suspicion branch
-        diamond_node(150, Y["ibd_susp"] + DH/2, 170, 56, dc(ibsd_vis), "High IBD", "Suspicion?")
-        vline(150, Y["sub_d"] + 58, Y["ibd_susp"], ibsd_vis)
-
-        # No high suspicion joins response
-        ibsd_no_ibd = (ibsd_vis and high_suspicion_ibd is False)
-        dash_ibsd = "" if ibsd_no_ibd else 'stroke-dasharray="5,3"'
-        stroke_ibsd = "#16a34a" if ibsd_no_ibd else "#64748b"
-        mid_ibsd = mid(ibsd_no_ibd)
-
-        svg.append(
-            f'<polyline points="65,{Y["ibd_susp"] + DH/2} 35,{Y["ibd_susp"] + DH/2} 35,{Y["response"] + DH/2} 330,{Y["response"] + DH/2}" '
-            f'fill="none" stroke="{stroke_ibsd}" stroke-width="2" '
-            f'{dash_ibsd} marker-end="url(#{mid_ibsd})"/>'
-        )
-        svgt(50, Y["ibd_susp"] + DH/2 - 8, "No", stroke_ibsd, 10, True)
-
-        # Yes high suspicion -> FCP
-        elbow_line(235, Y["ibd_susp"] + DH/2, 325, Y["fcp"] + DH/2, ibsd_vis and high_suspicion_ibd is True, label="Yes")
-        diamond_node(410, Y["fcp"] + DH/2, 180, 56, dc(ibsd_vis and high_suspicion_ibd is True), "Fecal Calprotectin", "≥ 120 µg/g?")
-        exit_node(REXT, Y["fcp"] + 4, EW, EH, nc(fcp_high, urgent=True), "6. Refer", "Elevated FCP")
-        elbow_line(500, Y["fcp"] + DH/2, REXT, Y["fcp"] + 4 + EH/2, fcp_high, urgent=True, label="Yes")
-
-        # FCP negative joins response
-        elbow_line(410, Y["fcp"] + DH, CX, Y["response"], ibsd_vis and high_suspicion_ibd is True and not fcp_high and patient_data["fecal_calprotectin_ug_g"] is not None, label="No")
-
-        # M/U and C direct joins response
-        dash_mu = "" if ibsmu_vis else 'stroke-dasharray="5,3"'
-        stroke_mu = "#16a34a" if ibsmu_vis else "#64748b"
-        mid_mu = mid(ibsmu_vis)
+        # Left Branch (IBS-D)
+        elbow_line(CX - DW/2, Y["subtype"] + DH/2, COL_L, Y["sub_boxes"], ibsd_vis, label="IBS-D")
+        rect_node(COL_L - 110, Y["sub_boxes"], 220, 60, nc(ibsd_vis), "IBS-D", "Loperamide / TCA / FODMAP", sub="Rifaximin (2nd line)")
         
-        svg.append(
-            f'<line x1="{CX}" y1="{Y["sub_mu"] + 58}" x2="{CX}" y2="{Y["response"]}" '
-            f'stroke="{stroke_mu}" stroke-width="2" '
-            f'{dash_mu} marker-end="url(#{mid_mu})"/>'
-        )
+        # Middle Branch (IBS-M/U)
+        vline(CX, Y["subtype"] + DH, Y["sub_boxes"], ibsmu_vis, label="IBS-M/U")
+        rect_node(CX - 110, Y["sub_boxes"], 220, 60, nc(ibsmu_vis), "IBS-M / IBS-U", "Lifestyle / Probiotic / FODMAP", sub="TCA")
+        vline(CX, Y["sub_boxes"] + 60, Y["response"], ibsmu_vis) # Route directly down to Response
+
+        # Right Branch (IBS-C)
+        elbow_line(CX + DW/2, Y["subtype"] + DH/2, COL_R, Y["sub_boxes"], ibsc_vis, label="IBS-C")
+        rect_node(COL_R - 110, Y["sub_boxes"], 220, 60, nc(ibsc_vis), "IBS-C", "Fibre / Laxatives / Linaclotide", sub="Prucalopride / Tenapanor / SSRIs")
 
         dash_c = "" if ibsc_vis else 'stroke-dasharray="5,3"'
-        stroke_c = "#16a34a" if ibsc_vis else "#64748b"
+        stroke_c = C_MAIN if ibsc_vis else "#64748b"
         mid_c = mid(ibsc_vis)
+        svg.append(f'<polyline points="{COL_R},{Y["sub_boxes"] + 60} {COL_R},{Y["response"] - 20} {CX},{Y["response"] - 20} {CX},{Y["response"]}" fill="none" stroke="{stroke_c}" stroke-width="2" {dash_c} marker-end="url(#{mid_c})"/>')
 
-        svg.append(
-            f'<polyline points="{W - 150},{Y["sub_c"] + 58} {W - 150},{Y["response"] + 30} {CX + 20},{Y["response"] + 30}" '
-            f'fill="none" stroke="{stroke_c}" stroke-width="2" '
-            f'{dash_c} marker-end="url(#{mid_c})"/>'
-        )
+        # IBD Suspicion (Left Column)
+        vline(COL_L, Y["sub_boxes"] + 60, Y["ibd_susp"], ibsd_vis)
+        diamond_node(COL_L, Y["ibd_susp"] + DH/2, DW, DH, dc(ibsd_vis), "High IBD", "Suspicion?")
 
-        # Response decision
+        # IBD Suspicion = Yes -> FCP
+        vline(COL_L, Y["ibd_susp"] + DH, Y["fcp"], ibsd_vis and high_suspicion_ibd is True, label="Yes")
+        
+        # IBD Suspicion = No -> Bypass FCP, route to Response
+        ibsd_no_ibd = (ibsd_vis and high_suspicion_ibd is False)
+        dash_ibsd = "" if ibsd_no_ibd else 'stroke-dasharray="5,3"'
+        stroke_ibsd = C_MAIN if ibsd_no_ibd else "#64748b"
+        mid_ibsd = mid(ibsd_no_ibd)
+        
+        px1, py1 = COL_L - DW/2, Y["ibd_susp"] + DH/2
+        px2, py2 = 80, Y["ibd_susp"] + DH/2
+        px3, py3 = 80, Y["response"] - 20
+        svg.append(f'<polyline points="{px1},{py1} {px2},{py2} {px3},{py3} {CX},{py3} {CX},{Y["response"]}" fill="none" stroke="{stroke_ibsd}" stroke-width="2" {dash_ibsd} marker-end="url(#{mid_ibsd})"/>')
+        svgt(px1 - 10, py1 - 5, "No", stroke_ibsd, 10, True, "end")
+
+        # FCP Diamond
+        diamond_node(COL_L, Y["fcp"] + DH/2, DW, DH, dc(ibsd_vis and high_suspicion_ibd is True), "Fecal Calprotectin", "≥ 120 µg/g?")
+
+        # FCP = Yes -> Refer (Exit Left)
+        fcp_high_vis = (ibsd_vis and high_suspicion_ibd is True and fcp_high)
+        exit_node(LEXT, Y["fcp"] + (DH-EH)/2, EW, EH, nc(fcp_high_vis, urgent=True), "6. Refer", "Elevated FCP")
+        elbow_line(COL_L - DW/2, Y["fcp"] + DH/2, LEXT + EW, Y["fcp"] + DH/2, fcp_high_vis, urgent=True, label="Yes")
+
+        # FCP = No -> Merge to Response
+        dash_fcp = "" if fcp_no else 'stroke-dasharray="5,3"'
+        stroke_fcp = C_MAIN if fcp_no else "#64748b"
+        mid_fcp = mid(fcp_no)
+        svg.append(f'<polyline points="{COL_L},{Y["fcp"] + DH} {COL_L},{Y["response"] - 20} {CX},{Y["response"] - 20} {CX},{Y["response"]}" fill="none" stroke="{stroke_fcp}" stroke-width="2" {dash_fcp} marker-end="url(#{mid_fcp})"/>')
+        svgt(COL_L + 10, Y["fcp"] + DH + 15, "No", stroke_fcp, 10, True, "start")
+
+        # Response Decision
         diamond_node(CX, Y["response"] + DH/2, DW, DH, dc(response_ready), "Response to", "Treatment?")
         exit_node(REXT, Y["response"] + (DH - EH)/2, EW, EH, nc(advice_exit, exit_=True), "Advice / Refer", "Unsatisfactory response")
         elbow_line(CX + DW/2, Y["response"] + DH/2, REXT, Y["response"] + (DH - EH)/2 + EH/2, advice_exit, exit_=True, label="Unsatisfactory")
+        
+        # Complete
         vline(CX, Y["response"] + DH, Y["complete"], complete_in_home, label="Satisfactory")
         rect_node(CX - NW/2, Y["complete"], NW, NH, nc(complete_in_home, exit_=True), "Continue Care in", "Medical Home")
 
@@ -688,7 +682,7 @@ with right:
         alarm_str = ", ".join(active_alarms) if active_alarms else "None"
         fcp_str = (
             f"{patient_data['fecal_calprotectin_ug_g']} µg/g"
-            if patient_data["fecal_calprotectin_ug_g"] is not None else "Not done / not recorded"
+            if patient_data.get("fecal_calprotectin_ug_g") is not None else "Not done / not recorded"
         )
 
         st.markdown('<p class="section-label">PATIENT CONTEXT</p>', unsafe_allow_html=True)
