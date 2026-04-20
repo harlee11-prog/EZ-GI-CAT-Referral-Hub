@@ -1,11 +1,15 @@
-import os, sys
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import html
 from datetime import datetime
+
 import streamlit as st
 import streamlit.components.v1 as components
 from pathway_handoff import apply_handoff, queue_handoff, show_handoff_banner, HANDOFF_KEY
+
 from gerd_engine import (
     run_gerd_pathway, Action, DataRequest, Stop, Override,
 )
@@ -18,6 +22,10 @@ def _safe_text(text) -> str:
         return ""
     return " ".join(str(text).replace("\u00a0", " ").split())
 
+def _pretty(s: str) -> str:
+    if not s:
+        return ""
+    return s.replace("_", " ").title()
 
 def build_gerd_markdown(patient_data, outputs, overrides, notes: str) -> str:
     lines = []
@@ -918,150 +926,253 @@ with right:
             unsafe_allow_html=True,
         )
 
+        # ── Step Group Layout Definitions ──
+        STEP_GROUPS = {
+            "step1": {
+                "label": "Step 1 & 2 — Suspected GERD & Dyspepsia Screen",
+                "icon": "🔍",
+                "cls": "routine",
+                "codes": {
+                    "GERD_ENTRY_MET", "CARDIAC_WORKUP_WARNING", "NOT_GERD",
+                    "ROUTE_DYSPEPSIA_PATHWAY", "NOT_DYSPEPSIA_PREDOMINANT"
+                },
+            },
+            "step2": {
+                "label": "Step 3 — Alarm Features",
+                "icon": "🚨",
+                "cls": "urgent",
+                "codes": {
+                    "NO_ALARM_FEATURES", "EMERGENT_BLEEDING_ASSESSMENT",
+                    "URGENT_ENDOSCOPY_REFERRAL", "BLEEDING_REFERRAL_LABS"
+                },
+            },
+            "step3": {
+                "label": "Step 4 — Barrett's Risk Assessment",
+                "icon": "📋",
+                "cls": "warning",
+                "codes": {
+                    "KNOWN_BARRETTS_LIFETIME_PPI", "REFER_POSITIVE_BARRETTS_SCREEN",
+                    "BARRETTS_RULE_DISAGREEMENT_NOTE", "CONSIDER_BARRETTS_SCREENING_SLEEVE",
+                    "BARRETTS_FEMALE_SOFT_NOTE", "CONSIDER_BARRETTS_SCREENING",
+                    "BARRETTS_SCREENING_NOT_INDICATED"
+                },
+            },
+            "step4": {
+                "label": "Step 5 — Non-Pharmacological Therapy",
+                "icon": "🥗",
+                "cls": "routine",
+                "codes": {
+                    "COUNSEL_SMOKING_CESSATION", "COUNSEL_WEIGHT_LOSS",
+                    "COUNSEL_SMALLER_MEALS", "COUNSEL_MEAL_TIMING",
+                    "COUNSEL_TRIGGER_LOG", "COUNSEL_HEAD_OF_BED"
+                },
+            },
+            "step5": {
+                "label": "Step 6 — Pharmacological Therapy",
+                "icon": "💊",
+                "cls": "routine",
+                "codes": {
+                    "H2RA_OR_ANTACID_PRN", "START_PPI_ONCE_DAILY", "PPI_ONCE_DAILY_SUCCESS",
+                    "OPTIMIZE_PPI_ADHERENCE", "OPTIMIZE_PPI_BID", "PPI_BID_SUCCESS",
+                    "PERSISTENT_TROUBLESOME_GERD", "CAPTURE_PPI_ONCE_DAILY_RESPONSE", 
+                    "CAPTURE_PPI_BID_RESPONSE", "CONFIRM_PPI_USE", "CAPTURE_SYMPTOM_FREQUENCY"
+                },
+            },
+            "step6": {
+                "label": "Step 7 — Maintenance & Deprescribing",
+                "icon": "📉",
+                "cls": "info",
+                "codes": {
+                    "TITRATE_TO_LOWEST_EFFECTIVE_PPI", "PPI_MAINTENANCE", "CAPTURE_PPI_RESOLUTION_STATUS"
+                },
+            },
+            "step7": {
+                "label": "Step 8 — Management Response",
+                "icon": "🏥",
+                "cls": "warning",
+                "codes": {
+                    "CONSIDER_ADVICE_SERVICE", "REFER_FAILED_GERD_MANAGEMENT",
+                    "CONTINUE_MEDICAL_HOME_CARE", "CAPTURE_MANAGEMENT_RESPONSE"
+                },
+            },
+        }
+
+        code_to_group = {}
+        for gkey, gdata in STEP_GROUPS.items():
+            for c in gdata["codes"]:
+                code_to_group[c] = gkey
+
+        grouped: dict = {k: [] for k in STEP_GROUPS}
+        grouped["other"] = []
+        stops_and_requests = []
         override_candidates = []
 
-        # ── Render helpers ──
-        def _detail_html(details) -> str:
-            if not details:
-                return ""
-            items = ""
-            if isinstance(details, dict):
-                for bullet in details.get("bullets", []):
-                    items += f"<li>{html.escape(str(bullet))}</li>"
-                for note in details.get("notes", []):
-                    items += f'<li style="color:#fde68a">⚠️ {html.escape(str(note))}</li>'
-                for src in details.get("supported_by", []):
-                    items += f"<li>📌 {html.escape(str(src))}</li>"
-                skip = {"bullets", "notes", "supported_by"}
-                for k, v in details.items():
-                    if k in skip:
-                        continue
-                    if isinstance(v, list) and v:
-                        items += "".join(f"<li>{html.escape(str(i))}</li>" for i in v)
-                    elif v not in (None, False, "", []):
-                        items += f"<li><b>{html.escape(str(k))}:</b> {html.escape(str(v))}</li>"
-            elif isinstance(details, list):
-                items = "".join(f"<li>{html.escape(str(d))}</li>" for d in details if str(d).strip())
-            return f'<ul style="margin:6px 0 0 16px;padding:0">{items}</ul>' if items else ""
-
-        def render_action(a: Action, extra_cls: str = "") -> None:
-            urgency_to_cls = {
-                "urgent": "urgent", "warning": "warning",
-                None: "routine", "": "routine",
-            }
-            cls = urgency_to_cls.get(a.urgency or "", "routine")
-            if extra_cls:
-                cls = extra_cls
-            badge_label = (a.urgency or "info").upper()
-            label_html = html.escape(a.label).replace("\n    ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
-            detail_html = _detail_html(a.details)
-            override_html = (
-                '<p style="margin:6px 0 0;font-size:11px;color:#a5b4fc">'
-                "🔒 Override available — reason required</p>"
-                if a.override_options else ""
-            )
-            st.markdown(
-                f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">'
-                f'<span class="badge {cls}">{badge_label}</span> {label_html}</p>'
-                f'{detail_html}{override_html}'
-                '</div>',
-                unsafe_allow_html=True,
-            )
-            if a.override_options:
-                override_candidates.append(a)
-                
-        st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
-
-        # ── Group non-pharm counselling actions into a single card ───────────
-        NON_PHARM_CODES = {
-            "COUNSEL_SMOKING_CESSATION", "COUNSEL_WEIGHT_LOSS",
-            "COUNSEL_SMALLER_MEALS", "COUNSEL_MEAL_TIMING",
-            "COUNSEL_TRIGGER_LOG", "COUNSEL_HEAD_OF_BED",
-        }
-
-        SUPPORT_ONLY_CODES = {
-            "NOT_DYSPEPSIA_PREDOMINANT",
-            "NO_ALARM_FEATURES",
-            "GERD_ENTRY_MET",
-        }
-
-        non_pharm_actions = [o for o in outputs if isinstance(o, Action) and o.code in NON_PHARM_CODES]
-        support_notes      = [o for o in outputs if isinstance(o, Action) and o.code in SUPPORT_ONLY_CODES]
-        rendered_codes     = set()
-
-        # ── Render support-only status strip ─────────────────────────────────
-        if support_notes:
-            pills = "".join(
-                f'<span style="display:inline-block;background:#0c2a1e;border:1px solid #166534;'
-                f'color:#86efac;border-radius:20px;padding:3px 10px;font-size:11px;margin:2px 4px 2px 0;">'
-                f'✓ {html.escape(a.label)}</span>'
-                for a in support_notes
-            )
-            st.markdown(
-                f'<div style="margin-bottom:10px;line-height:2">{pills}</div>',
-                unsafe_allow_html=True,
-            )
-            rendered_codes.update(a.code for a in support_notes)
-
-        # ── Render grouped non-pharm card ─────────────────────────────────────
-        if non_pharm_actions:
-            bullets_html = "".join(
-                f'<li style="margin-bottom:4px">{html.escape(a.label)}</li>'
-                for a in non_pharm_actions
-            )
-            st.markdown(
-                '<div class="action-card routine">'
-                '<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5"><span class="badge routine">NON-PHARM</span> Non-Pharmacological Therapy</p>'
-                '<ul style="margin:8px 0 0 16px;padding:0;line-height:1.7">'
-                f'{bullets_html}'
-                '</ul>'
-                '</div>',
-                unsafe_allow_html=True,
-            )
-            rendered_codes.update(a.code for a in non_pharm_actions)
-
-        # ── Render remaining outputs ───────────────────────────────────────────
-        seen_stop_complete = False
+        for output in outputs:
+            if isinstance(output, (Stop, DataRequest)):
+                stops_and_requests.append(output)
+            elif isinstance(output, Action):
+                gkey = code_to_group.get(output.code, "other")
+                grouped[gkey].append(output)
 
         for output in outputs:
-            if isinstance(output, Action):
-                if output.code in rendered_codes:
-                    continue
-                if output.code in {"CONTINUE_MEDICAL_HOME", "MEDICAL_HOME"} and seen_stop_complete:
-                    continue
-                render_action(output)
+            if isinstance(output, Stop):
+                for a in getattr(output, "actions", []):
+                    if getattr(a, "override_options", None) and a not in override_candidates:
+                        override_candidates.append(a)
+            elif getattr(output, "override_options", None):
+                 override_candidates.append(output)
 
-            elif isinstance(output, DataRequest):
-                missing_str = ", ".join(f"`{f}`" for f in output.missing_fields)
-                msg_html = html.escape(output.message).replace("\n", "<br>")
+        # ── Render helpers ──
+        def render_group(gkey: str, actions: list, title_override=None, cls_override=None, icon_override=None) -> None:
+            if not actions:
+                return
+            if gkey in STEP_GROUPS:
+                g = STEP_GROUPS[gkey]
+                cls = g["cls"]
+                icon = g["icon"]
+                label = g["label"]
+            else:
+                cls = cls_override or "routine"
+                icon = icon_override or "⚙️"
+                label = title_override or "Other Actions"
+
+            border_colors = {"routine": "#22c55e", "info": "#3b82f6", "urgent": "#ef4444", "warning": "#f59e0b"}
+            bg_colors = {"routine": "#052e16", "info": "#0c1a2e", "urgent": "#3b0a0a", "warning": "#2d1a00"}
+            border = border_colors.get(cls, "#22c55e")
+            bg = bg_colors.get(cls, "#052e16")
+
+            bullets = ""
+            for a in actions:
+                if getattr(a, "override_options", None) and a not in override_candidates:
+                    override_candidates.append(a)
+                bullets += f'<li style="margin-bottom:5px">{html.escape(a.label)}'
+                if isinstance(a.details, dict):
+                    sub_items = []
+                    if "supported_by" in a.details:
+                        for s in a.details["supported_by"]:
+                            sub_items.append(html.escape(str(s)))
+                    for dk, dv in a.details.items():
+                        if dk == "supported_by": continue
+                        if dv not in (None, False, "", []):
+                            if isinstance(dv, list):
+                                for i in dv:
+                                    sub_items.append(html.escape(str(i)))
+                            else:
+                                sub_items.append(f"{html.escape(str(dk)).replace('_',' ').title()}: {html.escape(str(dv))}")
+                    if sub_items:
+                        bullets += f'<br><span style="color:#94a3b8;font-size:12px;margin-left:14px">↳ {"; ".join(sub_items)}</span>'
+
+                if getattr(a, "override_options", None):
+                    bullets += '<span style="font-size:10px;color:#a5b4fc;margin-left:8px">⚙ override available</span>'
+                bullets += "</li>"
+
+            st.markdown(
+                f'<div style="background:{bg};border-left:5px solid {border};'
+                f'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                f'<p style="margin:0 0 10px 0;font-size:13px;font-weight:700;'
+                f'color:#e2e8f0;letter-spacing:0.3px">'
+                f'{icon} {html.escape(label)}</p>'
+                f'<ul style="margin:0;padding-left:18px;color:#cbd5e1;'
+                f'font-size:13.5px;line-height:1.7">{bullets}</ul>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        def render_stop_request(output) -> None:
+            if isinstance(output, DataRequest):
+                missing_str = ", ".join(_pretty(f) for f in output.missing_fields)
+                msg_html = html.escape(output.message)
+                
+                action_bullets = "".join(
+                    f'<li style="margin-bottom:5px">{html.escape(a.label)}'
+                    + (
+                        '<span style="font-size:10px;color:#a5b4fc;margin-left:8px">'
+                        '⚙ override available</span>'
+                        if getattr(a, "override_options", None) else ""
+                    )
+                    + "</li>"
+                    for a in getattr(output, "suggested_actions", [])
+                )
+                
+                for a in getattr(output, "suggested_actions", []):
+                    if getattr(a, "override_options", None) and a not in override_candidates:
+                        override_candidates.append(a)
+
+                action_block = (
+                    f'<ul style="margin:10px 0 0;padding-left:18px;color:#cbd5e1;'
+                    f'font-size:13.5px;line-height:1.7">{action_bullets}</ul>'
+                    if action_bullets else ""
+                )
+                
                 st.markdown(
-                    '<div class="action-card warning">'
-                    '<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">'
-                    f'<span class="badge warning">DATA NEEDED</span> ⏳ {msg_html}</p>'
-                    f'<ul><li>Missing fields: {missing_str}</li></ul>'
+                    '<div style="background:#2d1a00;border-left:5px solid #f59e0b;'
+                    'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                    '<p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#fde68a">'
+                    '⏳ Data Required to Proceed</p>'
+                    f'<p style="margin:0 0 6px;font-size:13.5px;color:#fde68a">{msg_html}</p>'
+                    f'<p style="margin:0;font-size:12px;color:#94a3b8">'
+                    f'Missing: <code style="color:#fbbf24">{missing_str}</code></p>'
+                    f'{action_block}'
                     '</div>',
                     unsafe_allow_html=True,
                 )
-                for sa in output.suggested_actions:
-                    render_action(sa, extra_cls="info")
-
             elif isinstance(output, Stop):
-                reason_html = html.escape(output.reason).replace("\n    ", "<br>&nbsp;&nbsp;&nbsp;").replace("\n", "<br>")
+                is_emergent = getattr(output, "urgency", None) == "urgent"
                 is_complete = "complete" in output.reason.lower() or "medical home" in output.reason.lower()
-                stop_cls = "routine" if is_complete else "stop"
-                stop_icon = "✅" if is_complete else "🛑"
-                stop_label = "COMPLETE" if is_complete else "STOP"
-                if is_complete:
-                    seen_stop_complete = True
+                
+                if is_emergent:
+                    bg, border, icon, tcol = "#3b0a0a", "#ef4444", "🚨", "#fecaca"
+                elif is_complete:
+                    bg, border, icon, tcol = "#052e16", "#22c55e", "✅", "#bbf7d0"
+                else:
+                    bg, border, icon, tcol = "#1e1e2e", "#6366f1", "ℹ️", "#c7d2fe"
+                
+                title = output.reason
+
+                action_bullets = "".join(
+                    f'<li style="margin-bottom:5px">{html.escape(a.label)}'
+                    + (
+                        '<span style="font-size:10px;color:#a5b4fc;margin-left:8px">'
+                        '⚙ override available</span>'
+                        if getattr(a, "override_options", None) else ""
+                    )
+                    + "</li>"
+                    for a in getattr(output, "actions", [])
+                )
+                
+                for a in getattr(output, "actions", []):
+                    if getattr(a, "override_options", None) and a not in override_candidates:
+                        override_candidates.append(a)
+                
+                action_block = (
+                    f'<ul style="margin:10px 0 0;padding-left:18px;color:#cbd5e1;'
+                    f'font-size:13.5px;line-height:1.7">{action_bullets}</ul>'
+                    if action_bullets else ""
+                )
                 st.markdown(
-                    f'<div class="action-card {stop_cls}">'
-                    f'<p style="margin:0 0 6px 0;font-size:13.5px;font-weight:600;line-height:1.5">'
-                    f'<span class="badge {stop_cls}">{stop_label}</span> {stop_icon} {reason_html}</p>'
-                    '</div>',
+                    f'<div style="background:{bg};border-left:5px solid {border};'
+                    f'border-radius:10px;padding:14px 18px;margin-bottom:14px">'
+                    f'<p style="margin:0 0 {"6px" if action_block else "0"};font-size:13px;'
+                    f'font-weight:700;color:{tcol}">{icon} {html.escape(title)}</p>'
+                    f'{action_block}</div>',
                     unsafe_allow_html=True,
                 )
-                for a in output.actions:
-                    render_action(a)
+
+        st.markdown('<p class="section-label">RECOMMENDED ACTIONS</p>', unsafe_allow_html=True)
+
+        blocking = [o for o in stops_and_requests if isinstance(o, DataRequest)]
+        for o in blocking:
+            render_stop_request(o)
+
+        for gkey in STEP_GROUPS:
+            render_group(gkey, grouped[gkey])
+            
+        if grouped["other"]:
+            render_group("other", grouped["other"], title_override="Additional Actions", cls_override="info", icon_override="⚙️")
+
+        terminal = [o for o in stops_and_requests if isinstance(o, Stop)]
+        for o in terminal:
+            render_stop_request(o)
 
         # ── Clinician Notes ──
         st.markdown('<p class="section-label">CLINICIAN NOTES</p>', unsafe_allow_html=True)
@@ -1123,9 +1234,6 @@ with right:
             )
 
         # ── Overrides panel ──
-        def _pretty(s: str) -> str:
-            return s.replace("_", " ").title()
-
         with override_panel:
             if override_candidates:
                 st.markdown("---")
@@ -1225,4 +1333,3 @@ with right:
                             f"`{k}={v}`" for k, v in log.used_inputs.items() if v is not None
                         )
                     )
-
