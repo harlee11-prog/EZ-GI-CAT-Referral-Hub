@@ -146,6 +146,12 @@ if "cc_notes" not in st.session_state:
 
 left, right = st.columns([1, 1.5])
 
+def get_bool(assessed_status, checkbox_value):
+    """Translates UI state into explicit True/False/None to prevent engine DataRequests"""
+    if checkbox_value:
+        return True
+    return False if assessed_status == "Assessed" else None
+
 # ── LEFT PANEL ───────────────────────────────────────────────────────────────
 with left:
     st.subheader("Patient Information")
@@ -155,6 +161,7 @@ with left:
     sex = st.selectbox("Sex", ["male", "female", "unknown"])
     
     st.markdown("**2. Diagnostic Criteria (Rome IV)**")
+    rome_assessed = st.radio("Rome IV Criteria assessed?", ["Not assessed (Unknown)", "Assessed"], index=1, horizontal=True)
     symptoms_duration_gt_3_months = st.checkbox("Symptoms active for ≥3 months, onset ≥6 months prior", value=True)
     sbms = st.number_input("Spontaneous bowel movements (SBMs) per week", min_value=0.0, step=0.5, value=2.0)
     hard_stool = st.checkbox("Hard or lumpy stool (Bristol 1-2) for >25% of defecations")
@@ -164,16 +171,20 @@ with left:
     manual_maneuvers = st.checkbox("Manual maneuvers needed to facilitate >25% of defecations")
 
     st.markdown("**3. Medical History & IBS Screen**")
+    ibs_assessed = st.radio("Medical History / IBS Screen assessed?", ["Not assessed (Unknown)", "Assessed"], index=1, horizontal=True)
     predominant_pain_bloating = st.checkbox("Predominant symptoms of pain and/or bloating (Suggests IBS-C)")
     duration_trend = st.text_input("Duration and progression trend (Optional)")
     past_laxative_use = st.checkbox("Past use of laxatives or other agents documented")
 
     st.markdown("**4. Physical Examination**")
+    exam_assessed = st.radio("Physical Exam assessed?", ["Not assessed (Unknown)", "Assessed"], index=1, horizontal=True)
     abd_exam_done = st.checkbox("Abdominal examination completed")
     dre_done = st.checkbox("Digital anorectal examination (DRE) completed")
     dyssynergia_suspected = st.checkbox("Signs of defecatory dysfunction (e.g., failed balloon expulsion, tight sphincter)")
 
     st.markdown("**5. Alarm Features**")
+    alarm_assessed = st.radio("Alarm features assessed?", ["Not assessed (Unknown)", "Assessed"], index=1, horizontal=True)
+    st.caption("If 'Assessed' is selected, unchecked boxes will explicitly register as negative (No).")
     fam_hx_crc = st.checkbox("Family history (first-degree) of colorectal cancer")
     weight_loss = st.checkbox("Unintended weight loss (>5% over 6-12 months)")
     sudden_change_bowel = st.checkbox("Sudden or progressive change in bowel habits")
@@ -183,6 +194,7 @@ with left:
     anemia_documented = st.checkbox("Iron deficiency anemia documented")
 
     st.markdown("**6. Baseline Investigations & Secondary Causes**")
+    sec_assessed = st.radio("Secondary Causes / Labs assessed?", ["Not assessed (Unknown)", "Assessed"], index=1, horizontal=True)
     col1, col2 = st.columns(2)
     with col1:
         cbc_done = st.checkbox("CBC completed")
@@ -193,6 +205,7 @@ with left:
         meds_reviewed = st.checkbox("Medications reviewed for constipating side effects")
 
     st.markdown("**7. Management & Treatment Response**")
+    mgmt_assessed = st.radio("Management & Treatment Response assessed?", ["Not assessed (Unknown)", "Assessed"], index=1, horizontal=True)
     npt_effective = st.checkbox("Non-pharmacological therapy effective (Lifestyle, diet)")
     pharm_tried = st.checkbox("Pharmacological therapy tried (Osmotic/stimulant laxatives)")
     pharm_effective = st.checkbox("Pharmacological therapy effective")
@@ -212,38 +225,43 @@ with left:
 # ── RIGHT PANEL ──────────────────────────────────────────────────────────────
 with right:
     if st.session_state.cc_has_run:
-        # Correctly parsing explicit boolean inputs to avoid DataRequest looping
+        # Secure boolean mapping using the assessed flags 
         patient_data = {
             "age": int(age) if age > 0 else None,
             "sex": sex if sex != "unknown" else None,
-            "symptoms_duration_gt_3_months": symptoms_duration_gt_3_months,
-            "spontaneous_bowel_movements_per_week": float(sbms),
-            "hard_lumpy_stool_gt_25_percent": hard_stool,
-            "straining_gt_25_percent": straining,
-            "incomplete_evacuation_gt_25_percent": incomplete_evac,
-            "anorectal_blockage_gt_25_percent": blockage,
-            "manual_maneuvers_gt_25_percent": manual_maneuvers,
-            "predominant_pain_or_bloating": predominant_pain_bloating,
-            "duration_and_progression_documented": bool(duration_trend) if duration_trend else None,
-            "past_laxative_use_documented": past_laxative_use,
-            "abdominal_exam_done": abd_exam_done,
-            "dre_done": dre_done,
-            "dyssynergia_suspected": dyssynergia_suspected,
-            "family_history_crc_first_degree": fam_hx_crc,
-            "weight_loss_gt_5_percent": weight_loss,
-            "sudden_change_in_bowel_habits": sudden_change_bowel,
-            "visible_blood_in_stool": visible_blood,
-            "suspicious_mass_or_irregularity": mass_irregularity,
-            "positive_fit": positive_fit,
-            "iron_deficiency_anemia_documented": anemia_documented,
-            "fluid_and_fibre_optimized": fluid_fibre_optimized,
-            "constipating_medications_reviewed": meds_reviewed,
-            "cbc_completed": cbc_done,
-            "tsh_completed": tsh_done,
-            "calcium_completed": ca_done,
-            "non_pharm_therapy_effective": npt_effective,
-            "pharm_therapy_tried": pharm_tried,
-            "pharm_therapy_effective": pharm_effective,
+            "symptoms_duration_gt_3_months": get_bool(rome_assessed, symptoms_duration_gt_3_months),
+            "spontaneous_bowel_movements_per_week": float(sbms) if rome_assessed == "Assessed" else None,
+            "hard_lumpy_stool_gt_25_percent": get_bool(rome_assessed, hard_stool),
+            "straining_gt_25_percent": get_bool(rome_assessed, straining),
+            "incomplete_evacuation_gt_25_percent": get_bool(rome_assessed, incomplete_evac),
+            "anorectal_blockage_gt_25_percent": get_bool(rome_assessed, blockage),
+            "manual_maneuvers_gt_25_percent": get_bool(rome_assessed, manual_maneuvers),
+            
+            "predominant_pain_or_bloating": get_bool(ibs_assessed, predominant_pain_bloating),
+            "duration_and_progression_documented": bool(duration_trend) if ibs_assessed == "Assessed" else None,
+            "past_laxative_use_documented": get_bool(ibs_assessed, past_laxative_use),
+            
+            "abdominal_exam_done": get_bool(exam_assessed, abd_exam_done),
+            "dre_done": get_bool(exam_assessed, dre_done),
+            "dyssynergia_suspected": get_bool(exam_assessed, dyssynergia_suspected),
+            
+            "family_history_crc_first_degree": get_bool(alarm_assessed, fam_hx_crc),
+            "weight_loss_gt_5_percent": get_bool(alarm_assessed, weight_loss),
+            "sudden_change_in_bowel_habits": get_bool(alarm_assessed, sudden_change_bowel),
+            "visible_blood_in_stool": get_bool(alarm_assessed, visible_blood),
+            "suspicious_mass_or_irregularity": get_bool(alarm_assessed, mass_irregularity),
+            "positive_fit": get_bool(alarm_assessed, positive_fit),
+            "iron_deficiency_anemia_documented": get_bool(alarm_assessed, anemia_documented),
+            
+            "fluid_and_fibre_optimized": get_bool(sec_assessed, fluid_fibre_optimized),
+            "constipating_medications_reviewed": get_bool(sec_assessed, meds_reviewed),
+            "cbc_completed": get_bool(sec_assessed, cbc_done),
+            "tsh_completed": get_bool(sec_assessed, tsh_done),
+            "calcium_completed": get_bool(sec_assessed, ca_done),
+            
+            "non_pharm_therapy_effective": get_bool(mgmt_assessed, npt_effective),
+            "pharm_therapy_tried": get_bool(mgmt_assessed, pharm_tried),
+            "pharm_therapy_effective": get_bool(mgmt_assessed, pharm_effective),
         }
 
         outputs, logs, applied_overrides = run_constipation_pathway(
