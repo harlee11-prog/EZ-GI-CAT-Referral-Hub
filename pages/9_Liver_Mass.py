@@ -509,7 +509,7 @@ with right:
         diamond_node(CX, Y["d_type"]+DH/2, DW, DH, dc(v_proceed), "Lesion Category?", "")
         
         # Cysts
-        cyst_cx = 100
+        cyst_cx = 80
         elbow_line(CX-DW/2, Y["d_type"]+DH/2, cyst_cx, Y["c_complex"], v_proceed and is_cyst_branch, exit_=True, label="Cysts")
         
         rect_node(cyst_cx-EW/2, Y["c_complex"], EW, NH, nc(complex_cyst_branch, exit_=True), "Complex Cyst", sub="MRI + HPB Refer", rx=7)
@@ -523,7 +523,7 @@ with right:
         diamond_node(CX, Y["d_risk"]+DH/2, DW, DH, dc(v_proceed and is_solid_branch), "Risk Assessment?")
         
         # Low Risk Branch
-        low_cx = 220
+        low_cx = 230
         elbow_line(CX-DW/2, Y["d_risk"]+DH/2, low_cx, Y["l_mgt"], low_risk_branch, exit_=True, label="Low Risk")
         rect_node(low_cx-EW/2, Y["l_mgt"], EW, NH, nc(low_risk_branch, exit_=True), "Low Risk Mgt")
         vline(low_cx, Y["l_mgt"]+NH, Y["l_detail"], low_risk_branch, exit_=True)
@@ -538,7 +538,7 @@ with right:
         rect_node(low_cx-EW/2, Y["l_detail"], EW, NH, col_sub if low_risk_branch else C_UNVISIT, lbl_sub)
 
         # High Risk Branch
-        hi_cx = 480
+        hi_cx = 470
         elbow_line(CX+DW/2, Y["d_risk"]+DH/2, hi_cx, Y["h_mgt"], high_risk_branch, urgent=True, label="High Risk")
         rect_node(hi_cx-EW/2, Y["h_mgt"], EW, NH, nc(high_risk_branch, urgent=True), "High Risk Mgt")
         vline(hi_cx, Y["h_mgt"]+NH, Y["h_detail"], high_risk_branch, urgent=True)
