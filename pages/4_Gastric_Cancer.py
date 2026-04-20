@@ -306,7 +306,7 @@ with right:
             return "mg"
 
         svg = []
-        W, H = 700, 720
+        W, H = 1040, 640
         svg.append(
             f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="{H}" '
             f'viewBox="0 0 {W} {H}" '
@@ -328,19 +328,20 @@ with right:
                 f'fill="{fill}" font-size="{size}" font-weight="{w}">{html.escape(str(text))}</text>'
             )
 
-        def rect_node(x, y, w, h, color, line1, line2="", sub="", rx=8):
+        def rect_node(cx, cy, w, h, color, line1, line2="", sub="", rx=8):
+            x, y = cx - w/2, cy - h/2
             tc = C_TEXT if color != C_UNVISIT else C_DIM
             svg.append(
                 f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
                 f'fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
             )
             if line2:
-                svgt(x+w/2, y+h/2-8, line1, tc, 11, True)
-                svgt(x+w/2, y+h/2+7, line2, tc, 11, True)
+                svgt(cx, cy-8, line1, tc, 11, True)
+                svgt(cx, cy+7, line2, tc, 11, True)
             else:
-                svgt(x+w/2, y+h/2+4, line1, tc, 11, True)
+                svgt(cx, cy+4, line1, tc, 11, True)
             if sub:
-                svgt(x+w/2, y+h-8, sub, tc+"99", 9)
+                svgt(cx, cy+h/2-8, sub, tc+"99", 9)
 
         def diamond_node(cx, cy, w, h, color, line1, line2=""):
             tc = C_TEXT if color != C_UNVISIT else C_DIM
@@ -355,17 +356,18 @@ with right:
             else:
                 svgt(cx, cy+4, line1, tc, 10, True)
 
-        def exit_node(x, y, w, h, color, line1, line2="", rx=7):
+        def exit_node(cx, cy, w, h, color, line1, line2="", rx=7):
+            x, y = cx - w/2, cy - h/2
             tc = C_TEXT if color != C_UNVISIT else C_DIM
             svg.append(
                 f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
                 f'fill="{color}" stroke="#ffffff18" stroke-width="1.5"/>'
             )
             if line2:
-                svgt(x+w/2, y+h/2-7, line1, tc, 10, True)
-                svgt(x+w/2, y+h/2+7, line2, tc, 9)
+                svgt(cx, cy-7, line1, tc, 10, True)
+                svgt(cx, cy+7, line2, tc, 9)
             else:
-                svgt(x+w/2, y+h/2+4, line1, tc, 10, True)
+                svgt(cx, cy+4, line1, tc, 10, True)
 
         def vline(x, y1, y2, vis, urgent=False, exit_=False, label=""):
             m = mid(vis, urgent, exit_)
@@ -377,6 +379,17 @@ with right:
             )
             if label:
                 svgt(x+6, (y1+y2)/2-3, label, stroke, 10, True, "start")
+
+        def hline(x1, x2, y, vis, urgent=False, exit_=False, label=""):
+            m = mid(vis, urgent, exit_)
+            stroke = {"mg": "#16a34a", "mr": "#dc2626", "mo": "#d97706"}.get(m, "#64748b")
+            dash = "" if vis else 'stroke-dasharray="5,3"'
+            svg.append(
+                f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
+                f'stroke="{stroke}" stroke-width="2" {dash} marker-end="url(#{m})"/>'
+            )
+            if label:
+                svgt((x1+x2)/2, y-5, label, stroke, 10, True)
 
         def elbow_line(x1, y1, x2, y2, vis, urgent=False, exit_=False, label=""):
             m = mid(vis, urgent, exit_)
@@ -390,63 +403,55 @@ with right:
                 svgt((x1+x2)/2, y1-5, label, stroke, 10, True)
 
         # ── Layout constants ──────────────────────────────────────────────
-        CX = 350; NW, NH = 180, 50; DW, DH = 180, 60; EW, EH = 130, 44
-        LX = 150; RX = 550
-
-        Y = {
-            "root": 30,
-            "level1": 130,
-            "level2": 240,
-            "level3": 350,
-            "level4": 460,
-            "level5": 570,
-        }
+        # Centralized grid to ensure absolute spacing
+        L2 = 110; L1 = 290; CX = 500; R1 = 740; R2 = 920
+        Y_ROOT = 60; Y_L1 = 180; Y_L2 = 300; Y_L3 = 420; Y_L4 = 540
+        NW, NH = 180, 50; DW, DH = 180, 60; EW, EH = 140, 48
 
         # ── Context Node ──────────────────────────────────────────────────
-        diamond_node(CX, Y["root"]+DH/2, DW, DH, dc(True), "Patient Context")
+        diamond_node(CX, Y_ROOT, DW, DH, dc(True), "Patient Context")
 
         # ── Left Branch: Asymptomatic ─────────────────────────────────────
-        elbow_line(CX-DW/2, Y["root"]+DH/2, LX, Y["level1"], ctx_asym, label="Asymptomatic")
-        diamond_node(LX, Y["level1"]+DH/2, DW-20, DH, dc(asym_visited), "Risk Assessment", "Targeted Screening")
+        elbow_line(CX-DW/2, Y_ROOT, L1, Y_L1-DH/2, ctx_asym, label="Asymptomatic")
+        diamond_node(L1, Y_L1, DW, DH, dc(asym_visited), "Risk Assessment", "Targeted Screening")
 
-        # Screening Yes
-        elbow_line(LX, Y["level1"]+DH, LX-80, Y["level2"], screening_no, exit_=True, label="No")
-        exit_node(LX-80-EW/2, Y["level2"], EW, EH, nc(screening_no, exit_=True), "Screening", "Not Indicated")
-        
         # Screening No
-        elbow_line(LX, Y["level1"]+DH, LX+80, Y["level2"], screening_yes, urgent=True, label="Yes")
-        exit_node(LX+80-EW/2, Y["level2"], EW, EH, nc(screening_yes, urgent=True), "Consider Elective", "Endoscopy")
+        elbow_line(L1-DW/2, Y_L1, L2, Y_L2-EH/2, screening_no, exit_=True, label="No")
+        exit_node(L2, Y_L2, EW, EH, nc(screening_no, exit_=True), "Screening", "Not Indicated")
+        
+        # Screening Yes
+        vline(L1, Y_L1+DH/2, Y_L2-EH/2, screening_yes, urgent=True, label="Yes")
+        exit_node(L1, Y_L2, EW, EH, nc(screening_yes, urgent=True), "Consider Elective", "Endoscopy")
 
         # ── Right Branch: Prevention ──────────────────────────────────────
-        elbow_line(CX+DW/2, Y["root"]+DH/2, RX, Y["level1"], ctx_prev, label="Prevention")
-        rect_node(RX-NW/2, Y["level1"]+DH/2-NH/2, NW, NH, nc(ctx_prev), "Primary Prevention", sub="Smoking, Diet, Alcohol")
+        elbow_line(CX+DW/2, Y_ROOT, R2, Y_L1-NH/2, ctx_prev, label="Prevention")
+        rect_node(R2, Y_L1, NW, NH, nc(ctx_prev), "Primary Prevention", sub="Smoking, Diet, Alcohol")
         
-        vline(RX, Y["level1"]+DH/2+NH/2, Y["level2"], ctx_prev)
-        exit_node(RX-EW/2, Y["level2"], EW, EH, nc(ctx_prev, exit_=True), "Test/Eradicate", "H. Pylori (If indicated)")
+        vline(R2, Y_L1+NH/2, Y_L2-EH/2, ctx_prev)
+        exit_node(R2, Y_L2, EW, EH, nc(ctx_prev, exit_=True), "Test/Eradicate", "H. Pylori (If indicated)")
 
         # ── Center Branch: Symptomatic ────────────────────────────────────
-        vline(CX, Y["root"]+DH, Y["level1"], ctx_symp, label="Symptomatic")
-        rect_node(CX-NW/2, Y["level1"], NW, NH, nc(symp_visited), "Dyspepsia > 1 month")
+        vline(CX, Y_ROOT+DH/2, Y_L1-NH/2, ctx_symp, label="Symptomatic")
+        rect_node(CX, Y_L1, NW, NH, nc(symp_visited), "Dyspepsia > 1 month")
 
-        vline(CX, Y["level1"]+NH, Y["level2"], alarm_visited)
-        diamond_node(CX, Y["level2"]+DH/2, DW, DH, dc(alarm_visited), "Alarm Features", "Present?")
+        vline(CX, Y_L1+NH/2, Y_L2-DH/2, alarm_visited)
+        diamond_node(CX, Y_L2, DW, DH, dc(alarm_visited), "Alarm Features", "Present?")
 
         # Alarm Yes
-        elbow_line(CX+DW/2, Y["level2"]+DH/2, CX+160, Y["level3"], alarm_yes, urgent=True, label="Yes")
-        exit_node(CX+160-EW/2, Y["level3"], EW, EH, nc(alarm_yes, urgent=True), "Urgent Referral", "GI/Endoscopy")
+        hline(CX+DW/2, R1-EW/2, Y_L2, alarm_yes, urgent=True, label="Yes")
+        exit_node(R1, Y_L2, EW, EH, nc(alarm_yes, urgent=True), "Urgent Referral", "GI/Endoscopy")
 
         # Alarm No
-        vline(CX, Y["level2"]+DH, Y["level3"], mgmt_visited, label="No")
-        diamond_node(CX, Y["level3"]+DH/2, DW, DH, dc(mgmt_visited), "Management Response", "Unsatisfactory?")
+        vline(CX, Y_L2+DH/2, Y_L3-DH/2, mgmt_visited, label="No")
+        diamond_node(CX, Y_L3, DW, DH, dc(mgmt_visited), "Management Response", "Unsatisfactory?")
 
         # Mgmt Yes
-        elbow_line(CX+DW/2, Y["level3"]+DH/2, CX+160, Y["level4"], mgmt_refer or mgmt_advice, urgent=True, label="Yes")
-        exit_node(CX+160-EW/2, Y["level4"], EW, EH, nc(mgmt_refer or mgmt_advice, exit_=True), "Refer", "Failed Management")
+        hline(CX+DW/2, R1-EW/2, Y_L3, mgmt_refer or mgmt_advice, urgent=True, label="Yes")
+        exit_node(R1, Y_L3, EW, EH, nc(mgmt_refer or mgmt_advice, exit_=True), "Refer", "Failed Management")
 
         # Mgmt No
-        vline(CX, Y["level3"]+DH, Y["level4"], mgmt_continue, label="No")
-        exit_node(CX-EW/2, Y["level4"], EW, EH, nc(mgmt_continue, exit_=True), "Continue Primary", "Care Management")
-
+        vline(CX, Y_L3+DH/2, Y_L4-EH/2, mgmt_continue, label="No")
+        exit_node(CX, Y_L4, EW, EH, nc(mgmt_continue, exit_=True), "Continue Primary", "Care Management")
 
         # ── Legend ─────────────────────────────────────────────────────────
         ly = H - 22; lx = 18
@@ -463,7 +468,7 @@ with right:
         components.html(
             '<div style="background:' + C_BG + ';padding:10px;border-radius:14px;overflow-x:auto">'
             + "".join(svg) + "</div>",
-            height=760, scrolling=True,
+            height=660, scrolling=True,
         )
 
         st.markdown("---")
