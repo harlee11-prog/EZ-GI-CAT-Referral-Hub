@@ -180,19 +180,20 @@ with left:
     age = st.number_input("Age", 1, 120, value=50)
     
     st.markdown("**Prevention & Screening Risk Factors**")
-    col1, col2 = st.columns(2)
-    with col1:
-        from_endemic = st.checkbox("Immigrant from high-risk region")
-        family_origin = st.checkbox("Family origins in endemic region")
-        hh_hp_positive = st.checkbox("Household member H. pylori positive")
-        chronic_hp = st.checkbox("Chronic H. pylori infection")
-        pack_years = st.number_input("Smoking Pack Years", 0, 150, value=0)
-    with col2:
-        fh_gastric = st.checkbox("1st-degree relative with gastric cancer")
-        fh_age = st.number_input("Age of relative at diagnosis (if applicable)", 0, 120, value=0)
-        hereditary_synd = st.checkbox("Hereditary GI polyposis or cancer syndrome")
-        high_risk_diet = st.checkbox("High salt, red/processed meat diet")
-        low_ses = st.checkbox("Low socioeconomic status")
+    
+    st.markdown("*Demographic & Family Risk*")
+    from_endemic = st.checkbox("Immigrant (1st generation) from high-risk region")
+    family_origin = st.checkbox("Family origins in endemic region")
+    fh_gastric = st.checkbox("1st-degree relative with gastric cancer")
+    fh_age = st.number_input("Age of relative at diagnosis (if applicable)", 0, 120, value=0)
+    hereditary_synd = st.checkbox("Hereditary GI polyposis or cancer syndrome")
+    
+    st.markdown("*H. pylori & Lifestyle Risk*")
+    hh_hp_positive = st.checkbox("Household member H. pylori positive")
+    chronic_hp = st.checkbox("Chronic H. pylori infection")
+    pack_years = st.number_input("Smoking Pack Years", 0, 150, value=0)
+    high_risk_diet = st.checkbox("High salt, red/processed meat diet")
+    low_ses = st.checkbox("Low socioeconomic status")
 
     if context_sel == "Symptomatic Dyspepsia":
         st.markdown("**Symptomatic & Alarm Features**")
